@@ -1,0 +1,19 @@
+{
+  "name": "mzrektbot",
+  "version": "0.0.0",
+  "description": "A trading bot that trades liquidations on Binance and Bybit",
+  "main": "app.js",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node ./app.js"
+  },
+  "dependencies": {
+    "debug": "~2.6.9",
+    "dotenv": "^16.4.5",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.12"
+  }
+}
