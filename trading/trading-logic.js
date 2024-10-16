@@ -157,8 +157,85 @@ class TradingLogic {
     return exchanges[Math.floor(Math.random() * exchanges.length)];
   }
 
+  // Binance
+  async executeBinanceMarketOrder(symbol, side, quoteOrderQty) {
+    const order = {
+      symbol: symbol,
+      side: side,
+      type: 'MARKET',
+      quoteOrderQty: quoteOrderQty
+    };
+    return await this.binanceWs.send(order);
+  }
+
+  // Bybit
+  async executeBybitMarketOrder(symbol, side, quoteOrderQty) {
+    const order = {
+      symbol: symbol,
+      side: side,
+      orderType: 'Market',
+      orderQty: quoteOrderQty,
+      orderFilter: 'Order'
+    };
+    return await this.bybitWs.send(order);
+  }
+
+  // OKX
+  async executeOKXMarketOrder(symbol, side, quoteOrderQty) {
+    const order = {
+      instId: symbol,
+      tdMode: 'cash',
+      side: side,
+      ordType: 'market',
+      tgtCcy: 'quote_ccy',
+      sz: quoteOrderQty
+    };
+    return await this.okxWs.send(order);
+  }
+
+  // MEXC
+  async executeMEXCMarketOrder(symbol, side, quoteOrderQty) {
+    const order = {
+      symbol: symbol,
+      side: side,
+      type: 'MARKET',
+      quoteOrderQty: quoteOrderQty
+    };
+    return await this.mexcWs.send(order);
+  }
+
+  async executeMarketOrder(exchange, symbol, side, quoteOrderQty) {
+    logger.info(`Executing market order on ${exchange.name}: ${symbol}, ${side}, ${quoteOrderQty} USDT`);
+    
+    try {
+      let result;
+      switch (exchange.name) {
+        case 'Binance':
+          result = await this.executeBinanceMarketOrder(symbol, side, quoteOrderQty);
+          break;
+        case 'Bybit':
+          result = await this.executeBybitMarketOrder(symbol, side, quoteOrderQty);
+          break;
+        case 'OKX':
+          result = await this.executeOKXMarketOrder(symbol, side, quoteOrderQty);
+          break;
+        case 'MEXC':
+          result = await this.executeMEXCMarketOrder(symbol, side, quoteOrderQty);
+          break;
+        default:
+          throw new Error(`Unsupported exchange: ${exchange.name}`);
+      }
+      
+      logger.info(`Market order executed successfully on ${exchange.name}:`, result);
+      return result;
+    } catch (error) {
+      logger.error(`Error executing market order on ${exchange.name}:`, error);
+      throw error;
+    }
+  }
+
   async executeTrade(exchange, token, orderType, liquidationAmount) {
-    logger.info('Executing trade - Exchange: %s, Token: %s, OrderType: %s, Amount: %s', exchange.url, token, orderType, liquidationAmount);
+    logger.info(`Executing trade - Exchange: ${exchange.name}, Token: ${token}, OrderType: ${orderType}, Amount: ${liquidationAmount}`);
 
     if (this.isPaused) {
       logger.info(`Trade execution skipped: Trading is paused (${token} on ${exchange.url})`);
@@ -167,53 +244,31 @@ class TradingLogic {
     
     try {
       const amount = this.config.depositSize * this.config.bidPrcnt / 100;
+      const symbol = `${token}USDT`;
 
       // Fetch the current market price of the token
       const tickerResponse = await exchange.fetchTicker(`${token}USDT`);
       const currentPrice = tickerResponse.last;
 
-      logger.debug('Current price for %s: %s', token, currentPrice);
-
-      // Calculate the quantity based on the total amount and current price
-      const quantity = (amount / currentPrice).toFixed(8);
-
       logger.info('Placing market order - Quantity: %s', quantity);
-
-      // Place a market order to buy the token
-      /* Some exchanges has a parameter { quoteOrderQty: amount } instead of quantity - it is as "to buy/fill-in by a cost"
-      We need to ask exchanges support about that */
-      const marketOrder = {
-        symbol: `${token}USDT`,
-        side: orderType,
-        type: 'MARKET',
-        quantity: quantity,
-      };
-      const marketOrderResult = await exchange.send(marketOrder);
-
+      const marketOrderResult = await this.executeMarketOrder(exchange, symbol, orderType, amount);
       logger.info('Market order result: %j', marketOrderResult);
 
       // Get the average price and executed quantity of the market order
       const avgPrice = parseFloat(marketOrderResult.avgPrice);
       const executedQuantity = parseFloat(marketOrderResult.executedQty);
 
-      // Calculate the limit price based on the average price and the desired profit percentage
-      const profitPercentage = 0.001; // 0.1%
-      const limitPrice = orderType === 'BUY'
-        ? avgPrice * (1 + profitPercentage)
-        : avgPrice * (1 - profitPercentage);
-
-      logger.info('Placing limit order - Price: %s, Quantity: %s', limitPrice.toFixed(8), executedQuantity);
-
       // Place a limit order to close the position
       const limitOrder = {
-        symbol: `${token}USDT`,
+        symbol: symbol,
         side: orderType === 'BUY' ? 'SELL' : 'BUY',
         type: 'LIMIT',
         quantity: executedQuantity,
         price: limitPrice.toFixed(8),
       };
-      const limitOrderResult = await exchange.send(limitOrder);
 
+      logger.info('Placing limit order - Price: %s', limitPrice.toFixed(8));
+      const limitOrderResult = await exchange.send(limitOrder);
       logger.info('Limit order result: %j', limitOrderResult);
 
       // Set a 5-minute timer for the limit order

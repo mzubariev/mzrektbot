@@ -1,7 +1,7 @@
+.DS_Store
 node_modules/
 pp_all_code_in_1.js
 .env*
 .flaskenv*
 !.env.project
 !.env.vault
-.DS_Store
