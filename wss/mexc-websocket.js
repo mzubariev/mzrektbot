@@ -13,27 +13,31 @@ class MEXCWebSocket extends WebSocketWrapper {
     this.ws = new WebSocket(this.url);
 
     this.ws.on('open', () => {
-      console.log('Connected to MEXC WebSocket');
+      logger.info('Connected to MEXC WebSocket');
       this.authenticate();
       this.subscribeToLiquidations();
     });
 
     this.ws.on('message', (data) => {
-      const message = JSON.parse(data);
-      if (message.channel === 'push.liquidation') {
-        const { symbol, side, price, quantity } = message.data;
-        console.log(`Liquidation: ${symbol}, ${side}, ${price}, ${quantity}`);
-        // Pass the liquidation data to the Trading Logic Module
+      try {
+        const message = JSON.parse(data);
+        if (message.channel === 'push.liquidation') {
+          const { symbol, side, price, vol } = message.data;
+          logger.info(`Liquidation: ${symbol}, ${side}, ${price}, ${vol}`);
+          // Pass the liquidation data to the Trading Logic Module
+        }
+      } catch (error) {
+        logger.error('Error processing MEXC WebSocket message:', error);
       }
     });
 
     this.ws.on('close', () => {
-      console.log('Disconnected from MEXC WebSocket');
+      logger.warn('Disconnected from MEXC WebSocket');
       this.reconnect();
     });
 
     this.ws.on('error', (error) => {
-      console.error('MEXC WebSocket error:', error);
+      logger.error('MEXC WebSocket error:', error);
       this.reconnect();
     });
   }
@@ -41,12 +45,15 @@ class MEXCWebSocket extends WebSocketWrapper {
   authenticate() {
     const timestamp = Date.now();
     const signature = crypto.createHmac('sha256', this.secretKey)
-      .update(`api_key=${this.apiKey}&timestamp=${timestamp}`)
+      .update(`${timestamp}GET/users/self/verify`)
       .digest('hex');
     const authMessage = {
-      method: 'login',
-      params: [this.apiKey, timestamp.toString(), signature],
-      id: 1,
+      method: 'LOGIN',
+      param: {
+        apiKey: this.apiKey,
+        reqTime: timestamp,
+        signature: signature
+      }
     };
     this.ws.send(JSON.stringify(authMessage));
   }
@@ -54,63 +61,73 @@ class MEXCWebSocket extends WebSocketWrapper {
   subscribeToLiquidations() {
     const subscribeMessage = {
       method: 'SUBSCRIPTION',
-      params: ['liquidation'],
-      id: 2,
+      params: ['liquidation']
     };
     this.ws.send(JSON.stringify(subscribeMessage));
   }
 
-  generateRequestId() {
-    return `mexc-req-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-  }
-
   async send(order) {
-    const requestId = this.generateRequestId();
     return new Promise((resolve, reject) => {
+      const orderMessage = {
+        method: 'ORDER',
+        params: order
+      };
+      
+      this.ws.send(JSON.stringify(orderMessage), (error) => {
+        if (error) {
+          logger.error('Error sending order to MEXC:', error);
+          reject(error);
+        }
+      });
+
       const orderHandler = (message) => {
-        if (message.id === requestId && message.code === 0) {
-          this.ws.removeListener('message', orderHandler);
-          resolve({
-            orderId: message.data.order_id,
-            status: message.data.state,
-            avgPrice: message.data.price,
-            executedQty: message.result.executedQty
-          });
+        try {
+          const data = JSON.parse(message);
+          if (data.method === 'ORDER' && data.code === 0) {
+            this.ws.removeListener('message', orderHandler);
+            resolve({
+              orderId: data.data.orderId,
+              status: data.data.status,
+              avgPrice: data.data.avgPrice,
+              executedQty: data.data.executedQty
+            });
+          } else if (data.method === 'ORDER' && data.code !== 0) {
+            logger.error('MEXC order error:', data);
+            reject(new Error(`MEXC order error: ${data.message}`));
+          }
+        } catch (error) {
+          logger.error('Error processing MEXC order response:', error);
         }
       };
 
       this.ws.on('message', orderHandler);
-      this.ws.send(JSON.stringify({
-        method: 'ORDER',
-        params: [
-          {
-            ...order,
-            client_order_id: requestId,
-          },
-        ],
-        id: requestId,
-      }));
     });
   }
 
   async fetchTicker(symbol) {
     return new Promise((resolve, reject) => {
-      const tickerChannel = `spot@public.ticker.${symbol}`;
+      const tickerMessage = {
+        method: 'SUBSCRIPTION',
+        params: [`market.${symbol}.detail`]
+      };
+      
+      this.ws.send(JSON.stringify(tickerMessage));
+
       const tickerHandler = (message) => {
-        if (message.channel === tickerChannel) {
-          this.ws.removeListener('message', tickerHandler);
-          resolve({
-            last: parseFloat(message.data.last),
-          });
+        try {
+          const data = JSON.parse(message);
+          if (data.channel === `market.${symbol}.detail`) {
+            this.ws.removeListener('message', tickerHandler);
+            resolve({
+              last: parseFloat(data.data.last)
+            });
+          }
+        } catch (error) {
+          logger.error('Error processing MEXC ticker response:', error);
         }
       };
 
       this.ws.on('message', tickerHandler);
-      this.ws.send(JSON.stringify({
-        method: 'SUBSCRIPTION',
-        params: [tickerChannel],
-        id: this.generateRequestId(),
-      }));
     });
   }
 }
