@@ -38,6 +38,8 @@ class TradingLogic {
     }
   }
 
+  /* Telegram interactions */
+
   pause() {
     this.isPaused = true;
     logger.info('Trading logic paused');
@@ -49,6 +51,8 @@ class TradingLogic {
     logger.info('Trading logic resumed');
     // Optionally, you can add code here to restart any necessary processes
   }
+
+  /* Trading */
 
   setupLiquidationListeners() {
     // Binance
@@ -122,39 +126,78 @@ class TradingLogic {
     }
   }
 
-  accumulateLiquidation(exchange, token, amount) {
-    const now = Date.now();
-    if (!this.liquidationAccumulation[token]) {
-      this.liquidationAccumulation[token] = {
-        amount: 0,
-        startTime: now,
-      };
+  async executeTrade(exchange, token, orderType, liquidationAmount) {
+    logger.info(`Executing trade - Exchange: ${exchange.name}, Token: ${token}, OrderType: ${orderType}, Amount: ${liquidationAmount}`);
+
+    if (this.isPaused) {
+      logger.info(`Trade execution skipped: Trading is paused (${token} on ${exchange.url})`);
+      return;
     }
+    
+    try {
+      const amount = this.config.depositSize * this.config.bidPrcnt / 100;
+      const symbol = `${token}USDT`;
 
-    this.liquidationAccumulation[token].amount += amount;
+      logger.info('Placing market order - Quantity: %s', quantity);
+      const marketOrderResult = await this.executeMarketOrder(exchange, symbol, orderType, amount);
+      logger.info('Market order result: %j', marketOrderResult);
 
-    if (now - this.liquidationAccumulation[token].startTime >= 5000) {
-      // Check if accumulated amount meets the threshold
-      const tokenRanking = this.getTokenRanking(token);
-      const liquidationThreshold = this.getLiquidationThreshold(tokenRanking);
-      
-      if (this.liquidationAccumulation[token].amount >= liquidationThreshold) {
-        this.executeTrade(exchange, token, 'BUY', this.liquidationAccumulation[token].amount);
-      }
+      // Get the average price and executed quantity of the market order
+      const avgPrice = parseFloat(marketOrderResult.avgPrice);
+      const executedQuantity = parseFloat(marketOrderResult.executedQty);
 
-      // Reset accumulation
-      this.liquidationAccumulation[token] = {
-        amount: 0,
-        startTime: now,
+      // Place a limit order to close the position
+      const limitOrder = {
+        symbol: symbol,
+        side: orderType === 'BUY' ? 'SELL' : 'BUY',
+        type: 'LIMIT',
+        quantity: executedQuantity,
+        price: limitPrice.toFixed(8),
       };
+
+      logger.info('Placing limit order - Price: %s', limitPrice.toFixed(8));
+      const limitOrderResult = await exchange.send(limitOrder);
+      logger.info('Limit order result: %j', limitOrderResult);
+
+      // Set a 5-minute timer for the limit order
+      this.setLimitOrderTimer(exchange, token, limitOrderResult.orderId);
+
+      logger.info(`Executed ${orderType} order for ${token} on ${exchange.url}`);
+    } catch (error) {
+      logger.error('Error executing trade on %s: %s', exchange.url, error.message);
+      logger.debug('Error details: %O', error);
+      throw new Error(`Trade execution failed for ${token} on ${exchange.url}: ${error.message}`);
     }
   }
 
-  getBestExchange() {
-    // Implement logic to determine the best exchange based on liquidity, fees, etc.
-    // For now, we'll just return a random exchange
-    const exchanges = [this.binanceWs, this.bybitWs, this.okxWs, this.mexcWs];
-    return exchanges[Math.floor(Math.random() * exchanges.length)];
+  async executeMarketOrder(exchange, symbol, side, quoteOrderQty) {
+    logger.info(`Executing market order on ${exchange.name}: ${symbol}, ${side}, ${quoteOrderQty} USDT`);
+    
+    try {
+      let result;
+      switch (exchange.name) {
+        case 'Binance':
+          result = await this.executeBinanceMarketOrder(symbol, side, quoteOrderQty);
+          break;
+        case 'Bybit':
+          result = await this.executeBybitMarketOrder(symbol, side, quoteOrderQty);
+          break;
+        case 'OKX':
+          result = await this.executeOKXMarketOrder(symbol, side, quoteOrderQty);
+          break;
+        case 'MEXC':
+          result = await this.executeMEXCMarketOrder(symbol, side, quoteOrderQty);
+          break;
+        default:
+          throw new Error(`Unsupported exchange: ${exchange.name}`);
+      }
+      
+      logger.info(`Market order executed successfully on ${exchange.name}:`, result);
+      return result;
+    } catch (error) {
+      logger.error(`Error executing market order on ${exchange.name}:`, error);
+      throw error;
+    }
   }
 
   // Binance
@@ -204,82 +247,39 @@ class TradingLogic {
     return await this.mexcWs.send(order);
   }
 
-  async executeMarketOrder(exchange, symbol, side, quoteOrderQty) {
-    logger.info(`Executing market order on ${exchange.name}: ${symbol}, ${side}, ${quoteOrderQty} USDT`);
-    
-    try {
-      let result;
-      switch (exchange.name) {
-        case 'Binance':
-          result = await this.executeBinanceMarketOrder(symbol, side, quoteOrderQty);
-          break;
-        case 'Bybit':
-          result = await this.executeBybitMarketOrder(symbol, side, quoteOrderQty);
-          break;
-        case 'OKX':
-          result = await this.executeOKXMarketOrder(symbol, side, quoteOrderQty);
-          break;
-        case 'MEXC':
-          result = await this.executeMEXCMarketOrder(symbol, side, quoteOrderQty);
-          break;
-        default:
-          throw new Error(`Unsupported exchange: ${exchange.name}`);
-      }
+  accumulateLiquidation(exchange, token, amount) {
+    const now = Date.now();
+    if (!this.liquidationAccumulation[token]) {
+      this.liquidationAccumulation[token] = {
+        amount: 0,
+        startTime: now,
+      };
+    }
+
+    this.liquidationAccumulation[token].amount += amount;
+
+    if (now - this.liquidationAccumulation[token].startTime >= 5000) {
+      // Check if accumulated amount meets the threshold
+      const tokenRanking = this.getTokenRanking(token);
+      const liquidationThreshold = this.getLiquidationThreshold(tokenRanking);
       
-      logger.info(`Market order executed successfully on ${exchange.name}:`, result);
-      return result;
-    } catch (error) {
-      logger.error(`Error executing market order on ${exchange.name}:`, error);
-      throw error;
+      if (this.liquidationAccumulation[token].amount >= liquidationThreshold) {
+        this.executeTrade(exchange, token, 'BUY', this.liquidationAccumulation[token].amount);
+      }
+
+      // Reset accumulation
+      this.liquidationAccumulation[token] = {
+        amount: 0,
+        startTime: now,
+      };
     }
   }
 
-  async executeTrade(exchange, token, orderType, liquidationAmount) {
-    logger.info(`Executing trade - Exchange: ${exchange.name}, Token: ${token}, OrderType: ${orderType}, Amount: ${liquidationAmount}`);
-
-    if (this.isPaused) {
-      logger.info(`Trade execution skipped: Trading is paused (${token} on ${exchange.url})`);
-      return;
-    }
-    
-    try {
-      const amount = this.config.depositSize * this.config.bidPrcnt / 100;
-      const symbol = `${token}USDT`;
-
-      // Fetch the current market price of the token
-      const tickerResponse = await exchange.fetchTicker(`${token}USDT`);
-      const currentPrice = tickerResponse.last;
-
-      logger.info('Placing market order - Quantity: %s', quantity);
-      const marketOrderResult = await this.executeMarketOrder(exchange, symbol, orderType, amount);
-      logger.info('Market order result: %j', marketOrderResult);
-
-      // Get the average price and executed quantity of the market order
-      const avgPrice = parseFloat(marketOrderResult.avgPrice);
-      const executedQuantity = parseFloat(marketOrderResult.executedQty);
-
-      // Place a limit order to close the position
-      const limitOrder = {
-        symbol: symbol,
-        side: orderType === 'BUY' ? 'SELL' : 'BUY',
-        type: 'LIMIT',
-        quantity: executedQuantity,
-        price: limitPrice.toFixed(8),
-      };
-
-      logger.info('Placing limit order - Price: %s', limitPrice.toFixed(8));
-      const limitOrderResult = await exchange.send(limitOrder);
-      logger.info('Limit order result: %j', limitOrderResult);
-
-      // Set a 5-minute timer for the limit order
-      this.setLimitOrderTimer(exchange, token, limitOrderResult.orderId);
-
-      logger.info(`Executed ${orderType} order for ${token} on ${exchange.url}`);
-    } catch (error) {
-      logger.error('Error executing trade on %s: %s', exchange.url, error.message);
-      logger.debug('Error details: %O', error);
-      throw new Error(`Trade execution failed for ${token} on ${exchange.url}: ${error.message}`);
-    }
+  getBestExchange() {
+    // Implement logic to determine the best exchange based on liquidity, fees, etc.
+    // For now, we'll just return a random exchange
+    const exchanges = [this.binanceWs, this.bybitWs, this.okxWs, this.mexcWs];
+    return exchanges[Math.floor(Math.random() * exchanges.length)];
   }
 
   setLimitOrderTimer(exchange, token, orderId) {
