@@ -1,13 +1,23 @@
 const axios = require('axios');
+const { config } = require('dotenv-vault').config();
 
 async function getTokenData() {
   try {
-    const response = await axios.get('https://api.coinmarketcap.com/v1/ticker/');
-    const tokenData = response.data;
+    const response = await axios.get('https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest', {
+      headers: {
+        'X-CMC_PRO_API_KEY': config.COINMARKETCAP_API_KEY
+      },
+      params: {
+        limit: 100,  // Fetch top 100 to ensure we have enough data
+        convert: 'USDT'
+      }
+    });
+
+    const tokenData = response.data.data;
 
     // Filter and process token data
-    const top20Tokens = tokenData.slice(0, 20);
-    const top50Tokens = tokenData.slice(0, 50);
+    const top20Tokens = tokenData.slice(0, 20).map(token => token.symbol);
+    const top50Tokens = tokenData.slice(0, 50).map(token => token.symbol);
 
     // Save token data to JSON file
     const fs = require('fs');
