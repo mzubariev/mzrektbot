@@ -146,16 +146,22 @@ class TradingLogic {
       const avgPrice = parseFloat(marketOrderResult.avgPrice);
       const executedQuantity = parseFloat(marketOrderResult.executedQty);
 
+      // Calculate the limit price for the closing order
+      const profitPercentage = 0.001; // 0.1%
+      const limitPrice = orderType === 'BUY'
+        ? avgPrice * (1 + profitPercentage)
+        : avgPrice * (1 - profitPercentage);
+
       // Place a limit order to close the position
       const limitOrder = {
         symbol: symbol,
         side: orderType === 'BUY' ? 'SELL' : 'BUY',
         type: 'LIMIT',
         quantity: executedQuantity,
-        price: avgPrice.toFixed(8),
+        price: limitPrice.toFixed(8),
       };
 
-      logger.info('Placing limit order - Price: %s', avgPrice.toFixed(8));
+      logger.info('Placing limit order - Price: %s', limitPrice.toFixed(8));
       const limitOrderResult = await exchange.send(limitOrder);
       logger.info('Limit order result: %j', limitOrderResult);
 
