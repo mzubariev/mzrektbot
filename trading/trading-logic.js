@@ -135,11 +135,11 @@ class TradingLogic {
     }
     
     try {
-      const amount = this.config.depositSize * this.config.bidPrcnt / 100;
+      const amount_for_bid = this.config.depositSize * this.config.bidPrcnt / 100;
       const symbol = `${token}USDT`;
 
-      logger.info('Placing market order - Quantity: %s', quantity);
-      const marketOrderResult = await this.executeMarketOrder(exchange, symbol, orderType, amount);
+      logger.info('Placing market order - Amount in USDT: %s', amount_for_bid);
+      const marketOrderResult = await this.executeMarketOrder(exchange, symbol, orderType, amount_for_bid);
       logger.info('Market order result: %j', marketOrderResult);
 
       // Get the average price and executed quantity of the market order
@@ -152,10 +152,10 @@ class TradingLogic {
         side: orderType === 'BUY' ? 'SELL' : 'BUY',
         type: 'LIMIT',
         quantity: executedQuantity,
-        price: limitPrice.toFixed(8),
+        price: avgPrice.toFixed(8),
       };
 
-      logger.info('Placing limit order - Price: %s', limitPrice.toFixed(8));
+      logger.info('Placing limit order - Price: %s', avgPrice.toFixed(8));
       const limitOrderResult = await exchange.send(limitOrder);
       logger.info('Limit order result: %j', limitOrderResult);
 
