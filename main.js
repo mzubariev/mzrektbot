@@ -1,29 +1,32 @@
-const { config } = require('dotenv-vault').config();
+// const { config } = require('dotenv-vault').config();
+import dotenv from 'dotenv';
 const TradingLogic = require('./trading/trading-logic');
 const TelegramBotWrapper = require('./telegram/telegram-bot');
 const logger = require('./logger');
 const cron = require('node-cron');
 const getTokenData = require('./utils/coinmarketcap-token-data');
 
+dotenv.config();
+
 async function main() {
   try {
     // Initialize Trading Logic Module
     const tradingLogic = new TradingLogic({
-      binanceApiKey: config.BINANCE_API_KEY,
-      binanceSecretKey: config.BINANCE_SECRET_KEY,
-      bybitApiKey: config.BYBIT_API_KEY,
-      bybitSecretKey: config.BYBIT_SECRET_KEY,
-      okxApiKey: config.OKX_API_KEY,
-      okxSecretKey: config.OKX_SECRET_KEY,
-      okxPassphrase: config.OKX_PASSPHRASE,
-      mexcApiKey: config.MEXC_API_KEY,
-      mexcSecretKey: config.MEXC_SECRET_KEY,
-      isTestnet: config.IS_TESTNET
+      binanceApiKey: process.env.BINANCE_API_KEY,
+      binanceSecretKey: process.env.BINANCE_SECRET_KEY,
+      bybitApiKey: process.env.BYBIT_API_KEY,
+      bybitSecretKey: process.env.BYBIT_SECRET_KEY,
+      okxApiKey: process.env.OKX_API_KEY,
+      okxSecretKey: process.env.OKX_SECRET_KEY,
+      okxPassphrase: process.env.OKX_PASSPHRASE,
+      mexcApiKey: process.env.MEXC_API_KEY,
+      mexcSecretKey: process.env.MEXC_SECRET_KEY,
+      isTestnet: process.env.IS_TESTNET
     });
     await tradingLogic.initialize();
 
     // Start Telegram Bot
-    const telegramBot = new TelegramBotWrapper(config.TELEGRAM_BOT_TOKEN);
+    const telegramBot = new TelegramBotWrapper(process.env.TELEGRAM_BOT_TOKEN);
     telegramBot.start();
 
     // Schedule token data update

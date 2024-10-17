@@ -1,11 +1,14 @@
+// const { config } = require('dotenv-vault').config();
+import dotenv from 'dotenv';
 const axios = require('axios');
-const { config } = require('dotenv-vault').config();
+
+dotenv.config();
 
 async function getTokenData() {
   try {
     const response = await axios.get('https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest', {
       headers: {
-        'X-CMC_PRO_API_KEY': config.COINMARKETCAP_API_KEY
+        'X-CMC_PRO_API_KEY': process.env.COINMARKETCAP_API_KEY
       },
       params: {
         limit: 100,  // Fetch top 100 to ensure we have enough data
