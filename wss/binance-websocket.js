@@ -1,10 +1,13 @@
 // binance-websocket.js
+import WebSocket from 'ws';
 import WebSocketWrapper from './websocket-wrapper.js';
 import crypto from 'crypto';
 
 class BinanceWebSocket extends WebSocketWrapper {
   constructor(apiKey, secretKey, isTestnet) {
-    const url = isTestnet ? 'wss://testnet.binance.vision/ws' : 'wss://fstream.binance.com/ws';
+    const url = isTestnet ? 
+    'wss://testnet.binance.vision/ws' : 
+    'wss://fstream.binance.com/ws';
     super(url);
     this.apiKey = apiKey;
     this.secretKey = secretKey;

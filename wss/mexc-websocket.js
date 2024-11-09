@@ -1,4 +1,5 @@
 // mexc-websocket.js
+import WebSocket from 'ws';
 import WebSocketWrapper from './websocket-wrapper.js';
 import crypto from 'crypto';
 import logger from '../utils/logger.js';

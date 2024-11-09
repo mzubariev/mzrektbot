@@ -41,7 +41,7 @@ async function main() {
     });
 
     // Start trading
-    tradingLogic.startTrading();
+    tradingLogic.setupLiquidationListeners();
   } catch (error) {
     logger.error('Bot initialization error:', error);
     process.exit(1);

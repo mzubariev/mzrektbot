@@ -5,3 +5,5 @@ pp_all_code_in_1.js
 .flaskenv*
 !.env.project
 !.env.vault
+**/*.log
+token-data.json

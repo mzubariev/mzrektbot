@@ -44,9 +44,9 @@ class TradingLogic {
 
       // Connect to exchanges' WebSocket APIs
       this.binanceWs.connect();
-      this.bybitWs.connect();
+      // this.bybitWs.connect();
       // this.okxWs.connect();
-      this.mexcWs.connect();
+      // this.mexcWs.connect();
 
       // Set up event listeners for liquidation data from each exchange
       this.setupLiquidationListeners();
@@ -131,8 +131,8 @@ class TradingLogic {
     if (liquidationAmount >= liquidationThreshold) {
       // Execute trade
       try {
-        // await this.executeTrade('Binance', token, tradeSide, liquidationAmount);
-        await this.executeTrade('Bybit', token, tradeSide, liquidationAmount);
+        await this.executeTrade('Binance', token, tradeSide, liquidationAmount);
+        // await this.executeTrade('Bybit', token, tradeSide, liquidationAmount);
         // await this.executeTrade('MEXC', token, tradeSide, liquidationAmount);
       } catch (error) {
         logger.error('Error executing trade for %s on %s: %s', token, exchange.url, error.message);
@@ -291,8 +291,8 @@ class TradingLogic {
       const liquidationThreshold = this.getLiquidationThreshold(tokenRanking);
       
       if (this.liquidationAccumulation[token].amount >= liquidationThreshold) {
-        // this.executeTrade('Binance', token, tradeSide, this.liquidationAccumulation[token].amount);
-        this.executeTrade('Bybit', token, tradeSide, this.liquidationAccumulation[token].amount);
+        this.executeTrade('Binance', token, tradeSide, this.liquidationAccumulation[token].amount);
+        // this.executeTrade('Bybit', token, tradeSide, this.liquidationAccumulation[token].amount);
         // this.executeTrade('MEXC', token, tradeSide, this.liquidationAccumulation[token].amount);
       }
 
