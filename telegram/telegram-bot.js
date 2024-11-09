@@ -1,6 +1,6 @@
 // telegram-bot.js
 import TelegramBot from 'node-telegram-bot-api';
-import Configuration from './configuration.js';
+import Configuration from '../utils/configuration.js';
 import logger from '../utils/logger.js';
 
 const config = new Configuration('./config.json');
