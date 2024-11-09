@@ -27,8 +27,14 @@ class TradingLogic {
     config.on('configUpdated', (newConfig) => {
       this.config = newConfig;
       logger.info('Configuration updated dynamically:', newConfig);
-      // Reconfigure WebSocket connections or other properties if necessary
+      this.handleConfigChange(newConfig);
     });
+  }
+
+  handleConfigChange(newConfig) {
+    // Logic to handle updated config values (e.g., update internal settings or WebSocket parameters)
+    logger.info('Applied new configuration settings:', newConfig);
+    // Optionally, reconfigure WebSockets or other properties as needed
   }
 
   async initialize() {
