@@ -1,5 +1,5 @@
 import dotenv from 'dotenv';
-const axios = require('axios');
+import axios from 'axios';
 
 dotenv.config();
 
