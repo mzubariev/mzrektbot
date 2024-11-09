@@ -1,7 +1,10 @@
-const fs = require('fs');
+// configuration.js
+import fs from 'fs';
+import { EventEmitter } from 'events';
 
-class Configuration {
+class Configuration extends EventEmitter {
   constructor(filePath) {
+    super();
     this.filePath = filePath;
     this.config = {};
     this.loadConfig();
@@ -19,6 +22,7 @@ class Configuration {
   saveConfig() {
     try {
       fs.writeFileSync(this.filePath, JSON.stringify(this.config, null, 2));
+      this.emit('configUpdated', this.config); // Emit event when config is updated
     } catch (error) {
       console.error('Error saving configuration:', error);
     }
@@ -28,10 +32,10 @@ class Configuration {
     return this.config;
   }
 
-  setConfig(config) {
-    this.config = config;
+  setConfig(newConfig) {
+    this.config = { ...this.config, ...newConfig };
     this.saveConfig();
   }
 }
 
-module.exports = Configuration;
+export default Configuration;

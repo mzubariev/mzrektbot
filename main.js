@@ -10,7 +10,7 @@ dotenv.config();
 
 async function main() {
   try {
-    // Initialize Trading Logic Module
+    // Initialize Trading Logic Module with sensitive information from .env
     const tradingLogic = new TradingLogic({
       binanceApiKey: process.env.BINANCE_API_KEY,
       binanceSecretKey: process.env.BINANCE_SECRET_KEY,

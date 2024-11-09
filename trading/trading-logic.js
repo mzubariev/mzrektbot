@@ -5,20 +5,30 @@ import OKXWebSocket from '../wss/okx-websocket.js';
 import MEXCWebSocket from '../wss/mexc-websocket.js';
 import logger from '../utils/logger.js';
 import getTokenData from '../utils/coinmarketcap-token-data.js';
+import Configuration from '../configuration.js';
+
+const config = new Configuration('./config.json');
 
 class TradingLogic {
-  constructor(config) {
-    this.config = config;
-    this.binanceWs = new BinanceWebSocket(config.binanceApiKey, config.binanceSecretKey, config.isTestnet);
-    this.bybitWs = new BybitWebSocket(config.bybitApiKey, config.bybitSecretKey, config.isTestnet);
-    this.okxWs = new OKXWebSocket(config.okxApiKey, config.okxSecretKey, config.okxPassphrase, config.isTestnet);
-    this.mexcWs = new MEXCWebSocket(config.mexcApiKey, config.mexcSecretKey);
+  constructor({ binanceApiKey, binanceSecretKey, bybitApiKey, bybitSecretKey, okxApiKey, okxSecretKey, okxPassphrase, mexcApiKey, mexcSecretKey, isTestnet }) {
+    this.config = config.getConfig();
+    this.binanceWs = new BinanceWebSocket(binanceApiKey, binanceSecretKey, isTestnet);
+    this.bybitWs = new BybitWebSocket(bybitApiKey, bybitSecretKey, isTestnet);
+    this.okxWs = new OKXWebSocket(okxApiKey, okxSecretKey, okxPassphrase, isTestnet);
+    this.mexcWs = new MEXCWebSocket(mexcApiKey, mexcSecretKey);
     this.tokenData = null;
     this.liquidationAccumulation = {};
     this.openOrders = new Map();
     this.isPaused = false;
 
-    logger.info('TradingLogic initialized with config:', config);
+    logger.info('TradingLogic initialized with config:', this.config);
+
+    // Listen for configuration updates
+    config.on('configUpdated', (newConfig) => {
+      this.config = newConfig;
+      logger.info('Configuration updated dynamically:', newConfig);
+      // Reconfigure WebSocket connections or other properties if necessary
+    });
   }
 
   async initialize() {

@@ -1,11 +1,13 @@
 // telegram-bot.js
 import TelegramBot from 'node-telegram-bot-api';
+import Configuration from './configuration.js';
+import logger from '../utils/logger.js';
+
+const config = new Configuration('./config.json');
 
 class TelegramBotWrapper {
-  constructor(token, config, tradingLogic) {
+  constructor(token) {
     this.bot = new TelegramBot(token, { polling: true });
-    this.config = config;
-    this.tradingLogic = tradingLogic;
     this.isRunning = true;
   }
 
@@ -13,17 +15,17 @@ class TelegramBotWrapper {
     this.bot.onText(/\/pause/, (msg) => {
       const chatId = msg.chat.id;
       this.isRunning = false;
-      this.tradingLogic.pause();
+      config.emit('configUpdated', { status: 'paused' });
       this.bot.sendMessage(chatId, 'Bot paused. Use /resume to restart.');
     });
 
     this.bot.onText(/\/resume/, (msg) => {
       const chatId = msg.chat.id;
       this.isRunning = true;
-      this.tradingLogic.resume();
+      config.emit('configUpdated', { status: 'running' });
       this.bot.sendMessage(chatId, 'Bot resumed.');
     });
-    
+
     this.bot.onText(/\/start/, (msg) => {
       const chatId = msg.chat.id;
       this.bot.sendMessage(chatId, 'Welcome to the Crypto Trading Bot!');
@@ -70,13 +72,10 @@ class TelegramBotWrapper {
 
     this.bot.once('message', (msg) => {
       const newValue = msg.text;
-      this.config.setConfig({ [settingKey]: newValue });
+      config.setConfig({ [settingKey]: newValue });
+      logger.info(`Setting ${settingKey} updated to ${newValue}`);
       this.bot.sendMessage(chatId, `Setting ${settingKey} updated to ${newValue}`);
     });
-  }
-
-  sendMessage(chatId, message) {
-    this.bot.sendMessage(chatId, message);
   }
 }
 
