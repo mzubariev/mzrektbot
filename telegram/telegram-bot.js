@@ -1,4 +1,5 @@
-const TelegramBot = require('node-telegram-bot-api');
+// telegram-bot.js
+import TelegramBot from 'node-telegram-bot-api';
 
 class TelegramBotWrapper {
   constructor(token, config, tradingLogic) {
@@ -79,4 +80,4 @@ class TelegramBotWrapper {
   }
 }
 
-module.exports = TelegramBotWrapper;
+export default TelegramBotWrapper;

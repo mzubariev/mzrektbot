@@ -1,4 +1,5 @@
-const WebSocket = require('ws');
+// websocket-wrapper.js
+import WebSocket from 'ws';
 
 class WebSocketWrapper {
   constructor(url) {
@@ -56,4 +57,4 @@ class WebSocketWrapper {
   }
 }
 
-module.exports = WebSocketWrapper;
+export default WebSocketWrapper;

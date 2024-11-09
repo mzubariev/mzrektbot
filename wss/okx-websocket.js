@@ -1,12 +1,12 @@
-const WebSocketWrapper = require('./websocket-wrapper');
-const crypto = require('crypto');
+// okx-websocket.js
+import WebSocketWrapper from './websocket-wrapper.js';
+import crypto from 'crypto';
 
 class OKXWebSocket extends WebSocketWrapper {
   constructor(apiKey, secretKey, passphrase, isTestnet) {
     const url = isTestnet
       ? 'wss://wsaws.okx.com:8443/ws/v5/business?brokerId=9999'
       : 'wss://ws.okx.com:8443/ws/v5/business';
-    //isTestnet ? 'wss://wspap.okx.com:8443/ws/v5/public?brokerId=9999' : 'wss://ws.okx.com:8443/ws/v5/public';
     super(url);
     this.apiKey = apiKey;
     this.secretKey = secretKey;
@@ -128,4 +128,4 @@ class OKXWebSocket extends WebSocketWrapper {
   }
 }
 
-module.exports = OKXWebSocket;
+export default OKXWebSocket;

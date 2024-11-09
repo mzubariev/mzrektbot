@@ -1,5 +1,6 @@
-const WebSocketWrapper = require('./websocket-wrapper');
-const crypto = require('crypto');
+// bybit-websocket.js
+import WebSocketWrapper from './websocket-wrapper.js';
+import crypto from 'crypto';
 
 class BybitWebSocket extends WebSocketWrapper {
   constructor(apiKey, secretKey, isTestnet) {
@@ -64,7 +65,7 @@ class BybitWebSocket extends WebSocketWrapper {
     const requestId = this.generateRequestId();
     return new Promise((resolve, reject) => {
       const orderHandler = (message) => {
-        if (message.request.op === 'order' && message.request.args.order_link_id === requestId) {
+        if (message.request && message.request.op === 'order' && message.request.args.order_link_id === requestId) {
           this.ws.removeListener('message', orderHandler);
           resolve({
             orderId: message.result.order_id,
@@ -92,9 +93,7 @@ class BybitWebSocket extends WebSocketWrapper {
       const tickerHandler = (message) => {
         if (message.topic === tickerTopic) {
           this.ws.removeListener('message', tickerHandler);
-          resolve({
-            last: parseFloat(message.data.last_price),
-          });
+          resolve({ last: parseFloat(message.data.last_price) });
         }
       };
 
@@ -107,4 +106,4 @@ class BybitWebSocket extends WebSocketWrapper {
   }
 }
 
-module.exports = BybitWebSocket;
+export default BybitWebSocket;

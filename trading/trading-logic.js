@@ -1,8 +1,10 @@
-const BinanceWebSocket = require('../wss/binance-websocket');
-const BybitWebSocket = require('../wss/bybit-websocket');
-const OKXWebSocket = require('../wss/okx-websocket');
-const MEXCWebSocket = require('../wss/mexc-websocket');
-const logger = require('../utils/logger');
+// trading-logic.js
+import BinanceWebSocket from '../wss/binance-websocket.js';
+import BybitWebSocket from '../wss/bybit-websocket.js';
+import OKXWebSocket from '../wss/okx-websocket.js';
+import MEXCWebSocket from '../wss/mexc-websocket.js';
+import logger from '../utils/logger.js';
+import getTokenData from '../utils/coinmarketcap-token-data.js';
 
 class TradingLogic {
   constructor(config) {
@@ -16,7 +18,7 @@ class TradingLogic {
     this.openOrders = new Map();
     this.isPaused = false;
 
-    logger.info('TradingLogic initialized with config: %j', config);
+    logger.info('TradingLogic initialized with config:', config);
   }
 
   async initialize() {

@@ -1,5 +1,6 @@
-const WebSocketWrapper = require('./websocket-wrapper');
-const crypto = require('crypto');
+// binance-websocket.js
+import WebSocketWrapper from './websocket-wrapper.js';
+import crypto from 'crypto';
 
 class BinanceWebSocket extends WebSocketWrapper {
   constructor(apiKey, secretKey, isTestnet) {
@@ -43,8 +44,7 @@ class BinanceWebSocket extends WebSocketWrapper {
 
   generateSignature(timestamp) {
     const message = `timestamp=${timestamp}`;
-    const signature = crypto.createHmac('sha256', this.secretKey).update(message).digest('hex');
-    return signature;
+    return crypto.createHmac('sha256', this.secretKey).update(message).digest('hex');
   }
 
   subscribeToLiquidations() {
@@ -89,9 +89,7 @@ class BinanceWebSocket extends WebSocketWrapper {
       const tickerChannel = `${symbol.toLowerCase()}@ticker`;
       const tickerHandler = (ticker) => {
         this.ws.removeListener('message', tickerHandler);
-        resolve({
-          last: parseFloat(ticker.c),
-        });
+        resolve({ last: parseFloat(ticker.c) });
       };
 
       this.ws.on('message', tickerHandler);
@@ -104,4 +102,4 @@ class BinanceWebSocket extends WebSocketWrapper {
   }
 }
 
-module.exports = BinanceWebSocket;
+export default BinanceWebSocket;

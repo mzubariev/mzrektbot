@@ -1,5 +1,7 @@
-const WebSocketWrapper = require('./websocket-wrapper');
-const crypto = require('crypto');
+// mexc-websocket.js
+import WebSocketWrapper from './websocket-wrapper.js';
+import crypto from 'crypto';
+import logger from '../utils/logger.js';
 
 class MEXCWebSocket extends WebSocketWrapper {
   constructor(apiKey, secretKey) {
@@ -118,9 +120,7 @@ class MEXCWebSocket extends WebSocketWrapper {
           const data = JSON.parse(message);
           if (data.channel === `market.${symbol}.detail`) {
             this.ws.removeListener('message', tickerHandler);
-            resolve({
-              last: parseFloat(data.data.last)
-            });
+            resolve({ last: parseFloat(data.data.last) });
           }
         } catch (error) {
           logger.error('Error processing MEXC ticker response:', error);
@@ -132,4 +132,4 @@ class MEXCWebSocket extends WebSocketWrapper {
   }
 }
 
-module.exports = MEXCWebSocket;
+export default MEXCWebSocket;

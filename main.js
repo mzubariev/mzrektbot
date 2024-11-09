@@ -1,9 +1,10 @@
+// main.js
 import dotenv from 'dotenv';
-const TradingLogic = require('./trading/trading-logic');
-const TelegramBotWrapper = require('./telegram/telegram-bot');
-const logger = require('./logger');
-const cron = require('node-cron');
-const getTokenData = require('./utils/coinmarketcap-token-data');
+import TradingLogic from './trading/trading-logic.js';
+import TelegramBotWrapper from './telegram/telegram-bot.js';
+import logger from './logger.js';
+import cron from 'node-cron';
+import getTokenData from './utils/coinmarketcap-token-data.js';
 
 dotenv.config();
 
