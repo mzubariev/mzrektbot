@@ -5,7 +5,7 @@ import OKXWebSocket from '../wss/okx-websocket.js';
 import MEXCWebSocket from '../wss/mexc-websocket.js';
 import logger from '../utils/logger.js';
 import getTokenData from '../utils/coinmarketcap-token-data.js';
-import Configuration from '../configuration.js';
+import Configuration from '../utils/configuration.js';
 
 const config = new Configuration('./config.json');
 
