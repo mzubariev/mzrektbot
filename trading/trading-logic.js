@@ -14,7 +14,7 @@ class TradingLogic {
     this.config = config.getConfig();
     this.binanceWs = new BinanceWebSocket(binanceApiKey, binanceSecretKey, isTestnet);
     this.bybitWs = new BybitWebSocket(bybitApiKey, bybitSecretKey, isTestnet);
-    this.okxWs = new OKXWebSocket(okxApiKey, okxSecretKey, okxPassphrase, isTestnet);
+    // this.okxWs = new OKXWebSocket(okxApiKey, okxSecretKey, okxPassphrase, isTestnet);
     this.mexcWs = new MEXCWebSocket(mexcApiKey, mexcSecretKey);
     this.tokenData = null;
     this.liquidationAccumulation = {};
@@ -45,7 +45,7 @@ class TradingLogic {
       // Connect to exchanges' WebSocket APIs
       this.binanceWs.connect();
       this.bybitWs.connect();
-      this.okxWs.connect();
+      // this.okxWs.connect();
       this.mexcWs.connect();
 
       // Set up event listeners for liquidation data from each exchange
@@ -82,28 +82,28 @@ class TradingLogic {
     });
 
     // Bybit
-    this.bybitWs.ws.on('message', async (data) => {
-      const message = JSON.parse(data);
-      if (message.topic === 'liquidation') {
-        await this.processLiquidation(message.data, 'Bybit');
-      }
-    });
+    // this.bybitWs.ws.on('message', async (data) => {
+    //   const message = JSON.parse(data);
+    //   if (message.topic === 'liquidation') {
+    //     await this.processLiquidation(message.data, 'Bybit');
+    //   }
+    // });
 
     // OKX
-    this.okxWs.ws.on('message', async (data) => {
-      const message = JSON.parse(data);
-      if (message.event === 'liquidation') {
-        await this.processLiquidation(message.data[0], 'OKX');
-      }
-    });
+    // this.okxWs.ws.on('message', async (data) => {
+    //   const message = JSON.parse(data);
+    //   if (message.event === 'liquidation') {
+    //     await this.processLiquidation(message.data[0], 'OKX');
+    //   }
+    // });
 
     // MEXC
-    this.mexcWs.ws.on('message', async (data) => {
-      const message = JSON.parse(data);
-      if (message.channel === 'push.liquidation') {
-        await this.processLiquidation(message.data, 'MEXC');
-      }
-    });
+    // this.mexcWs.ws.on('message', async (data) => {
+    //   const message = JSON.parse(data);
+    //   if (message.channel === 'push.liquidation') {
+    //     await this.processLiquidation(message.data, 'MEXC');
+    //   }
+    // });
   }
 
   async processLiquidation(liquidation, exchange) {
@@ -126,11 +126,14 @@ class TradingLogic {
 
     logger.debug('Token ranking: %s, Liquidation threshold: %s, Liquidation amount: %s', tokenRanking, liquidationThreshold, liquidationAmount);
 
+    const tradeSide = orderType === 'SELL' ? 'BUY' : 'SELL';
+
     if (liquidationAmount >= liquidationThreshold) {
       // Execute trade
-      const tradeSide = orderType === 'SELL' ? 'BUY' : 'SELL';
       try {
-        await this.executeTrade(exchange, token, tradeSide, liquidationAmount);
+        await this.executeTrade('Binance', token, tradeSide, liquidationAmount);
+        await this.executeTrade('Bybit', token, tradeSide, liquidationAmount);
+        // await this.executeTrade('MEXC', token, tradeSide, liquidationAmount);
       } catch (error) {
         logger.error('Error executing trade for %s on %s: %s', token, exchange.url, error.message);
         logger.debug('Error details: %O', error);
@@ -140,7 +143,7 @@ class TradingLogic {
       }
     } else {
       // Accumulate liquidation amount
-      this.accumulateLiquidation(exchange, token, liquidationAmount);
+      this.accumulateLiquidation(exchange, token, tradeSide, liquidationAmount);
     }
   }
 
@@ -271,7 +274,7 @@ class TradingLogic {
     return await this.mexcWs.send(order);
   }
 
-  accumulateLiquidation(exchange, token, amount) {
+  accumulateLiquidation(exchange, token, tradeSide, amount) {
     const now = Date.now();
     if (!this.liquidationAccumulation[token]) {
       this.liquidationAccumulation[token] = {
@@ -288,7 +291,9 @@ class TradingLogic {
       const liquidationThreshold = this.getLiquidationThreshold(tokenRanking);
       
       if (this.liquidationAccumulation[token].amount >= liquidationThreshold) {
-        this.executeTrade(exchange, token, 'BUY', this.liquidationAccumulation[token].amount);
+        this.executeTrade('Binance', token, tradeSide, this.liquidationAccumulation[token].amount);
+        this.executeTrade('Bybit', token, tradeSide, this.liquidationAccumulation[token].amount);
+        // this.executeTrade('MEXC', token, tradeSide, this.liquidationAccumulation[token].amount);
       }
 
       // Reset accumulation
