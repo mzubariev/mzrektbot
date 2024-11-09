@@ -359,4 +359,4 @@ class TradingLogic {
   }
 }
 
-module.exports = TradingLogic;
+export default TradingLogic;

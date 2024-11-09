@@ -32,4 +32,4 @@ async function getTokenData() {
   }
 }
 
-module.exports = getTokenData;
+export default getTokenData;
