@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import axios from 'axios';
+import fs from 'fs';
 
 dotenv.config();
 
@@ -22,7 +23,6 @@ async function getTokenData() {
     const top50Tokens = tokenData.slice(0, 50).map(token => token.symbol);
 
     // Save token data to JSON file
-    const fs = require('fs');
     fs.writeFileSync('token-data.json', JSON.stringify({ top20: top20Tokens, top50: top50Tokens }));
 
     return { top20: top20Tokens, top50: top50Tokens };

@@ -131,7 +131,7 @@ class TradingLogic {
     if (liquidationAmount >= liquidationThreshold) {
       // Execute trade
       try {
-        await this.executeTrade('Binance', token, tradeSide, liquidationAmount);
+        // await this.executeTrade('Binance', token, tradeSide, liquidationAmount);
         await this.executeTrade('Bybit', token, tradeSide, liquidationAmount);
         // await this.executeTrade('MEXC', token, tradeSide, liquidationAmount);
       } catch (error) {
@@ -291,7 +291,7 @@ class TradingLogic {
       const liquidationThreshold = this.getLiquidationThreshold(tokenRanking);
       
       if (this.liquidationAccumulation[token].amount >= liquidationThreshold) {
-        this.executeTrade('Binance', token, tradeSide, this.liquidationAccumulation[token].amount);
+        // this.executeTrade('Binance', token, tradeSide, this.liquidationAccumulation[token].amount);
         this.executeTrade('Bybit', token, tradeSide, this.liquidationAccumulation[token].amount);
         // this.executeTrade('MEXC', token, tradeSide, this.liquidationAccumulation[token].amount);
       }
