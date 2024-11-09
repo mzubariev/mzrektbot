@@ -1,4 +1,3 @@
-// const { config } = require('dotenv-vault').config();
 import dotenv from 'dotenv';
 const TradingLogic = require('./trading/trading-logic');
 const TelegramBotWrapper = require('./telegram/telegram-bot');

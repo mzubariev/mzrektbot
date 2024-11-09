@@ -1,4 +1,3 @@
-// const { config } = require('dotenv-vault').config();
 import dotenv from 'dotenv';
 const axios = require('axios');
 
