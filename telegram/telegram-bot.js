@@ -50,6 +50,15 @@ class TelegramBotWrapper {
         this.handleSettingChange(chatId, settingKey);
       }
     });
+
+    // Listen for real-time config updates and notify the bot
+    config.on('configUpdated', (newConfig) => {
+      logger.info('Configuration updated via Telegram:', newConfig);
+      this.bot.sendMessage(
+        chatId,
+        `Configuration has been updated. New settings: ${JSON.stringify(newConfig)}`
+      );
+    });
   }
 
   getSettingsKeyboard() {
