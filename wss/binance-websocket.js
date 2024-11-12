@@ -4,10 +4,9 @@ import WebSocketWrapper from './websocket-wrapper.js';
 import crypto from 'crypto';
 
 class BinanceWebSocket extends WebSocketWrapper {
-  constructor(apiKey, secretKey, isTestnet) {
-    const url = isTestnet ? 
-    'wss://testnet.binance.vision/ws' : 
-    'wss://fstream.binance.com/ws';
+  constructor(apiKey, secretKey) {
+    const url = 'wss://fstream.binance.com/ws';
+    const testnetUrl = 'wss://testnet.binance.vision/ws';
     super(url);
     this.apiKey = apiKey;
     this.secretKey = secretKey;
@@ -45,11 +44,6 @@ class BinanceWebSocket extends WebSocketWrapper {
     });
   }
 
-  generateSignature(timestamp) {
-    const message = `timestamp=${timestamp}`;
-    return crypto.createHmac('sha256', this.secretKey).update(message).digest('hex');
-  }
-
   subscribeToLiquidations() {
     const subscribeMessage = {
       method: 'SUBSCRIBE',
@@ -57,6 +51,11 @@ class BinanceWebSocket extends WebSocketWrapper {
       id: 1,
     };
     this.ws.send(JSON.stringify(subscribeMessage));
+  }
+
+  generateSignature(timestamp) {
+    const message = `timestamp=${timestamp}`;
+    return crypto.createHmac('sha256', this.secretKey).update(message).digest('hex');
   }
 
   generateRequestId() {
@@ -87,6 +86,7 @@ class BinanceWebSocket extends WebSocketWrapper {
     });
   }
 
+  // Is NOT used right now since we send market order with quoteOrderQty and don't need to know a current price
   async fetchTicker(symbol) {
     return new Promise((resolve, reject) => {
       const tickerChannel = `${symbol.toLowerCase()}@ticker`;

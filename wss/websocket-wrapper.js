@@ -5,6 +5,7 @@ class WebSocketWrapper {
   constructor(url) {
     this.url = url;
     this.ws = null;
+    this.wsTestnet = null;
     this.reconnectInterval = 5000; // Reconnect interval in milliseconds
     this.reconnectTimer = null;
     this.isConnected = false;
@@ -44,6 +45,7 @@ class WebSocketWrapper {
   }
 
   disconnect() {
+    console.log(`Disconnecting WebSocket for ${this.url}:`);
     if (this.ws && this.isConnected) {
       this.isForceDisconnect = true;
       this.ws.close();
@@ -51,6 +53,7 @@ class WebSocketWrapper {
   }
 
   send(message) {
+    console.log(`Posting a message via WebSocket to ${this.url}:`);
     if (this.ws && this.isConnected) {
       this.ws.send(JSON.stringify(message));
     }

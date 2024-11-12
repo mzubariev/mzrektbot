@@ -10,11 +10,11 @@ import Configuration from '../utils/configuration.js';
 const config = new Configuration('./config.json');
 
 class TradingLogic {
-  constructor({ binanceApiKey, binanceSecretKey, bybitApiKey, bybitSecretKey, okxApiKey, okxSecretKey, okxPassphrase, mexcApiKey, mexcSecretKey, isTestnet }) {
+  constructor({ binanceApiKey, binanceSecretKey, bybitApiKey, bybitSecretKey, okxApiKey, okxSecretKey, okxPassphrase, mexcApiKey, mexcSecretKey }) {
     this.config = config.getConfig();
-    this.binanceWs = new BinanceWebSocket(binanceApiKey, binanceSecretKey, isTestnet);
-    this.bybitWs = new BybitWebSocket(bybitApiKey, bybitSecretKey, isTestnet);
-    this.okxWs = new OKXWebSocket(okxApiKey, okxSecretKey, okxPassphrase, isTestnet);
+    this.binanceWs = new BinanceWebSocket(binanceApiKey, binanceSecretKey);
+    this.bybitWs = new BybitWebSocket(bybitApiKey, bybitSecretKey);
+    this.okxWs = new OKXWebSocket(okxApiKey, okxSecretKey, okxPassphrase);
     this.mexcWs = new MEXCWebSocket(mexcApiKey, mexcSecretKey);
     this.tokenData = null;
     this.liquidationAccumulation = {};
@@ -25,7 +25,6 @@ class TradingLogic {
 
     // Listen for configuration updates
     config.on('configUpdated', (newConfig) => {
-      this.config = newConfig;
       logger.info('Configuration updated dynamically:', newConfig);
       this.handleConfigChange(newConfig);
     });
@@ -34,7 +33,23 @@ class TradingLogic {
   handleConfigChange(newConfig) {
     // Logic to handle updated config values (e.g., update internal settings or WebSocket parameters)
     logger.info('Applied new configuration settings:', newConfig);
-    // Optionally, reconfigure WebSockets or other properties as needed
+    if (newConfig.status) {
+      newConfig.status === 'paused' ? this.pause() : this.resume();
+    } else {
+      this.config = newConfig;
+    }
+  }
+
+  pause() {
+    this.isPaused = true;
+    logger.info('Trading logic paused');
+    // Optionally, you can add code here to cancel any pending orders or perform cleanup
+  }
+
+  resume() {
+    this.isPaused = false;
+    logger.info('Trading logic resumed');
+    // Optionally, you can add code here to restart any necessary processes
   }
 
   async initialize() {
@@ -56,20 +71,6 @@ class TradingLogic {
     }
   }
 
-  /* Telegram interactions */
-
-  pause() {
-    this.isPaused = true;
-    logger.info('Trading logic paused');
-    // Optionally, you can add code here to cancel any pending orders or perform cleanup
-  }
-
-  resume() {
-    this.isPaused = false;
-    logger.info('Trading logic resumed');
-    // Optionally, you can add code here to restart any necessary processes
-  }
-
   /* Trading */
 
   setupLiquidationListeners() {
@@ -81,7 +82,7 @@ class TradingLogic {
       }
     });
 
-    Bybit
+    // Bybit
     this.bybitWs.ws.on('message', async (data) => {
       const message = JSON.parse(data);
       if (message.topic === 'liquidation') {
@@ -89,7 +90,7 @@ class TradingLogic {
       }
     });
 
-    OKX
+    // OKX
     this.okxWs.ws.on('message', async (data) => {
       const message = JSON.parse(data);
       if (message.event === 'liquidation') {
@@ -97,7 +98,7 @@ class TradingLogic {
       }
     });
 
-    MEXC
+    // MEXC
     this.mexcWs.ws.on('message', async (data) => {
       const message = JSON.parse(data);
       if (message.channel === 'push.liquidation') {
@@ -283,6 +284,7 @@ class TradingLogic {
 
     this.liquidationAccumulation[token].amount += amount;
 
+    // 5 seconds to accumulate the liquidations per a token
     if (now - this.liquidationAccumulation[token].startTime >= 5000) {
       // Check if accumulated amount meets the threshold
       const tokenRanking = this.getTokenRanking(token);
@@ -298,13 +300,6 @@ class TradingLogic {
         startTime: now,
       };
     }
-  }
-
-  getBestExchange() {
-    // Implement logic to determine the best exchange based on liquidity, fees, etc.
-    // For now, we'll just return a random exchange
-    const exchanges = [this.binanceWs, this.bybitWs, this.okxWs, this.mexcWs];
-    return exchanges[Math.floor(Math.random() * exchanges.length)];
   }
 
   setLimitOrderTimer(exchange, token, orderId) {

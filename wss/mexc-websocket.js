@@ -107,6 +107,7 @@ class MEXCWebSocket extends WebSocketWrapper {
     });
   }
 
+  // Is NOT used right now since we send market order with quoteOrderQty and don't need to know a current price
   async fetchTicker(symbol) {
     return new Promise((resolve, reject) => {
       const tickerMessage = {

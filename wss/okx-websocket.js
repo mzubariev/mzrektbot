@@ -4,10 +4,9 @@ import WebSocketWrapper from './websocket-wrapper.js';
 import crypto from 'crypto';
 
 class OKXWebSocket extends WebSocketWrapper {
-  constructor(apiKey, secretKey, passphrase, isTestnet) {
-    const url = isTestnet
-      ? 'wss://wsaws.okx.com:8443/ws/v5/business?brokerId=9999'
-      : 'wss://ws.okx.com:8443/ws/v5/business';
+  constructor(apiKey, secretKey, passphrase) {
+    const url = 'wss://ws.okx.com:8443/ws/v5/business';
+    const testnetUrl = 'wss://wsaws.okx.com:8443/ws/v5/business?brokerId=9999';
     super(url);
     this.apiKey = apiKey;
     this.secretKey = secretKey;
@@ -108,6 +107,7 @@ class OKXWebSocket extends WebSocketWrapper {
     });
   }
 
+  // Is NOT used right now since we send market order with sz and don't need to know a current price
   async fetchTicker(symbol) {
     return new Promise((resolve, reject) => {
       const tickerChannel = `tickers.${symbol}`;

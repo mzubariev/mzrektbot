@@ -4,8 +4,9 @@ import WebSocketWrapper from './websocket-wrapper.js';
 import crypto from 'crypto';
 
 class BybitWebSocket extends WebSocketWrapper {
-  constructor(apiKey, secretKey, isTestnet) {
-    const url = isTestnet ? 'wss://stream-testnet.bybit.com/realtime' : 'wss://stream.bybit.com/realtime';
+  constructor(apiKey, secretKey) {
+    const url = 'wss://stream.bybit.com/realtime';
+    const testnetUrl = 'wss://stream-testnet.bybit.com/realtime';
     super(url);
     this.apiKey = apiKey;
     this.secretKey = secretKey;
@@ -88,6 +89,7 @@ class BybitWebSocket extends WebSocketWrapper {
     });
   }
 
+  // Is NOT used right now since we send market order with orderQty and don't need to know a current price
   async fetchTicker(symbol) {
     return new Promise((resolve, reject) => {
       const tickerTopic = `tickers.${symbol}`;

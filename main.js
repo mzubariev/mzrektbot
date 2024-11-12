@@ -20,9 +20,10 @@ async function main() {
       okxSecretKey: process.env.OKX_SECRET_KEY,
       okxPassphrase: process.env.OKX_PASSPHRASE,
       mexcApiKey: process.env.MEXC_API_KEY,
-      mexcSecretKey: process.env.MEXC_SECRET_KEY,
-      isTestnet: process.env.IS_TESTNET
+      mexcSecretKey: process.env.MEXC_SECRET_KEY
     });
+    // Start trading
+    logger.info('Start liquidations listeners for all exchanges:');
     await tradingLogic.initialize();
 
     // Start Telegram Bot
@@ -39,9 +40,6 @@ async function main() {
         logger.error('Error updating token data:', error);
       }
     });
-
-    // Start trading
-    tradingLogic.setupLiquidationListeners();
   } catch (error) {
     logger.error('Bot initialization error:', error);
     process.exit(1);
