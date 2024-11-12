@@ -14,7 +14,7 @@ class TradingLogic {
     this.config = config.getConfig();
     this.binanceWs = new BinanceWebSocket(binanceApiKey, binanceSecretKey, isTestnet);
     this.bybitWs = new BybitWebSocket(bybitApiKey, bybitSecretKey, isTestnet);
-    // this.okxWs = new OKXWebSocket(okxApiKey, okxSecretKey, okxPassphrase, isTestnet);
+    this.okxWs = new OKXWebSocket(okxApiKey, okxSecretKey, okxPassphrase, isTestnet);
     this.mexcWs = new MEXCWebSocket(mexcApiKey, mexcSecretKey);
     this.tokenData = null;
     this.liquidationAccumulation = {};
@@ -44,9 +44,9 @@ class TradingLogic {
 
       // Connect to exchanges' WebSocket APIs
       this.binanceWs.connect();
-      // this.bybitWs.connect();
-      // this.okxWs.connect();
-      // this.mexcWs.connect();
+      this.bybitWs.connect();
+      this.okxWs.connect();
+      this.mexcWs.connect();
 
       // Set up event listeners for liquidation data from each exchange
       this.setupLiquidationListeners();
@@ -77,33 +77,33 @@ class TradingLogic {
     this.binanceWs.ws.on('message', async (data) => {
       const message = JSON.parse(data);
       if (message.e === 'forceOrder') {
-        await this.processLiquidation(message, 'Binance');
+        await this.processLiquidation(message.o, 'Binance');
       }
     });
 
-    // Bybit
-    // this.bybitWs.ws.on('message', async (data) => {
-    //   const message = JSON.parse(data);
-    //   if (message.topic === 'liquidation') {
-    //     await this.processLiquidation(message.data, 'Bybit');
-    //   }
-    // });
+    Bybit
+    this.bybitWs.ws.on('message', async (data) => {
+      const message = JSON.parse(data);
+      if (message.topic === 'liquidation') {
+        await this.processLiquidation(message.data, 'Bybit');
+      }
+    });
 
-    // OKX
-    // this.okxWs.ws.on('message', async (data) => {
-    //   const message = JSON.parse(data);
-    //   if (message.event === 'liquidation') {
-    //     await this.processLiquidation(message.data[0], 'OKX');
-    //   }
-    // });
+    OKX
+    this.okxWs.ws.on('message', async (data) => {
+      const message = JSON.parse(data);
+      if (message.event === 'liquidation') {
+        await this.processLiquidation(message.data[0], 'OKX');
+      }
+    });
 
-    // MEXC
-    // this.mexcWs.ws.on('message', async (data) => {
-    //   const message = JSON.parse(data);
-    //   if (message.channel === 'push.liquidation') {
-    //     await this.processLiquidation(message.data, 'MEXC');
-    //   }
-    // });
+    MEXC
+    this.mexcWs.ws.on('message', async (data) => {
+      const message = JSON.parse(data);
+      if (message.channel === 'push.liquidation') {
+        await this.processLiquidation(message.data, 'MEXC');
+      }
+    });
   }
 
   async processLiquidation(liquidation, exchange) {
@@ -131,9 +131,7 @@ class TradingLogic {
     if (liquidationAmount >= liquidationThreshold) {
       // Execute trade
       try {
-        await this.executeTrade('Binance', token, tradeSide, liquidationAmount);
-        // await this.executeTrade('Bybit', token, tradeSide, liquidationAmount);
-        // await this.executeTrade('MEXC', token, tradeSide, liquidationAmount);
+        await this.executeTrade(exchange, token, tradeSide, liquidationAmount);
       } catch (error) {
         logger.error('Error executing trade for %s on %s: %s', token, exchange.url, error.message);
         logger.debug('Error details: %O', error);
@@ -291,9 +289,7 @@ class TradingLogic {
       const liquidationThreshold = this.getLiquidationThreshold(tokenRanking);
       
       if (this.liquidationAccumulation[token].amount >= liquidationThreshold) {
-        this.executeTrade('Binance', token, tradeSide, this.liquidationAccumulation[token].amount);
-        // this.executeTrade('Bybit', token, tradeSide, this.liquidationAccumulation[token].amount);
-        // this.executeTrade('MEXC', token, tradeSide, this.liquidationAccumulation[token].amount);
+        this.executeTrade(exchange, token, tradeSide, this.liquidationAccumulation[token].amount);
       }
 
       // Reset accumulation

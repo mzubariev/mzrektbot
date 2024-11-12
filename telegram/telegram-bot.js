@@ -54,10 +54,7 @@ class TelegramBotWrapper {
     // Listen for real-time config updates and notify the bot
     config.on('configUpdated', (newConfig) => {
       logger.info('Configuration updated via Telegram:', newConfig);
-      this.bot.sendMessage(
-        chatId,
-        `Configuration has been updated. New settings: ${JSON.stringify(newConfig)}`
-      );
+      // Optionally broadcast updates to active users or logs without referencing chatId
     });
   }
 
@@ -80,10 +77,13 @@ class TelegramBotWrapper {
     this.bot.sendMessage(chatId, `Please enter the new value for ${settingKey}:`);
 
     this.bot.once('message', (msg) => {
-      const newValue = msg.text;
+      const newValue = parseInt(msg.text, 10);
       config.setConfig({ [settingKey]: newValue });
       logger.info(`Setting ${settingKey} updated to ${newValue}`);
       this.bot.sendMessage(chatId, `Setting ${settingKey} updated to ${newValue}`);
+
+      // Emit a config update with context for potential logging or other uses
+      config.emit('configUpdated', { [settingKey]: newValue });
     });
   }
 }

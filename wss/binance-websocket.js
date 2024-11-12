@@ -28,7 +28,7 @@ class BinanceWebSocket extends WebSocketWrapper {
     this.ws.on('message', (data) => {
       const message = JSON.parse(data);
       if (message.e === 'forceOrder') {
-        const { s: symbol, o: orderType, q: quantity, p: price } = message;
+        const { s: symbol, o: orderType, q: quantity, p: price } = message.o;
         console.log(`Liquidation: ${symbol}, ${orderType}, ${quantity}, ${price}`);
         // Pass the liquidation data to the Trading Logic Module
       }
