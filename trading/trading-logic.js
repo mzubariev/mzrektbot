@@ -78,6 +78,7 @@ class TradingLogic {
     this.binanceWs.ws.on('message', async (data) => {
       const message = JSON.parse(data);
       if (message.e === 'forceOrder') {
+        console.log(`Inside trading-logic message event listener`);
         await this.processLiquidation(message.o, 'Binance');
       }
     });
@@ -118,7 +119,7 @@ class TradingLogic {
     const { s: symbol, o: orderType, q: quantity, p: price } = liquidation;
     const token = symbol.replace('USDT', '');
 
-    logger.info('Liquidation details - Token: %s, OrderType: %s, Quantity: %s, Price: %s', token, orderType, quantity, price);
+    logger.info('Liquidation details - Token: %s, OrderType: %s, Quantity: %s, Price: %s, Amount: %s', token, orderType, quantity, price, quantity * price);
 
     // Check token ranking and liquidation conditions
     const tokenRanking = this.getTokenRanking(token);
@@ -134,10 +135,10 @@ class TradingLogic {
       try {
         await this.executeTrade(exchange, token, tradeSide, liquidationAmount);
       } catch (error) {
-        logger.error('Error executing trade for %s on %s: %s', token, exchange.url, error.message);
+        logger.error('Error executing trade for %s on %s: %s', token, exchange, error.message);
         logger.debug('Error details: %O', error);
         // Skip the trade execution and continue with the next liquidation
-        logger.warn('Skipping trade execution for %s on %s due to an error.', token, exchange.url);
+        logger.warn('Skipping trade execution for %s on %s due to an error.', token, exchange);
         return;
       }
     } else {
@@ -147,10 +148,10 @@ class TradingLogic {
   }
 
   async executeTrade(exchange, token, orderType, liquidationAmount) {
-    logger.info(`Executing trade - Exchange: ${exchange.name}, Token: ${token}, OrderType: ${orderType}, Amount: ${liquidationAmount}`);
+    logger.info(`Executing trade - Exchange: ${exchange}, Token: ${token}, OrderType: ${orderType}, Amount: ${liquidationAmount}`);
 
     if (this.isPaused) {
-      logger.info(`Trade execution skipped: Trading is paused (${token} on ${exchange.url})`);
+      logger.info(`Trade execution skipped: Trading is paused (${token} on ${exchange})`);
       return;
     }
     
@@ -188,20 +189,20 @@ class TradingLogic {
       // Set a 5-minute timer for the limit order
       this.setLimitOrderTimer(exchange, token, limitOrderResult.orderId);
 
-      logger.info(`Executed ${orderType} order for ${token} on ${exchange.url}`);
+      logger.info(`Executed ${orderType} order for ${token} on ${exchange}`);
     } catch (error) {
-      logger.error('Error executing trade on %s: %s', exchange.url, error.message);
+      logger.error('Error executing trade on %s: %s', exchange, error.message);
       logger.debug('Error details: %O', error);
-      throw new Error(`Trade execution failed for ${token} on ${exchange.url}: ${error.message}`);
+      throw new Error(`Trade execution failed for ${token} on ${exchange}: ${error.message}`);
     }
   }
 
   async executeMarketOrder(exchange, symbol, side, quoteOrderQty) {
-    logger.info(`Executing market order on ${exchange.name}: ${symbol}, ${side}, ${quoteOrderQty} USDT`);
+    logger.info(`Executing market order on ${exchange}: ${symbol}, ${side}, ${quoteOrderQty} USDT`);
     
     try {
       let result;
-      switch (exchange.name) {
+      switch (exchange) {
         case 'Binance':
           result = await this.executeBinanceMarketOrder(symbol, side, quoteOrderQty);
           break;
@@ -215,13 +216,13 @@ class TradingLogic {
           result = await this.executeMEXCMarketOrder(symbol, side, quoteOrderQty);
           break;
         default:
-          throw new Error(`Unsupported exchange: ${exchange.name}`);
+          throw new Error(`Unsupported exchange: ${exchange}`);
       }
       
-      logger.info(`Market order executed successfully on ${exchange.name}:`, result);
+      logger.info(`Market order executed successfully on ${exchange}:`, result);
       return result;
     } catch (error) {
-      logger.error(`Error executing market order on ${exchange.name}:`, error);
+      logger.error(`Error executing market order on ${exchange}:`, error);
       throw error;
     }
   }
@@ -315,7 +316,7 @@ class TradingLogic {
       const order = await exchange.getOrder(orderId);
       if (order.status === 'OPEN') {
         // Notify via Telegram
-        this.telegramBot.sendMessage(this.config.telegramChatId, `Limit order for ${token} on ${exchange.url} remains unfilled after 5 minutes.`);
+        this.telegramBot.sendMessage(this.config.telegramChatId, `Limit order for ${token} on ${exchange} remains unfilled after 5 minutes.`);
       }
     } catch (error) {
       logger.error(`Error checking limit order status:`, error);

@@ -6,7 +6,6 @@ import crypto from 'crypto';
 class OKXWebSocket extends WebSocketWrapper {
   constructor(apiKey, secretKey, passphrase) {
     const url = 'wss://ws.okx.com:8443/ws/v5/business';
-    const testnetUrl = 'wss://wsaws.okx.com:8443/ws/v5/business?brokerId=9999';
     super(url);
     this.apiKey = apiKey;
     this.secretKey = secretKey;
@@ -26,7 +25,6 @@ class OKXWebSocket extends WebSocketWrapper {
       const message = JSON.parse(data);
       if (message.event === 'liquidation') {
         const { instrument_id, side, price, size } = message.data[0];
-        console.log(`Liquidation: ${instrument_id}, ${side}, ${price}, ${size}`);
         // Pass the liquidation data to the Trading Logic Module
       }
     });

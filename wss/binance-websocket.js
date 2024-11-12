@@ -6,7 +6,6 @@ import crypto from 'crypto';
 class BinanceWebSocket extends WebSocketWrapper {
   constructor(apiKey, secretKey) {
     const url = 'wss://fstream.binance.com/ws';
-    const testnetUrl = 'wss://testnet.binance.vision/ws';
     super(url);
     this.apiKey = apiKey;
     this.secretKey = secretKey;
@@ -28,7 +27,6 @@ class BinanceWebSocket extends WebSocketWrapper {
       const message = JSON.parse(data);
       if (message.e === 'forceOrder') {
         const { s: symbol, o: orderType, q: quantity, p: price } = message.o;
-        console.log(`Liquidation: ${symbol}, ${orderType}, ${quantity}, ${price}`);
         // Pass the liquidation data to the Trading Logic Module
       }
     });

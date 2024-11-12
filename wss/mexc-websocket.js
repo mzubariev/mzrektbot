@@ -26,7 +26,6 @@ class MEXCWebSocket extends WebSocketWrapper {
         const message = JSON.parse(data);
         if (message.channel === 'push.liquidation') {
           const { symbol, side, price, vol } = message.data;
-          logger.info(`Liquidation: ${symbol}, ${side}, ${price}, ${vol}`);
           // Pass the liquidation data to the Trading Logic Module
         }
       } catch (error) {

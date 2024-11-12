@@ -2,7 +2,13 @@ import winston from 'winston';
 const { format } = winston;
 
 const logger = winston.createLogger({
-  level: 'info',
+  levels : {
+    error   : 0,
+    warn    : 1,
+    info    : 2,
+    verbose : 3,
+    debug   : 4
+  },
   format: format.combine(
     format.timestamp({
       format: 'YYYY-MM-DD HH:mm:ss'
@@ -17,7 +23,10 @@ const logger = winston.createLogger({
       format: format.combine(
         format.colorize(),
         format.printf(
-          info => `${info.timestamp} ${info.level}: ${info.message}`
+          info => `${info.timestamp} ${info.level}: ${info.message}`,
+          debug => `${debug.timestamp} ${debug.level}: ${debug.message}`,
+          warn => `${warn.timestamp} ${warn.level}: ${warn.message}`,
+          error => `${error.timestamp} ${inerrorfo.level}: ${error.message}`
         )
       )
     }),
@@ -26,6 +35,8 @@ const logger = winston.createLogger({
   ]
 });
 
+process.on('warning', e => console.warn(e.stack));
+
 // Log unhandled promise rejections
 process.on('unhandledRejection', (ex) => {
   throw ex;
@@ -33,16 +44,8 @@ process.on('unhandledRejection', (ex) => {
 
 // Log uncaught exceptions
 process.on('uncaughtException', (ex) => {
-  logger.error('Uncaught exception:', ex);
+  logger.error('Uncaught exception:', ex.stack);
   process.exit(1);
 });
-
-// If we're not in production, log to the console with the format:
-// `${info.level}: ${info.message} JSON.stringify({ ...rest }) `
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(new winston.transports.Console({
-    format: format.simple()
-  }));
-}
 
 export default logger;

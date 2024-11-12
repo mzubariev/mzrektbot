@@ -1,7 +1,7 @@
 {
   "depositSize": 15,
   "bidPrcnt": 20,
-  "smallLiquidation": 15000,
+  "smallLiquidation": 5000,
   "top20Liquidation": 30000,
   "top50Liquidation": 100000
 }

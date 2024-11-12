@@ -6,7 +6,6 @@ import crypto from 'crypto';
 class BybitWebSocket extends WebSocketWrapper {
   constructor(apiKey, secretKey) {
     const url = 'wss://stream.bybit.com/realtime';
-    const testnetUrl = 'wss://stream-testnet.bybit.com/realtime';
     super(url);
     this.apiKey = apiKey;
     this.secretKey = secretKey;
@@ -25,7 +24,6 @@ class BybitWebSocket extends WebSocketWrapper {
       const message = JSON.parse(data);
       if (message.topic === 'liquidation') {
         const { symbol, side, price, qty } = message.data;
-        console.log(`Liquidation: ${symbol}, ${side}, ${price}, ${qty}`);
         // Pass the liquidation data to the Trading Logic Module
       }
     });

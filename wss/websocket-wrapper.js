@@ -5,7 +5,6 @@ class WebSocketWrapper {
   constructor(url) {
     this.url = url;
     this.ws = null;
-    this.wsTestnet = null;
     this.reconnectInterval = 5000; // Reconnect interval in milliseconds
     this.reconnectTimer = null;
     this.isConnected = false;
