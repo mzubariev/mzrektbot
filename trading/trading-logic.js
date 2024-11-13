@@ -21,18 +21,18 @@ class TradingLogic {
     this.openOrders = new Map();
     this.isPaused = false;
 
-    logger.info('TradingLogic initialized with config:', this.config);
+    logger.info(`TradingLogic initialized with config: ${this.config}`);
 
     // Listen for configuration updates
     config.on('configUpdated', (newConfig) => {
-      logger.info('Configuration updated dynamically:', newConfig);
+      logger.info(`Configuration updated dynamically: ${newConfig}`);
       this.handleConfigChange(newConfig);
     });
   }
 
   handleConfigChange(newConfig) {
     // Logic to handle updated config values (e.g., update internal settings or WebSocket parameters)
-    logger.info('Applied new configuration settings:', newConfig);
+    logger.info(`Applied new configuration settings: ${newConfig}`);
     if (newConfig.status) {
       newConfig.status === 'paused' ? this.pause() : this.resume();
     } else {
@@ -66,7 +66,7 @@ class TradingLogic {
       // Set up event listeners for liquidation data from each exchange
       this.setupLiquidationListeners();
     } catch (error) {
-      logger.error('Error initializing Trading Logic:', error);
+      logger.error(`Error initializing Trading Logic: ${error}`);
       throw error;
     }
   }
@@ -75,36 +75,24 @@ class TradingLogic {
 
   setupLiquidationListeners() {
     // Binance
-    this.binanceWs.ws.on('message', async (data) => {
-      const message = JSON.parse(data);
-      if (message.e === 'forceOrder') {
-        console.log(`Inside trading-logic message event listener`);
-        await this.processLiquidation(message.o, 'Binance');
-      }
+    this.binanceWs.events.on('message', async (liquidation) => {
+      logger.debug(`Inside trading-logic message event listener`);
+      await this.processLiquidation(liquidation, 'Binance');
     });
 
     // Bybit
-    this.bybitWs.ws.on('message', async (data) => {
-      const message = JSON.parse(data);
-      if (message.topic === 'liquidation') {
-        await this.processLiquidation(message.data, 'Bybit');
-      }
+    this.bybitWs.events.on('message', async (liquidation) => {
+      await this.processLiquidation(liquidation, 'Bybit');
     });
 
     // OKX
-    this.okxWs.ws.on('message', async (data) => {
-      const message = JSON.parse(data);
-      if (message.event === 'liquidation') {
-        await this.processLiquidation(message.data[0], 'OKX');
-      }
+    this.okxWs.events.on('message', async (liquidation) => {
+      await this.processLiquidation(liquidation, 'OKX');
     });
 
     // MEXC
-    this.mexcWs.ws.on('message', async (data) => {
-      const message = JSON.parse(data);
-      if (message.channel === 'push.liquidation') {
-        await this.processLiquidation(message.data, 'MEXC');
-      }
+    this.mexcWs.events.on('message', async (liquidation) => {
+      await this.processLiquidation(liquidation, 'MEXC');
     });
   }
 
@@ -119,14 +107,14 @@ class TradingLogic {
     const { s: symbol, o: orderType, q: quantity, p: price } = liquidation;
     const token = symbol.replace('USDT', '');
 
-    logger.info('Liquidation details - Token: %s, OrderType: %s, Quantity: %s, Price: %s, Amount: %s', token, orderType, quantity, price, quantity * price);
+    logger.info('Liquidation details - Token: %s, OrderType: %s, Quantity: %s, Price: %s', token, orderType, quantity, price);
 
     // Check token ranking and liquidation conditions
     const tokenRanking = this.getTokenRanking(token);
     const liquidationThreshold = this.getLiquidationThreshold(tokenRanking);
     const liquidationAmount = parseFloat(quantity) * parseFloat(price);
 
-    logger.debug('Token ranking: %s, Liquidation threshold: %s, Liquidation amount: %s', tokenRanking, liquidationThreshold, liquidationAmount);
+    logger.info('Token ranking: %s, Liquidation threshold: %s, Liquidation amount: %s', tokenRanking, liquidationThreshold, liquidationAmount);
 
     const tradeSide = orderType === 'SELL' ? 'BUY' : 'SELL';
 

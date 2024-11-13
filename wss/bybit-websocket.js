@@ -2,11 +2,11 @@
 import WebSocket from 'ws';
 import WebSocketWrapper from './websocket-wrapper.js';
 import crypto from 'crypto';
+import logger from '../utils/logger.js';
 
 class BybitWebSocket extends WebSocketWrapper {
   constructor(apiKey, secretKey) {
-    const url = 'wss://stream.bybit.com/realtime';
-    super(url);
+    super('wss://stream.bybit.com/realtime');
     this.apiKey = apiKey;
     this.secretKey = secretKey;
   }
@@ -15,26 +15,30 @@ class BybitWebSocket extends WebSocketWrapper {
     this.ws = new WebSocket(this.url);
 
     this.ws.on('open', () => {
-      console.log('Connected to Bybit WebSocket');
+      logger.info('Connected to Bybit WebSocket');
       this.authenticate();
       this.subscribeToLiquidations();
     });
 
     this.ws.on('message', (data) => {
-      const message = JSON.parse(data);
-      if (message.topic === 'liquidation') {
-        const { symbol, side, price, qty } = message.data;
-        // Pass the liquidation data to the Trading Logic Module
+      try {
+        const message = JSON.parse(data);
+        if (message.topic === 'liquidation') {
+          const { symbol, side, price, qty } = message.data;
+          this.events.emit('message', { s: symbol, o: side, q: qty, p: price }); // Forward the message
+        }
+      } catch (error) {
+        logger.error('Error parsing Binance WebSocket message:', error);
       }
     });
 
     this.ws.on('close', () => {
-      console.log('Disconnected from Bybit WebSocket');
+      logger.info('Disconnected from Bybit WebSocket');
       this.reconnect();
     });
 
     this.ws.on('error', (error) => {
-      console.error('Bybit WebSocket error:', error);
+      logger.error('Bybit WebSocket error:', error);
       this.reconnect();
     });
   }
@@ -83,25 +87,6 @@ class BybitWebSocket extends WebSocketWrapper {
           ...order,
           order_link_id: requestId,
         },
-      }));
-    });
-  }
-
-  // Is NOT used right now since we send market order with orderQty and don't need to know a current price
-  async fetchTicker(symbol) {
-    return new Promise((resolve, reject) => {
-      const tickerTopic = `tickers.${symbol}`;
-      const tickerHandler = (message) => {
-        if (message.topic === tickerTopic) {
-          this.ws.removeListener('message', tickerHandler);
-          resolve({ last: parseFloat(message.data.last_price) });
-        }
-      };
-
-      this.ws.on('message', tickerHandler);
-      this.ws.send(JSON.stringify({
-        op: 'subscribe',
-        args: [tickerTopic],
       }));
     });
   }

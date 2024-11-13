@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import axios from 'axios';
 import fs from 'fs';
+import logger from '../utils/logger.js';
 
 dotenv.config();
 
@@ -24,11 +25,11 @@ async function getTokenData() {
 
     // Save token data to JSON file
     fs.writeFileSync('token-data.json', JSON.stringify({ top20: top20Tokens, top50: top50Tokens }));
-    console.log('All top tokens just got updated from CoinMarketCap!');
+    logger.info('All top tokens just got updated from CoinMarketCap!');
 
     return { top20: top20Tokens, top50: top50Tokens };
   } catch (error) {
-    console.error('Error retrieving token data from CoinMarketCap:', error);
+    logger.error('Error retrieving token data from CoinMarketCap:', error);
     throw error;
   }
 }

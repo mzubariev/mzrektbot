@@ -1,27 +1,32 @@
 // websocket-wrapper.js
+import EventEmitter from 'events';
 import WebSocket from 'ws';
+import logger from '../utils/logger.js';
 
-class WebSocketWrapper {
+class WebSocketWrapper extends EventEmitter {
   constructor(url) {
+    super();
     this.url = url;
     this.ws = null;
     this.reconnectInterval = 5000; // Reconnect interval in milliseconds
     this.reconnectTimer = null;
     this.isConnected = false;
     this.isForceDisconnect = false;
+    this.events = new EventEmitter(); // EventEmitter for external message handling
   }
 
   connect() {
     this.ws = new WebSocket(this.url);
 
     this.ws.on('open', () => {
-      console.log(`Connected to ${this.url}`);
+      logger.info(`Connected to ${this.url}`);
       this.isConnected = true;
       clearTimeout(this.reconnectTimer);
+      logger.info('WARNING: Re-connect from inside of WS wrapper!!!!');
     });
 
     this.ws.on('close', () => {
-      console.log(`Disconnected from ${this.url}`);
+      logger.info(`Disconnected from ${this.url}`);
       this.isConnected = false;
       if (!this.isForceDisconnect) {
         this.reconnect();
@@ -30,21 +35,21 @@ class WebSocketWrapper {
     });
 
     this.ws.on('error', (error) => {
-      console.error(`WebSocket error for ${this.url}:`, error);
+      logger.error(`WebSocket error for ${this.url}:`, error);
       this.isConnected = false;
       this.reconnect();
     });
   }
 
   reconnect() {
-    console.log(`Attempting to reconnect to ${this.url} in ${this.reconnectInterval}ms`);
+    logger.info(`Attempting to reconnect to ${this.url} in ${this.reconnectInterval}ms`);
     this.reconnectTimer = setTimeout(() => {
       this.connect();
     }, this.reconnectInterval);
   }
 
   disconnect() {
-    console.log(`Disconnecting WebSocket for ${this.url}:`);
+    logger.info(`Disconnecting WebSocket for ${this.url}:`);
     if (this.ws && this.isConnected) {
       this.isForceDisconnect = true;
       this.ws.close();
@@ -52,7 +57,7 @@ class WebSocketWrapper {
   }
 
   send(message) {
-    console.log(`Posting a message via WebSocket to ${this.url}:`);
+    logger.info(`Posting a message via WebSocket to ${this.url}:`);
     if (this.ws && this.isConnected) {
       this.ws.send(JSON.stringify(message));
     }

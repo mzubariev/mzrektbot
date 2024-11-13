@@ -2,11 +2,11 @@
 import WebSocket from 'ws';
 import WebSocketWrapper from './websocket-wrapper.js';
 import crypto from 'crypto';
+import logger from '../utils/logger.js';
 
 class OKXWebSocket extends WebSocketWrapper {
   constructor(apiKey, secretKey, passphrase) {
-    const url = 'wss://ws.okx.com:8443/ws/v5/business';
-    super(url);
+    super('wss://ws.okx.com:8443/ws/v5/business');
     this.apiKey = apiKey;
     this.secretKey = secretKey;
     this.passphrase = passphrase;
@@ -16,26 +16,30 @@ class OKXWebSocket extends WebSocketWrapper {
     this.ws = new WebSocket(this.url);
 
     this.ws.on('open', () => {
-      console.log('Connected to OKX WebSocket');
+      logger.info('Connected to OKX WebSocket');
       this.authenticate();
       this.subscribeToLiquidations();
     });
 
     this.ws.on('message', (data) => {
-      const message = JSON.parse(data);
-      if (message.event === 'liquidation') {
-        const { instrument_id, side, price, size } = message.data[0];
-        // Pass the liquidation data to the Trading Logic Module
+      try {
+        const message = JSON.parse(data);
+        if (message.event === 'liquidation') {
+          const { instrument_id, side, price, size } = message.data[0];
+          this.events.emit('message', { s: instrument_id, o: side, q: size, p: price }); // Forward the message
+        }
+      } catch (error) {
+        logger.error('Error parsing Binance WebSocket message:', error);
       }
     });
 
     this.ws.on('close', () => {
-      console.log('Disconnected from OKX WebSocket');
+      logger.info('Disconnected from OKX WebSocket');
       this.reconnect();
     });
 
     this.ws.on('error', (error) => {
-      console.error('OKX WebSocket error:', error);
+      logger.error('OKX WebSocket error:', error);
       this.reconnect();
     });
   }
@@ -101,27 +105,6 @@ class OKXWebSocket extends WebSocketWrapper {
           },
         ],
         id: requestId,
-      }));
-    });
-  }
-
-  // Is NOT used right now since we send market order with sz and don't need to know a current price
-  async fetchTicker(symbol) {
-    return new Promise((resolve, reject) => {
-      const tickerChannel = `tickers.${symbol}`;
-      const tickerHandler = (message) => {
-        if (message.channel === tickerChannel) {
-          this.ws.removeListener('message', tickerHandler);
-          resolve({
-            last: parseFloat(message.data[0].last),
-          });
-        }
-      };
-
-      this.ws.on('message', tickerHandler);
-      this.ws.send(JSON.stringify({
-        op: 'subscribe',
-        args: [tickerChannel],
       }));
     });
   }

@@ -23,7 +23,7 @@ async function main() {
       mexcSecretKey: process.env.MEXC_SECRET_KEY
     });
     // Start trading
-    logger.info('Start liquidations listeners for all exchanges:');
+    logger.info('Start liquidations listeners for all exchanges!');
     await tradingLogic.initialize();
 
     // Start Telegram Bot
@@ -35,7 +35,7 @@ async function main() {
       try {
         const tokenData = await getTokenData();
         tradingLogic.updateTokenData(tokenData);
-        logger.info('Token data updated successfully');
+        logger.info('Token data updated successfully!');
       } catch (error) {
         logger.error('Error updating token data:', error);
       }

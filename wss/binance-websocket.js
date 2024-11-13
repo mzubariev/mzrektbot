@@ -2,11 +2,11 @@
 import WebSocket from 'ws';
 import WebSocketWrapper from './websocket-wrapper.js';
 import crypto from 'crypto';
+import logger from '../utils/logger.js';
 
 class BinanceWebSocket extends WebSocketWrapper {
   constructor(apiKey, secretKey) {
-    const url = 'wss://fstream.binance.com/ws';
-    super(url);
+    super('wss://fstream.binance.com/ws');
     this.apiKey = apiKey;
     this.secretKey = secretKey;
   }
@@ -19,25 +19,30 @@ class BinanceWebSocket extends WebSocketWrapper {
     this.ws = new WebSocket(url);
 
     this.ws.on('open', () => {
-      console.log('Connected to Binance WebSocket');
+      logger.info('Connected to Binance WebSocket');
       this.subscribeToLiquidations();
+      logger.info('WARNING 2: Re-connect from inside of BINANCE WS wrapper!!!!');
     });
 
-    this.ws.on('message', (data) => {
-      const message = JSON.parse(data);
-      if (message.e === 'forceOrder') {
-        const { s: symbol, o: orderType, q: quantity, p: price } = message.o;
-        // Pass the liquidation data to the Trading Logic Module
+    this.ws.on('message', (data) => {      
+      try {
+        const message = JSON.parse(data);
+        if (message.e === 'forceOrder') {
+          // { s: symbol, o: orderType, q: quantity, p: price } = message.o;
+          this.events.emit('message', message.o); // Forward the message
+        }
+      } catch (error) {
+        logger.error('Error parsing Binance WebSocket message:', error);
       }
     });
 
     this.ws.on('close', () => {
-      console.log('Disconnected from Binance WebSocket');
+      logger.info('Disconnected from Binance WebSocket');
       this.reconnect();
     });
 
     this.ws.on('error', (error) => {
-      console.error('Binance WebSocket error:', error);
+      logger.error('Binance WebSocket error:', error);
       this.reconnect();
     });
   }
@@ -80,24 +85,6 @@ class BinanceWebSocket extends WebSocketWrapper {
         method: 'ORDER',
         params: order,
         id: requestId,
-      }));
-    });
-  }
-
-  // Is NOT used right now since we send market order with quoteOrderQty and don't need to know a current price
-  async fetchTicker(symbol) {
-    return new Promise((resolve, reject) => {
-      const tickerChannel = `${symbol.toLowerCase()}@ticker`;
-      const tickerHandler = (ticker) => {
-        this.ws.removeListener('message', tickerHandler);
-        resolve({ last: parseFloat(ticker.c) });
-      };
-
-      this.ws.on('message', tickerHandler);
-      this.ws.send(JSON.stringify({
-        method: 'SUBSCRIBE',
-        params: [tickerChannel],
-        id: this.generateRequestId(),
       }));
     });
   }

@@ -3,11 +3,11 @@ import WebSocket from 'ws';
 import WebSocketWrapper from './websocket-wrapper.js';
 import crypto from 'crypto';
 import logger from '../utils/logger.js';
+import logger from '../utils/logger.js';
 
 class MEXCWebSocket extends WebSocketWrapper {
   constructor(apiKey, secretKey) {
-    const url = 'wss://contract.mexc.com/ws';
-    super(url);
+    super('wss://contract.mexc.com/ws');
     this.apiKey = apiKey;
     this.secretKey = secretKey;
   }
@@ -26,10 +26,10 @@ class MEXCWebSocket extends WebSocketWrapper {
         const message = JSON.parse(data);
         if (message.channel === 'push.liquidation') {
           const { symbol, side, price, vol } = message.data;
-          // Pass the liquidation data to the Trading Logic Module
+          this.events.emit('message', { s: symbol, o: side, q: vol, p: price }); // Forward the message
         }
       } catch (error) {
-        logger.error('Error processing MEXC WebSocket message:', error);
+        logger.error('Error parsing Binance WebSocket message:', error);
       }
     });
 
@@ -103,32 +103,6 @@ class MEXCWebSocket extends WebSocketWrapper {
       };
 
       this.ws.on('message', orderHandler);
-    });
-  }
-
-  // Is NOT used right now since we send market order with quoteOrderQty and don't need to know a current price
-  async fetchTicker(symbol) {
-    return new Promise((resolve, reject) => {
-      const tickerMessage = {
-        method: 'SUBSCRIPTION',
-        params: [`market.${symbol}.detail`]
-      };
-      
-      this.ws.send(JSON.stringify(tickerMessage));
-
-      const tickerHandler = (message) => {
-        try {
-          const data = JSON.parse(message);
-          if (data.channel === `market.${symbol}.detail`) {
-            this.ws.removeListener('message', tickerHandler);
-            resolve({ last: parseFloat(data.data.last) });
-          }
-        } catch (error) {
-          logger.error('Error processing MEXC ticker response:', error);
-        }
-      };
-
-      this.ws.on('message', tickerHandler);
     });
   }
 }
