@@ -20,15 +20,16 @@ class BinanceWebSocket extends WebSocketWrapper {
 
     this.ws.on('open', () => {
       logger.info('Connected to Binance WebSocket');
+      this.isConnected = true;
+      clearTimeout(this.reconnectTimer);
       this.subscribeToLiquidations();
-      logger.info('WARNING 2: Re-connect from inside of BINANCE WS wrapper!!!!');
     });
 
     this.ws.on('message', (data) => {      
       try {
         const message = JSON.parse(data);
         if (message.e === 'forceOrder') {
-          // { s: symbol, o: orderType, q: quantity, p: price } = message.o;
+          // { s: symbol, S: orderSide, q: quantity, ap: price } = message.o;
           this.events.emit('message', message.o); // Forward the message
         }
       } catch (error) {
@@ -40,7 +41,7 @@ class BinanceWebSocket extends WebSocketWrapper {
       logger.info('Disconnected from Binance WebSocket');
       this.reconnect();
     });
-
+      
     this.ws.on('error', (error) => {
       logger.error('Binance WebSocket error:', error);
       this.reconnect();
@@ -65,27 +66,63 @@ class BinanceWebSocket extends WebSocketWrapper {
     return `binance-req-${Date.now()}-${Math.random().toString(36).substring(7)}`;
   }
 
+  async getOrder(orderId) {
+    const message = {
+      method: 'GET_ORDER',
+      params: { orderId: orderId },
+    };
+  
+    return new Promise((resolve, reject) => {
+      const handleResponse = (data) => {
+        try {
+          const response = JSON.parse(data);
+          if (response.id === orderId) {
+            this.ws.removeListener('message', handleResponse);
+            resolve(response.result);
+          }
+        } catch (error) {
+          logger.error('Error parsing Binance getOrder response: %j', error);
+          reject(error);
+        }
+      };
+  
+      this.ws.on('message', handleResponse);
+      this.ws.send(JSON.stringify(message));
+    });
+  }  
+
   async send(order) {
     const requestId = this.generateRequestId();
+    const message = {
+      method: 'ORDER',
+      params: { order },
+      id: requestId
+    };
+
     return new Promise((resolve, reject) => {
-      const orderHandler = (message) => {
-        if (message.id === requestId && message.result) {
-          this.ws.removeListener('message', orderHandler);
-          resolve({
-            orderId: message.result.orderId,
-            status: message.result.status,
-            avgPrice: message.result.avgPrice,
-            executedQty: message.result.executedQty
-          });
+      const handleResponse = (data) => {
+        logger.info('RESPONSE');
+        logger.info(data);
+        try {
+          const response = JSON.parse(data);
+          logger.info(data);
+          if (response.id === requestId && response.result) {
+            this.ws.removeListener('message', orderHandler);
+            resolve({
+              orderId: response.result.orderId,
+              status: response.result.status,
+              avgPrice: response.result.avgPrice,
+              executedQty: response.result.executedQty
+            });
+          }
+        } catch (error) {
+          logger.error('Error parsing Binance getOrder response: %j', error);
+          reject(error);
         }
       };
 
-      this.ws.on('message', orderHandler);
-      this.ws.send(JSON.stringify({
-        method: 'ORDER',
-        params: order,
-        id: requestId,
-      }));
+      this.ws.on('message', handleResponse);
+      this.ws.send(JSON.stringify(message));
     });
   }
 }

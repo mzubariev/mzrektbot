@@ -16,6 +16,7 @@ class MEXCWebSocket extends WebSocketWrapper {
 
     this.ws.on('open', () => {
       logger.info('Connected to MEXC WebSocket');
+      this.isConnected = true;
       this.authenticate();
       this.subscribeToLiquidations();
     });
@@ -25,7 +26,7 @@ class MEXCWebSocket extends WebSocketWrapper {
         const message = JSON.parse(data);
         if (message.channel === 'push.liquidation') {
           const { symbol, side, price, vol } = message.data;
-          this.events.emit('message', { s: symbol, o: side, q: vol, p: price }); // Forward the message
+          this.events.emit('message', { s: symbol, S: side, q: vol, ap: price }); // Forward the message
         }
       } catch (error) {
         logger.error('Error parsing Binance WebSocket message:', error);
@@ -33,10 +34,10 @@ class MEXCWebSocket extends WebSocketWrapper {
     });
 
     this.ws.on('close', () => {
-      logger.warn('Disconnected from MEXC WebSocket');
+      logger.info('Disconnected from MEXC WebSocket');
       this.reconnect();
     });
-
+      
     this.ws.on('error', (error) => {
       logger.error('MEXC WebSocket error:', error);
       this.reconnect();
@@ -67,6 +68,31 @@ class MEXCWebSocket extends WebSocketWrapper {
     this.ws.send(JSON.stringify(subscribeMessage));
   }
 
+  async getOrder(orderId) {
+    const message = {
+      method: 'GET_ORDER',
+      params: { orderId },
+    };
+  
+    return new Promise((resolve, reject) => {
+      const handleResponse = (data) => {
+        try {
+          const response = JSON.parse(data);
+          if (response.method === 'GET_ORDER' && response.params.orderId === orderId) {
+            this.ws.removeListener('message', handleResponse);
+            resolve(response.data); // Ensure data contains fields like `status`
+          }
+        } catch (error) {
+          logger.error('Error parsing MEXC getOrder response:', error);
+          reject(error);
+        }
+      };
+  
+      this.ws.on('message', handleResponse);
+      this.ws.send(JSON.stringify(message));
+    });
+  }
+  
   async send(order) {
     return new Promise((resolve, reject) => {
       const orderMessage = {

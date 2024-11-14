@@ -35,16 +35,22 @@ const logger = winston.createLogger({
   ]
 });
 
-process.on('warning', e => console.warn(e.stack));
+process.on('warning', (e) => {
+  logger.error('Warning: %j', e);
+  logger.error(e.stack);
+});
 
 // Log unhandled promise rejections
 process.on('unhandledRejection', (ex) => {
+  logger.error('Unhandled rejection: %j', ex);
+  logger.error(ex.stack);
   throw ex;
 });
 
 // Log uncaught exceptions
 process.on('uncaughtException', (ex) => {
-  logger.error('Uncaught exception:', ex.stack);
+  logger.error('Uncaught exception: %j', ex);
+  logger.error(ex.stack);
   process.exit(1);
 });
 

@@ -16,6 +16,7 @@ class BybitWebSocket extends WebSocketWrapper {
 
     this.ws.on('open', () => {
       logger.info('Connected to Bybit WebSocket');
+      this.isConnected = true;
       this.authenticate();
       this.subscribeToLiquidations();
     });
@@ -25,7 +26,7 @@ class BybitWebSocket extends WebSocketWrapper {
         const message = JSON.parse(data);
         if (message.topic === 'liquidation') {
           const { symbol, side, price, qty } = message.data;
-          this.events.emit('message', { s: symbol, o: side, q: qty, p: price }); // Forward the message
+          this.events.emit('message', { s: symbol, S: side, q: qty, ap: price }); // Forward the message
         }
       } catch (error) {
         logger.error('Error parsing Binance WebSocket message:', error);
@@ -36,7 +37,7 @@ class BybitWebSocket extends WebSocketWrapper {
       logger.info('Disconnected from Bybit WebSocket');
       this.reconnect();
     });
-
+      
     this.ws.on('error', (error) => {
       logger.error('Bybit WebSocket error:', error);
       this.reconnect();
@@ -64,6 +65,31 @@ class BybitWebSocket extends WebSocketWrapper {
   generateRequestId() {
     return `bybit-req-${Date.now()}-${Math.random().toString(36).substring(7)}`;
   }
+
+  async getOrder(orderId) {
+    const message = {
+      op: 'order',
+      args: { orderId },
+    };
+  
+    return new Promise((resolve, reject) => {
+      const handleResponse = (data) => {
+        try {
+          const response = JSON.parse(data);
+          if (response.request && response.request.op === 'order' && response.request.args.orderId === orderId) {
+            this.ws.removeListener('message', handleResponse);
+            resolve(response.result); // Ensure result contains fields like `status`
+          }
+        } catch (error) {
+          logger.error('Error parsing Bybit getOrder response:', error);
+          reject(error);
+        }
+      };
+  
+      this.ws.on('message', handleResponse);
+      this.ws.send(JSON.stringify(message));
+    });
+  }  
 
   async send(order) {
     const requestId = this.generateRequestId();

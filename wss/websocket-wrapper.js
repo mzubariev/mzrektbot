@@ -22,7 +22,6 @@ class WebSocketWrapper extends EventEmitter {
       logger.info(`Connected to ${this.url}`);
       this.isConnected = true;
       clearTimeout(this.reconnectTimer);
-      logger.info('WARNING: Re-connect from inside of WS wrapper!!!!');
     });
 
     this.ws.on('close', () => {
@@ -56,10 +55,14 @@ class WebSocketWrapper extends EventEmitter {
     }
   }
 
-  send(message) {
-    logger.info(`Posting a message via WebSocket to ${this.url}:`);
-    if (this.ws && this.isConnected) {
-      this.ws.send(JSON.stringify(message));
+  async send(message) {
+    logger.info(`Posting a message via WebSocket to ${this.url}!`);
+    try {
+      if (this.ws && this.isConnected) {
+        this.ws.send(JSON.stringify(message));
+      }
+    } catch (error) {
+      logger.error('Error sending a message via wss: %j', error);
     }
   }
 }

@@ -17,6 +17,7 @@ class OKXWebSocket extends WebSocketWrapper {
 
     this.ws.on('open', () => {
       logger.info('Connected to OKX WebSocket');
+      this.isConnected = true;
       this.authenticate();
       this.subscribeToLiquidations();
     });
@@ -26,7 +27,7 @@ class OKXWebSocket extends WebSocketWrapper {
         const message = JSON.parse(data);
         if (message.event === 'liquidation') {
           const { instrument_id, side, price, size } = message.data[0];
-          this.events.emit('message', { s: instrument_id, o: side, q: size, p: price }); // Forward the message
+          this.events.emit('message', { s: instrument_id, S: side, q: size, ap: price }); // Forward the message
         }
       } catch (error) {
         logger.error('Error parsing Binance WebSocket message:', error);
@@ -37,7 +38,7 @@ class OKXWebSocket extends WebSocketWrapper {
       logger.info('Disconnected from OKX WebSocket');
       this.reconnect();
     });
-
+      
     this.ws.on('error', (error) => {
       logger.error('OKX WebSocket error:', error);
       this.reconnect();
@@ -80,6 +81,31 @@ class OKXWebSocket extends WebSocketWrapper {
     return `okx-req-${Date.now()}-${Math.random().toString(36).substring(7)}`;
   }
 
+  async getOrder(orderId) {
+    const message = {
+      op: 'orderDetails',
+      args: [{ orderId }],
+    };
+  
+    return new Promise((resolve, reject) => {
+      const handleResponse = (data) => {
+        try {
+          const response = JSON.parse(data);
+          if (response.op === 'orderDetails' && response.args[0].orderId === orderId) {
+            this.ws.removeListener('message', handleResponse);
+            resolve(response.data[0]); // Ensure data contains fields like `status`
+          }
+        } catch (error) {
+          logger.error('Error parsing OKX getOrder response:', error);
+          reject(error);
+        }
+      };
+  
+      this.ws.on('message', handleResponse);
+      this.ws.send(JSON.stringify(message));
+    });
+  }
+  
   async send(order) {
     const requestId = this.generateRequestId();
     return new Promise((resolve, reject) => {

@@ -13,26 +13,26 @@ class TradingLogic {
   constructor({ binanceApiKey, binanceSecretKey, bybitApiKey, bybitSecretKey, okxApiKey, okxSecretKey, okxPassphrase, mexcApiKey, mexcSecretKey }) {
     this.config = config.getConfig();
     this.binanceWs = new BinanceWebSocket(binanceApiKey, binanceSecretKey);
-    this.bybitWs = new BybitWebSocket(bybitApiKey, bybitSecretKey);
-    this.okxWs = new OKXWebSocket(okxApiKey, okxSecretKey, okxPassphrase);
-    this.mexcWs = new MEXCWebSocket(mexcApiKey, mexcSecretKey);
+    // this.bybitWs = new BybitWebSocket(bybitApiKey, bybitSecretKey);
+    // this.okxWs = new OKXWebSocket(okxApiKey, okxSecretKey, okxPassphrase);
+    // this.mexcWs = new MEXCWebSocket(mexcApiKey, mexcSecretKey);
     this.tokenData = null;
     this.liquidationAccumulation = {};
     this.openOrders = new Map();
     this.isPaused = false;
 
-    logger.info(`TradingLogic initialized with config: ${this.config}`);
+    logger.info('TradingLogic initialized with config: %j', this.config);
 
     // Listen for configuration updates
     config.on('configUpdated', (newConfig) => {
-      logger.info(`Configuration updated dynamically: ${newConfig}`);
+      logger.info('Configuration updated dynamically: %j', newConfig);
       this.handleConfigChange(newConfig);
     });
   }
 
   handleConfigChange(newConfig) {
     // Logic to handle updated config values (e.g., update internal settings or WebSocket parameters)
-    logger.info(`Applied new configuration settings: ${newConfig}`);
+    logger.info('Applied new configuration settings: %j', newConfig);
     if (newConfig.status) {
       newConfig.status === 'paused' ? this.pause() : this.resume();
     } else {
@@ -42,13 +42,13 @@ class TradingLogic {
 
   pause() {
     this.isPaused = true;
-    logger.info('Trading logic paused');
+    logger.info('Trading logic paused!');
     // Optionally, you can add code here to cancel any pending orders or perform cleanup
   }
 
   resume() {
     this.isPaused = false;
-    logger.info('Trading logic resumed');
+    logger.info('Trading logic resumed!');
     // Optionally, you can add code here to restart any necessary processes
   }
 
@@ -59,14 +59,14 @@ class TradingLogic {
 
       // Connect to exchanges' WebSocket APIs
       this.binanceWs.connect();
-      this.bybitWs.connect();
-      this.okxWs.connect();
-      this.mexcWs.connect();
+      // this.bybitWs.connect();
+      // this.okxWs.connect();
+      // this.mexcWs.connect();
 
       // Set up event listeners for liquidation data from each exchange
       this.setupLiquidationListeners();
     } catch (error) {
-      logger.error(`Error initializing Trading Logic: ${error}`);
+      logger.error('Error initializing Trading Logic: %j', error);
       throw error;
     }
   }
@@ -76,38 +76,37 @@ class TradingLogic {
   setupLiquidationListeners() {
     // Binance
     this.binanceWs.events.on('message', async (liquidation) => {
-      logger.debug(`Inside trading-logic message event listener`);
       await this.processLiquidation(liquidation, 'Binance');
     });
 
     // Bybit
-    this.bybitWs.events.on('message', async (liquidation) => {
-      await this.processLiquidation(liquidation, 'Bybit');
-    });
+    // this.bybitWs.events.on('message', async (liquidation) => {
+    //   await this.processLiquidation(liquidation, 'Bybit');
+    // });
 
     // OKX
-    this.okxWs.events.on('message', async (liquidation) => {
-      await this.processLiquidation(liquidation, 'OKX');
-    });
+    // this.okxWs.events.on('message', async (liquidation) => {
+    //   await this.processLiquidation(liquidation, 'OKX');
+    // });
 
     // MEXC
-    this.mexcWs.events.on('message', async (liquidation) => {
-      await this.processLiquidation(liquidation, 'MEXC');
-    });
+    // this.mexcWs.events.on('message', async (liquidation) => {
+    //   await this.processLiquidation(liquidation, 'MEXC');
+    // });
   }
 
   async processLiquidation(liquidation, exchange) {
-    logger.debug('Processing liquidation: %j', liquidation);
+    logger.info('Processing liquidation: %j', liquidation);
 
     if (this.isPaused) {
-      logger.info('Liquidation processing skipped: Trading is paused');
+      logger.warn('Liquidation processing skipped: Trading is paused!');
       return;
     }
 
-    const { s: symbol, o: orderType, q: quantity, p: price } = liquidation;
+    const { s: symbol, S: orderSide, q: quantity, ap: price } = liquidation;
     const token = symbol.replace('USDT', '');
 
-    logger.info('Liquidation details - Token: %s, OrderType: %s, Quantity: %s, Price: %s', token, orderType, quantity, price);
+    logger.info('Liquidation details - Exchange: %s, Token: %s, OrderSide: %s, Quantity: %s, Price: %s', exchange, token, orderSide, quantity, price);
 
     // Check token ranking and liquidation conditions
     const tokenRanking = this.getTokenRanking(token);
@@ -116,12 +115,12 @@ class TradingLogic {
 
     logger.info('Token ranking: %s, Liquidation threshold: %s, Liquidation amount: %s', tokenRanking, liquidationThreshold, liquidationAmount);
 
-    const tradeSide = orderType === 'SELL' ? 'BUY' : 'SELL';
+    const tradeSide = orderSide === 'SELL' ? 'BUY' : 'SELL';
 
     if (liquidationAmount >= liquidationThreshold) {
       // Execute trade
       try {
-        await this.executeTrade(exchange, token, tradeSide, liquidationAmount);
+        await this.executeTrade(exchange, token, tradeSide);
       } catch (error) {
         logger.error('Error executing trade for %s on %s: %s', token, exchange, error.message);
         logger.debug('Error details: %O', error);
@@ -135,11 +134,9 @@ class TradingLogic {
     }
   }
 
-  async executeTrade(exchange, token, orderType, liquidationAmount) {
-    logger.info(`Executing trade - Exchange: ${exchange}, Token: ${token}, OrderType: ${orderType}, Amount: ${liquidationAmount}`);
-
+  async executeTrade(exchange, token, orderSide) {
     if (this.isPaused) {
-      logger.info(`Trade execution skipped: Trading is paused (${token} on ${exchange})`);
+      logger.warn(`Trade execution skipped: Trading is paused (${token} on ${exchange})`);
       return;
     }
     
@@ -147,8 +144,8 @@ class TradingLogic {
       const amount_for_bid = this.config.depositSize * this.config.bidPrcnt / 100;
       const symbol = `${token}USDT`;
 
-      logger.info('Placing market order - Amount in USDT: %s', amount_for_bid);
-      const marketOrderResult = await this.executeMarketOrder(exchange, symbol, orderType, amount_for_bid);
+      logger.info(`Executing trade - Exchange: ${exchange}, Token: ${token}, OrderSide: ${orderSide}, Amount: ${amount_for_bid}`);
+      const marketOrderResult = await this.executeMarketOrder(exchange, symbol, orderSide, amount_for_bid);
       logger.info('Market order result: %j', marketOrderResult);
 
       // Get the average price and executed quantity of the market order
@@ -157,14 +154,14 @@ class TradingLogic {
 
       // Calculate the limit price for the closing order
       const profitPercentage = 0.001; // 0.1%
-      const limitPrice = orderType === 'BUY'
+      const limitPrice = orderSide === 'BUY'
         ? avgPrice * (1 + profitPercentage)
         : avgPrice * (1 - profitPercentage);
 
       // Place a limit order to close the position
       const limitOrder = {
         symbol: symbol,
-        side: orderType === 'BUY' ? 'SELL' : 'BUY',
+        side: orderSide === 'BUY' ? 'SELL' : 'BUY',
         type: 'LIMIT',
         quantity: executedQuantity,
         price: limitPrice.toFixed(8),
@@ -177,7 +174,7 @@ class TradingLogic {
       // Set a 5-minute timer for the limit order
       this.setLimitOrderTimer(exchange, token, limitOrderResult.orderId);
 
-      logger.info(`Executed ${orderType} order for ${token} on ${exchange}`);
+      logger.info(`Executed ${orderSide} order for ${token} on ${exchange}`);
     } catch (error) {
       logger.error('Error executing trade on %s: %s', exchange, error.message);
       logger.debug('Error details: %O', error);
@@ -206,11 +203,11 @@ class TradingLogic {
         default:
           throw new Error(`Unsupported exchange: ${exchange}`);
       }
-      
-      logger.info(`Market order executed successfully on ${exchange}:`, result);
+
+      logger.info(`Market order executed successfully on ${exchange}: %j`, result);
       return result;
     } catch (error) {
-      logger.error(`Error executing market order on ${exchange}:`, error);
+      logger.error(`Error executing market order on ${exchange}: %j`, error);
       throw error;
     }
   }
@@ -263,6 +260,9 @@ class TradingLogic {
   }
 
   accumulateLiquidation(exchange, token, tradeSide, amount) {
+    logger.info(`Accumulating liquidations for ${token} during 5 seconds!`);
+    console.log('---');
+
     const now = Date.now();
     if (!this.liquidationAccumulation[token]) {
       this.liquidationAccumulation[token] = {
@@ -280,7 +280,9 @@ class TradingLogic {
       const liquidationThreshold = this.getLiquidationThreshold(tokenRanking);
       
       if (this.liquidationAccumulation[token].amount >= liquidationThreshold) {
-        this.executeTrade(exchange, token, tradeSide, this.liquidationAccumulation[token].amount);
+        console.log('!!!');
+        logger.warn(`Executing a trade for ${token} after liquidations accumulation!`);
+        this.executeTrade(exchange, token, tradeSide);
       }
 
       // Reset accumulation
