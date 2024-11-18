@@ -47,6 +47,16 @@ class WebSocketWrapper extends EventEmitter {
     this.wsApi.on('open', () => {
       logger.info(`Connected to ${this.urlApi}!`);
       clearTimeout(this.reconnectTimer);
+      this.authenticate();
+    });
+    this.wsApi.on('message', (data) => {
+      const response = JSON.parse(data);
+      if (response.id === 1 && response.status === 200) {
+          console.log('Authentication successful');
+          // Proceed with other API calls
+      } else {
+          console.log('Received message: %j', response);
+      }
     });
     this.wsApi.on('close', () => {
       logger.info(`Disconnected from ${this.urlApi}!`);
@@ -80,6 +90,9 @@ class WebSocketWrapper extends EventEmitter {
       this.wsApi.close();
     }
   }
+
+  authenticate() {};
+  send() {};
 }
 
 export default WebSocketWrapper;

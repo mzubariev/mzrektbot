@@ -1,13 +1,24 @@
 // binance-websocket.js
 import WebSocketWrapper from './websocket-wrapper.js';
-import crypto from 'crypto';
 import logger from '../utils/logger.js';
+import crypto from 'crypto';
+import nacl from 'tweetnacl';
+import base64 from 'base64-js';
+import fs from 'fs';
 
 class BinanceWebSocket extends WebSocketWrapper {
   constructor(apiKey, secretKey) {
     super('wss://fstream.binance.com/ws', 'wss://ws-fapi.binance.com/ws-fapi/v1');
     this.apiKey = apiKey;
-    this.secretKey = secretKey;
+    // this.secretKey = secretKey;
+    
+    // console.log('Private Key Length: %s', apiKey.length);
+    this.secretKey = Uint8Array.from(
+      secretKey.match(/.{1,2}/g).map(byte => parseInt(byte, 16))
+    );
+    // console.log('Private Key Length: %s', this.secretKey.length);
+    // console.log(this.secretKey);
+    console.log(this.secretKey);
   }
 
   // Listeners and subscriptions to WSS Streams
@@ -44,13 +55,13 @@ class BinanceWebSocket extends WebSocketWrapper {
   // Main methods to communicate via WSS API
 
   async sendOrder(order) {
-    const timestamp = Date.now();
-    const signature = this.generateSignature(timestamp);
+    const timestamp = this.getTimestamp();
     const requestId = this.generateRequestId();
+
     const message = {
       id: requestId,
       method: 'order.place',
-      params: order
+      params: { ...order, timestamp: timestamp }
     };
 
     return new Promise((resolve, reject) => {
@@ -106,13 +117,41 @@ class BinanceWebSocket extends WebSocketWrapper {
 
   // Helper methods
 
+  authenticate() {
+    const timestamp = this.getTimestamp();
+    const signature = this.generateSignature(timestamp);
+
+    const authMessage = {
+        id: 1, // Unique identifier for the request
+        method: 'session.logon',
+        params: {
+            apiKey: this.apiKey,
+            timestamp: timestamp,
+            signature: signature
+        }
+    };
+
+    this.wsApi.send(JSON.stringify(authMessage));
+  }
+
   generateSignature(timestamp) {
-    const message = `timestamp=${timestamp}`;
-    return crypto.createHmac('sha256', this.secretKey).update(message).digest('hex');
+    const messageUint8 = new TextEncoder().encode(`apiKey=${this.apiKey}&timestamp=${timestamp}`);
+    // const signatureUint8 = nacl.sign.detached(messageUint8, this.secretKey);
+    // return Buffer.from(signatureUint8).toString('hex'); // Convert to hex
+
+    return signature = crypto.sign(null, Buffer.from(`apiKey=${this.apiKey}&timestamp=${timestamp}`), {
+      key: this.secretKey,
+      padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
+      saltLength: crypto.constants.RSA_PSS_SALTLEN_DIGEST
+    }).toString('base64')
   }
 
   generateRequestId() {
     return `binance-req-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+  }
+
+  getTimestamp() {
+    return Date.now();
   }
 }
 
