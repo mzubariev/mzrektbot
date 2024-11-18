@@ -1,31 +1,25 @@
 // binance-websocket.js
-import WebSocket from 'ws';
 import WebSocketWrapper from './websocket-wrapper.js';
 import crypto from 'crypto';
 import logger from '../utils/logger.js';
 
 class BinanceWebSocket extends WebSocketWrapper {
   constructor(apiKey, secretKey) {
-    super('wss://fstream.binance.com/ws');
+    super('wss://fstream.binance.com/ws', 'wss://ws-fapi.binance.com/ws-fapi/v1');
     this.apiKey = apiKey;
     this.secretKey = secretKey;
   }
 
+  // Listeners and subscriptions to WSS Streams
+
   connect() {
-    const timestamp = Date.now();
-    const signature = this.generateSignature(timestamp);
-    const url = `${this.url}/${this.apiKey}/${timestamp}/${signature}`;
+    super.connect();
 
-    this.ws = new WebSocket(url);
-
-    this.ws.on('open', () => {
-      logger.info('Connected to Binance WebSocket');
-      this.isConnected = true;
-      clearTimeout(this.reconnectTimer);
+    this.wsStreams.on('open', () => {
       this.subscribeToLiquidations();
     });
 
-    this.ws.on('message', (data) => {      
+    this.wsStreams.on('message', (data) => {      
       try {
         const message = JSON.parse(data);
         if (message.e === 'forceOrder') {
@@ -36,16 +30,6 @@ class BinanceWebSocket extends WebSocketWrapper {
         logger.error('Error parsing Binance WebSocket message:', error);
       }
     });
-
-    this.ws.on('close', () => {
-      logger.info('Disconnected from Binance WebSocket');
-      this.reconnect();
-    });
-      
-    this.ws.on('error', (error) => {
-      logger.error('Binance WebSocket error:', error);
-      this.reconnect();
-    });
   }
 
   subscribeToLiquidations() {
@@ -54,60 +38,29 @@ class BinanceWebSocket extends WebSocketWrapper {
       params: ['!forceOrder@arr'],
       id: 1,
     };
-    this.ws.send(JSON.stringify(subscribeMessage));
+    this.wsStreams.send(JSON.stringify(subscribeMessage));
   }
 
-  generateSignature(timestamp) {
-    const message = `timestamp=${timestamp}`;
-    return crypto.createHmac('sha256', this.secretKey).update(message).digest('hex');
-  }
+  // Main methods to communicate via WSS API
 
-  generateRequestId() {
-    return `binance-req-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-  }
-
-  async getOrder(orderId) {
-    const message = {
-      method: 'GET_ORDER',
-      params: { orderId: orderId },
-    };
-  
-    return new Promise((resolve, reject) => {
-      const handleResponse = (data) => {
-        try {
-          const response = JSON.parse(data);
-          if (response.id === orderId) {
-            this.ws.removeListener('message', handleResponse);
-            resolve(response.result);
-          }
-        } catch (error) {
-          logger.error('Error parsing Binance getOrder response: %j', error);
-          reject(error);
-        }
-      };
-  
-      this.ws.on('message', handleResponse);
-      this.ws.send(JSON.stringify(message));
-    });
-  }  
-
-  async send(order) {
+  async sendOrder(order) {
+    const timestamp = Date.now();
+    const signature = this.generateSignature(timestamp);
     const requestId = this.generateRequestId();
     const message = {
-      method: 'ORDER',
-      params: { order },
-      id: requestId
+      id: requestId,
+      method: 'order.place',
+      params: order
     };
 
     return new Promise((resolve, reject) => {
       const handleResponse = (data) => {
-        logger.info('RESPONSE');
-        logger.info(data);
+        logger.info('RESPONSE:');
         try {
           const response = JSON.parse(data);
           logger.info(data);
           if (response.id === requestId && response.result) {
-            this.ws.removeListener('message', orderHandler);
+            this.wsApi.removeListener('message', orderHandler);
             resolve({
               orderId: response.result.orderId,
               status: response.result.status,
@@ -121,9 +74,45 @@ class BinanceWebSocket extends WebSocketWrapper {
         }
       };
 
-      this.ws.on('message', handleResponse);
-      this.ws.send(JSON.stringify(message));
+      this.wsApi.on('message', handleResponse);
+      this.wsApi.send(JSON.stringify(message));
     });
+  }
+
+  async getOrder(orderId) {
+    const message = {
+      method: 'GET_ORDER',
+      params: { orderId: orderId },
+    };
+  
+    return new Promise((resolve, reject) => {
+      const handleResponse = (data) => {
+        try {
+          const response = JSON.parse(data);
+          if (response.id === orderId) {
+            this.wsApi.removeListener('message', handleResponse);
+            resolve(response.result);
+          }
+        } catch (error) {
+          logger.error('Error parsing Binance getOrder response: %j', error);
+          reject(error);
+        }
+      };
+  
+      this.wsApi.on('message', handleResponse);
+      this.wsApi.send(JSON.stringify(message));
+    });
+  }
+
+  // Helper methods
+
+  generateSignature(timestamp) {
+    const message = `timestamp=${timestamp}`;
+    return crypto.createHmac('sha256', this.secretKey).update(message).digest('hex');
+  }
+
+  generateRequestId() {
+    return `binance-req-${Date.now()}-${Math.random().toString(36).substring(7)}`;
   }
 }
 

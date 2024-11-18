@@ -12,7 +12,8 @@ async function getTokenData() {
         'X-CMC_PRO_API_KEY': process.env.COINMARKETCAP_API_KEY
       },
       params: {
-        limit: 100,  // Fetch top 100 to ensure we have enough data
+        limit: 100,
+        sort: 'market_cap',
         convert: 'USDT'
       }
     });
@@ -21,7 +22,7 @@ async function getTokenData() {
 
     // Filter and process token data
     const top20Tokens = tokenData.slice(0, 20).map(token => token.symbol);
-    const top50Tokens = tokenData.slice(0, 50).map(token => token.symbol);
+    const top50Tokens = tokenData.slice(20, 50).map(token => token.symbol);
 
     // Save token data to JSON file
     fs.writeFileSync('token-data.json', JSON.stringify({ top20: top20Tokens, top50: top50Tokens }));

@@ -115,7 +115,7 @@ class TradingLogic {
 
     logger.info('Token ranking: %s, Liquidation threshold: %s, Liquidation amount: %s', tokenRanking, liquidationThreshold, liquidationAmount);
 
-    const tradeSide = orderSide === 'SELL' ? 'BUY' : 'SELL';
+    const tradeSide = this.determineTradeSide(orderSide);
 
     if (liquidationAmount >= liquidationThreshold) {
       // Execute trade
@@ -130,7 +130,7 @@ class TradingLogic {
       }
     } else {
       // Accumulate liquidation amount
-      this.accumulateLiquidation(exchange, token, tradeSide, liquidationAmount);
+      this.accumulateLiquidation(exchange, token, orderSide, liquidationAmount);
     }
   }
 
@@ -168,7 +168,7 @@ class TradingLogic {
       };
 
       logger.info('Placing limit order - Price: %s', limitPrice.toFixed(8));
-      const limitOrderResult = await exchange.send(limitOrder);
+      const limitOrderResult = await exchange.sendOrder(limitOrder);
       logger.info('Limit order result: %j', limitOrderResult);
 
       // Set a 5-minute timer for the limit order
@@ -220,7 +220,7 @@ class TradingLogic {
       type: 'MARKET',
       quoteOrderQty: quoteOrderQty
     };
-    return await this.binanceWs.send(order);
+    return await this.binanceWs.sendOrder(order);
   }
 
   // Bybit
@@ -232,7 +232,7 @@ class TradingLogic {
       orderQty: quoteOrderQty,
       orderFilter: 'Order'
     };
-    return await this.bybitWs.send(order);
+    return await this.bybitWs.sendOrder(order);
   }
 
   // OKX
@@ -245,7 +245,7 @@ class TradingLogic {
       tgtCcy: 'quote_ccy',
       sz: quoteOrderQty
     };
-    return await this.okxWs.send(order);
+    return await this.okxWs.sendOrder(order);
   }
 
   // MEXC
@@ -256,10 +256,10 @@ class TradingLogic {
       type: 'MARKET',
       quoteOrderQty: quoteOrderQty
     };
-    return await this.mexcWs.send(order);
+    return await this.mexcWs.sendOrder(order);
   }
 
-  accumulateLiquidation(exchange, token, tradeSide, amount) {
+  accumulateLiquidation(exchange, token, orderSide, amount) {
     logger.info(`Accumulating liquidations for ${token} during 5 seconds!`);
     console.log('---');
 
@@ -267,11 +267,14 @@ class TradingLogic {
     if (!this.liquidationAccumulation[token]) {
       this.liquidationAccumulation[token] = {
         amount: 0,
+        side: '',
         startTime: now,
       };
+    } else if (this.liquidationAccumulation[token].side === orderSide) {
+      this.liquidationAccumulation[token].amount += amount;
     }
 
-    this.liquidationAccumulation[token].amount += amount;
+    const tradeSide = this.determineTradeSide(orderSide);
 
     // 5 seconds to accumulate the liquidations per a token
     if (now - this.liquidationAccumulation[token].startTime >= 5000) {
@@ -291,6 +294,10 @@ class TradingLogic {
         startTime: now,
       };
     }
+  }
+
+  determineTradeSide(orderSide) {
+    return orderSide === 'SELL' ? 'BUY' : 'SELL';
   }
 
   setLimitOrderTimer(exchange, token, orderId) {

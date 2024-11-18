@@ -93,7 +93,7 @@ class MEXCWebSocket extends WebSocketWrapper {
     });
   }
   
-  async send(order) {
+  async sendOrder(order) {
     return new Promise((resolve, reject) => {
       const orderMessage = {
         method: 'ORDER',

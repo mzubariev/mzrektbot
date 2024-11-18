@@ -91,7 +91,7 @@ class BybitWebSocket extends WebSocketWrapper {
     });
   }  
 
-  async send(order) {
+  async sendOrder(order) {
     const requestId = this.generateRequestId();
     return new Promise((resolve, reject) => {
       const orderHandler = (message) => {
