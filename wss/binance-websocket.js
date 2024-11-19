@@ -3,21 +3,13 @@ import WebSocketWrapper from './websocket-wrapper.js';
 import logger from '../utils/logger.js';
 import nacl from 'tweetnacl';
 import base64 from 'base64-js';
-import fs from 'fs';
 
 class BinanceWebSocket extends WebSocketWrapper {
-  constructor(apiKey, secretKey) {
+  constructor(apiKey, secretKeyRaw) {
     super('wss://fstream.binance.com/ws', 'wss://ws-fapi.binance.com/ws-fapi/v1');
     this.apiKey = apiKey;
-    // Load the private key (assumes PEM format with Ed25519 key)
-    const privateKeyPem = fs.readFileSync('test-prv-key.pem', 'utf8');
-    const keyBase64 = privateKeyPem
-        .replace('-----BEGIN PRIVATE KEY-----', '')
-        .replace('-----END PRIVATE KEY-----', '')
-        .replace(/\n/g, '');
     // Extract the raw private key (32 bytes for Ed25519 seed)
-    this.privateKeyRaw = base64.toByteArray(keyBase64).slice(-32);
-    console.log(this.privateKeyRaw);
+    this.secretKeyRaw = base64.toByteArray(secretKeyRaw).slice(-32);
   }
 
   // Listeners and subscriptions to WSS Streams
@@ -134,7 +126,7 @@ class BinanceWebSocket extends WebSocketWrapper {
   }
 
   generateSignature(timestamp) {
-    const keyPair = nacl.sign.keyPair.fromSeed(this.privateKeyRaw);
+    const keyPair = nacl.sign.keyPair.fromSeed(this.secretKeyRaw);
     const payload = `apiKey=${this.apiKey}&timestamp=${timestamp}`;
     const payloadUint8 = new TextEncoder().encode(payload);
     const signature = nacl.sign.detached(payloadUint8, keyPair.secretKey);
