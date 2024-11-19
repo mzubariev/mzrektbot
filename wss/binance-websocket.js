@@ -1,7 +1,6 @@
 // binance-websocket.js
 import WebSocketWrapper from './websocket-wrapper.js';
 import logger from '../utils/logger.js';
-import crypto from 'crypto';
 import nacl from 'tweetnacl';
 import base64 from 'base64-js';
 import fs from 'fs';
@@ -10,15 +9,15 @@ class BinanceWebSocket extends WebSocketWrapper {
   constructor(apiKey, secretKey) {
     super('wss://fstream.binance.com/ws', 'wss://ws-fapi.binance.com/ws-fapi/v1');
     this.apiKey = apiKey;
-    // this.secretKey = secretKey;
-    
-    // console.log('Private Key Length: %s', apiKey.length);
-    this.secretKey = Uint8Array.from(
-      secretKey.match(/.{1,2}/g).map(byte => parseInt(byte, 16))
-    );
-    // console.log('Private Key Length: %s', this.secretKey.length);
-    // console.log(this.secretKey);
-    console.log(this.secretKey);
+    // Load the private key (assumes PEM format with Ed25519 key)
+    const privateKeyPem = fs.readFileSync('test-prv-key.pem', 'utf8');
+    const keyBase64 = privateKeyPem
+        .replace('-----BEGIN PRIVATE KEY-----', '')
+        .replace('-----END PRIVATE KEY-----', '')
+        .replace(/\n/g, '');
+    // Extract the raw private key (32 bytes for Ed25519 seed)
+    this.privateKeyRaw = base64.toByteArray(keyBase64).slice(-32);
+    console.log(this.privateKeyRaw);
   }
 
   // Listeners and subscriptions to WSS Streams
@@ -135,15 +134,11 @@ class BinanceWebSocket extends WebSocketWrapper {
   }
 
   generateSignature(timestamp) {
-    const messageUint8 = new TextEncoder().encode(`apiKey=${this.apiKey}&timestamp=${timestamp}`);
-    // const signatureUint8 = nacl.sign.detached(messageUint8, this.secretKey);
-    // return Buffer.from(signatureUint8).toString('hex'); // Convert to hex
-
-    return signature = crypto.sign(null, Buffer.from(`apiKey=${this.apiKey}&timestamp=${timestamp}`), {
-      key: this.secretKey,
-      padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
-      saltLength: crypto.constants.RSA_PSS_SALTLEN_DIGEST
-    }).toString('base64')
+    const keyPair = nacl.sign.keyPair.fromSeed(this.privateKeyRaw);
+    const payload = `apiKey=${this.apiKey}&timestamp=${timestamp}`;
+    const payloadUint8 = new TextEncoder().encode(payload);
+    const signature = nacl.sign.detached(payloadUint8, keyPair.secretKey);
+    return base64.fromByteArray(signature); // Encode signature in Base64
   }
 
   generateRequestId() {
