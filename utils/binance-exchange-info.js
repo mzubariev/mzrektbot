@@ -12,13 +12,16 @@ async function getBinanceExchangeInfo() {
       const priceFilter = symbolInfo.filters.find(filter => filter.filterType === 'PRICE_FILTER');
       const tickSize = priceFilter ? parseFloat(priceFilter.tickSize) : null;
 
-      acc[symbolInfo.symbol] = {
-        pricePrecision: symbolInfo.pricePrecision,
-        quantityPrecision: symbolInfo.quantityPrecision,
-        baseAssetPrecision: symbolInfo.baseAssetPrecision,
-        quotePrecision: symbolInfo.quotePrecision,
-        tickSize: tickSize
-      };
+      if (!symbolInfo.symbol.includes('USDC')) {
+        acc[symbolInfo.symbol] = {
+          pricePrecision: symbolInfo.pricePrecision,
+          quantityPrecision: symbolInfo.quantityPrecision,
+          baseAssetPrecision: symbolInfo.baseAssetPrecision,
+          quotePrecision: symbolInfo.quotePrecision,
+          tickSize: tickSize
+        };
+      }
+
       return acc;
     }, {});
 
@@ -27,7 +30,7 @@ async function getBinanceExchangeInfo() {
 
     return formattedData;
   } catch (error) {
-    logger.error('Error fetching exchange info: %j', error);
+    logger.error('Error fetching exchange info: %s', error);
   }
 }
 
