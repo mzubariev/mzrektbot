@@ -12,12 +12,9 @@ class MEXCWebSocket extends WebSocketWrapper {
   }
 
   connect() {
-    this.ws = new WebSocket(this.url);
+    super.connect();
 
     this.ws.on('open', () => {
-      logger.info('Connected to MEXC WebSocket');
-      this.isConnected = true;
-      this.authenticate();
       this.subscribeToLiquidations();
     });
 
@@ -26,21 +23,11 @@ class MEXCWebSocket extends WebSocketWrapper {
         const message = JSON.parse(data);
         if (message.channel === 'push.liquidation') {
           const { symbol, side, price, vol } = message.data;
-          this.events.emit('message', { s: symbol, S: side, q: vol, ap: price }); // Forward the message
+          this.events.emit('message', { s: symbol, S: side, q: vol, ap: price });
         }
       } catch (error) {
-        logger.error('Error parsing Binance WebSocket message:', error);
+        logger.error('Error parsing Binance WebSocket message: %j', error);
       }
-    });
-
-    this.ws.on('close', () => {
-      logger.info('Disconnected from MEXC WebSocket');
-      this.reconnect();
-    });
-      
-    this.ws.on('error', (error) => {
-      logger.error('MEXC WebSocket error:', error);
-      this.reconnect();
     });
   }
 
@@ -80,10 +67,10 @@ class MEXCWebSocket extends WebSocketWrapper {
           const response = JSON.parse(data);
           if (response.method === 'GET_ORDER' && response.params.orderId === orderId) {
             this.ws.removeListener('message', handleResponse);
-            resolve(response.data); // Ensure data contains fields like `status`
+            resolve(response.data); // Ensure data contains fields like 'status'
           }
         } catch (error) {
-          logger.error('Error parsing MEXC getOrder response:', error);
+          logger.error('Error parsing MEXC getOrder response: %j', error);
           reject(error);
         }
       };
@@ -102,7 +89,7 @@ class MEXCWebSocket extends WebSocketWrapper {
       
       this.ws.send(JSON.stringify(orderMessage), (error) => {
         if (error) {
-          logger.error('Error sending order to MEXC:', error);
+          logger.error('Error sending order to MEXC: %j', error);
           reject(error);
         }
       });
@@ -119,11 +106,11 @@ class MEXCWebSocket extends WebSocketWrapper {
               executedQty: data.data.executedQty
             });
           } else if (data.method === 'ORDER' && data.code !== 0) {
-            logger.error('MEXC order error:', data);
-            reject(new Error(`MEXC order error: ${data.message}`));
+            logger.error('MEXC order error: %j', data);
+            reject(new Error('MEXC order error: %j', data.message));
           }
         } catch (error) {
-          logger.error('Error processing MEXC order response:', error);
+          logger.error('Error processing MEXC order response: %j', error);
         }
       };
 

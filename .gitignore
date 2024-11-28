@@ -6,3 +6,4 @@ node_modules/
 !.env.vault
 **/*.log
 token-data.json
+binance-exchange-info.json

@@ -13,12 +13,9 @@ class OKXWebSocket extends WebSocketWrapper {
   }
 
   connect() {
-    this.ws = new WebSocket(this.url);
+    super.connect();
 
     this.ws.on('open', () => {
-      logger.info('Connected to OKX WebSocket');
-      this.isConnected = true;
-      this.authenticate();
       this.subscribeToLiquidations();
     });
 
@@ -27,21 +24,11 @@ class OKXWebSocket extends WebSocketWrapper {
         const message = JSON.parse(data);
         if (message.event === 'liquidation') {
           const { instrument_id, side, price, size } = message.data[0];
-          this.events.emit('message', { s: instrument_id, S: side, q: size, ap: price }); // Forward the message
+          this.events.emit('message', { s: instrument_id, S: side, q: size, ap: price });
         }
       } catch (error) {
-        logger.error('Error parsing Binance WebSocket message:', error);
+        logger.error('Error parsing Binance WebSocket message: %j', error);
       }
-    });
-
-    this.ws.on('close', () => {
-      logger.info('Disconnected from OKX WebSocket');
-      this.reconnect();
-    });
-      
-    this.ws.on('error', (error) => {
-      logger.error('OKX WebSocket error:', error);
-      this.reconnect();
     });
   }
 
@@ -93,10 +80,10 @@ class OKXWebSocket extends WebSocketWrapper {
           const response = JSON.parse(data);
           if (response.op === 'orderDetails' && response.args[0].orderId === orderId) {
             this.ws.removeListener('message', handleResponse);
-            resolve(response.data[0]); // Ensure data contains fields like `status`
+            resolve(response.data[0]); // Ensure data contains fields like 'status'
           }
         } catch (error) {
-          logger.error('Error parsing OKX getOrder response:', error);
+          logger.error('Error parsing OKX getOrder response: %j', error);
           reject(error);
         }
       };

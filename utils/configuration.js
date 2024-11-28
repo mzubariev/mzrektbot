@@ -16,7 +16,7 @@ class Configuration extends EventEmitter {
       const data = fs.readFileSync(this.filePath, 'utf8');
       this.config = JSON.parse(data);
     } catch (error) {
-      logger.error('Error loading configuration:', error);
+      logger.error('Error loading configuration: %j', error);
     }
   }
 
@@ -25,7 +25,7 @@ class Configuration extends EventEmitter {
       fs.writeFileSync(this.filePath, JSON.stringify(this.config, null, 2));
       this.emit('configUpdated', this.config); // Emit event when config is updated
     } catch (error) {
-      logger.error('Error saving configuration:', error);
+      logger.error('Error saving configuration: %j', error);
     }
   }
 
@@ -39,4 +39,6 @@ class Configuration extends EventEmitter {
   }
 }
 
-export default Configuration;
+const config = new Configuration('./config.json');
+
+export default config;

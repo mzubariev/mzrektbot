@@ -1,37 +1,36 @@
 // telegram-bot.js
 import TelegramBot from 'node-telegram-bot-api';
-import Configuration from '../utils/configuration.js';
+import config from '../utils/configuration.js';
 import logger from '../utils/logger.js';
 
-const config = new Configuration('./config.json');
-
 class TelegramBotWrapper {
-  constructor(token) {
+  constructor(token, chatId) {
     this.bot = new TelegramBot(token, { polling: true });
+    this.chatId = chatId;
   }
 
   start() {
-    this.bot.onText(/\/pause/, (msg) => {
-      const chatId = msg.chat.id;
+    logger.info('Telegram Bot started!');
+
+    this.bot.onText(/\/pause/, () => {
       config.emit('configUpdated', { status: 'paused' });
-      this.bot.sendMessage(chatId, 'Bot paused. Use /resume to restart.');
+      this.sendMsgToTgChat('Bot paused. Use /resume to restart.');
     });
 
-    this.bot.onText(/\/resume/, (msg) => {
-      const chatId = msg.chat.id;
+    this.bot.onText(/\/resume/, () => {
       config.emit('configUpdated', { status: 'running' });
-      this.bot.sendMessage(chatId, 'Bot resumed.');
+      this.sendMsgToTgChat('Bot resumed.');
     });
 
-    this.bot.onText(/\/start/, (msg) => {
-      const chatId = msg.chat.id;
-      this.bot.sendMessage(chatId, 'Welcome to the Crypto Trading Bot!');
+    this.bot.onText(/\/start/, () => {
+      this.sendMsgToTgChat("Let's roll!\nTo change settings, type /settings");
+      const currentSettings = JSON.stringify(config.config, null, 2);
+      this.sendMsgToTgChat(`Current Settings: ${currentSettings}`);
     });
 
-    this.bot.onText(/\/settings/, (msg) => {
-      const chatId = msg.chat.id;
+    this.bot.onText(/\/settings/, () => {
       const settingsKeyboard = this.getSettingsKeyboard();
-      this.bot.sendMessage(chatId, 'Bot Settings:', {
+      this.sendMsgToTgChat('Bot Settings:', {
         reply_markup: {
           inline_keyboard: settingsKeyboard,
         },
@@ -39,12 +38,11 @@ class TelegramBotWrapper {
     });
 
     this.bot.on('callback_query', (callbackQuery) => {
-      const chatId = callbackQuery.message.chat.id;
       const data = callbackQuery.data;
 
       if (data.startsWith('setting_')) {
         const settingKey = data.replace('setting_', '');
-        this.handleSettingChange(chatId, settingKey);
+        this.handleSettingChange(settingKey);
       }
     });
   }
@@ -54,25 +52,38 @@ class TelegramBotWrapper {
       [
         { text: 'Top20 tokens Liquidation amount', callback_data: 'setting_top20Liquidation' },
         { text: 'Top50 tokens Liquidation amount', callback_data: 'setting_top50Liquidation' },
+        { text: 'Small tokens Liquidation amount', callback_data: 'setting_smallLiquidation' }
       ],
       [
-        { text: 'Small tokens Liquidation amount', callback_data: 'setting_smallLiquidation' },
         { text: 'Deposit Size', callback_data: 'setting_depositSize' },
+        { text: 'Bid % for each trade', callback_data: 'setting_bidPercentage' },
+        { text: 'Profit % for each trade', callback_data: 'setting_profitPercentage' }
       ],
-      [{ text: 'Bid % for each trade', callback_data: 'setting_bidPrcnt' }],
+      [{ text: 'Bot trade direction. Options: trend OR rebound', callback_data: 'setting_tradeDirection' }]
     ];
     return settingsKeyboard;
   }
 
-  handleSettingChange(chatId, settingKey) {
-    this.bot.sendMessage(chatId, `Please enter the new value for ${settingKey}:`);
+  handleSettingChange(settingKey) {
+    this.sendMsgToTgChat(`Please enter the new value for ${settingKey}:`);
 
     this.bot.once('message', (msg) => {
       const newValue = parseInt(msg.text, 10);
       config.setConfig({ [settingKey]: newValue });
       logger.info(`Setting ${settingKey} updated to ${newValue}`);
-      this.bot.sendMessage(chatId, `Setting ${settingKey} updated to ${newValue}`);
+      this.sendMsgToTgChat(`Setting ${settingKey} updated to ${newValue}`);
     });
+  }
+
+  sendMsgToTgChat(msg) {
+    try {
+      this.bot.sendMessage(this.chatId, msg, { 
+        disable_web_page_preview: true, 
+        parse_mode: 'HTML' 
+      });
+    } catch(error) {
+      logger.error(error);
+    }
   }
 }
 

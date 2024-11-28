@@ -4,12 +4,17 @@ import TradingLogic from './trading/trading-logic.js';
 import TelegramBotWrapper from './telegram/telegram-bot.js';
 import logger from './utils/logger.js';
 import cron from 'node-cron';
-import getTokenData from './utils/coinmarketcap-token-data.js';
+import getMarketCapTokenData from './utils/coinmarketcap-token-data.js';
+import getBinanceExchangeInfo from './utils/binance-exchange-info.js';
 
 dotenv.config();
 
 async function main() {
   try {
+    // Start Telegram Bot
+    const telegramBot = new TelegramBotWrapper(process.env.TELEGRAM_BOT_TOKEN, process.env.TELEGRAM_CHAT_ID);
+    telegramBot.start();
+
     // Initialize Trading Logic Module with sensitive information from .env
     const tradingLogic = new TradingLogic({
       binanceApiKey: process.env.BINANCE_API_KEY,
@@ -23,25 +28,26 @@ async function main() {
       mexcSecretKey: process.env.MEXC_SECRET_KEY
     });
     // Start trading
-    logger.info('Start liquidations listeners for all exchanges!');
-    await tradingLogic.initialize();
-
-    // Start Telegram Bot
-    const telegramBot = new TelegramBotWrapper(process.env.TELEGRAM_BOT_TOKEN);
-    telegramBot.start();
+    await tradingLogic.initialize(telegramBot);
 
     // Schedule token data update
     cron.schedule('0 0 * * *', async () => {
       try {
-        const tokenData = await getTokenData();
-        tradingLogic.updateTokenData(tokenData);
+        logger.info('CRON: Running CMC and Binance info updates!');
+
+        const tokenData = await getMarketCapTokenData();
+        tradingLogic.updateMarketCapTokenData(tokenData);
         logger.info('Token data updated successfully!');
+
+        const binanceExchangeInfo = await getBinanceExchangeInfo();
+        tradingLogic.updateBinanceExchangeInfo(binanceExchangeInfo);
+        logger.info('Binance Exchnage data updated successfully!');
       } catch (error) {
-        logger.error('Error updating token data:', error);
+        logger.error('Error updating data via cron task: %j', error);
       }
     });
   } catch (error) {
-    logger.error('Bot initialization error:', error);
+    logger.error('Bot initialization error: %j', error);
     process.exit(1);
   }
 }

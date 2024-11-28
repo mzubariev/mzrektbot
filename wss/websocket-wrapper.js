@@ -4,18 +4,19 @@ import WebSocket from 'ws';
 import logger from '../utils/logger.js';
 
 class WebSocketWrapper extends EventEmitter {
-  constructor(urlStreams, urlApi) {
+  constructor({ urlStreams, urlApi }) {
     super();
     this.urlStreams = urlStreams;
     this.urlApi = urlApi;
     this.wsStreams = null;
     this.wsApi = null;
+    this.name = '';
     this.reconnectTimerStreamsWs = null;
     this.reconnectTimerApiWs = null;
     this.isForceDisconnectStreamsWs = false;
     this.isForceDisconnectApiWs = false;
-    this.reconnectInterval = 5000; // Reconnect interval in milliseconds
-    this.events = new EventEmitter(); // EventEmitter for external message handling
+    this.reconnectInterval = 5000;
+    this.events = new EventEmitter();
   }
 
   connect(url = null) {
@@ -36,7 +37,7 @@ class WebSocketWrapper extends EventEmitter {
       this.isForceDisconnectStreamsWs = false;
     });
     this.wsStreams.on('error', (error) => {
-      logger.error(`WebSocket error for ${this.urlStreams}: %j`, error);
+      logger.error('WebSocket error for %s: %j', this.urlStreams, error);
       this.reconnect(this.urlStreams);
     });
 
@@ -52,10 +53,12 @@ class WebSocketWrapper extends EventEmitter {
     this.wsApi.on('message', (data) => {
       const response = JSON.parse(data);
       if (response.id === 1 && response.status === 200) {
-          console.log('Authentication successful');
-          // Proceed with other API calls
+        logger.info(`${this.name} wss API Authentication successful!`);
+        // Proceed with other API calls
+      } else if (response.error) {
+        logger.error('Received an error message from %s wss API: %j', this.name, response);
       } else {
-          console.log('Received message: %j', response);
+        logger.info('Received message from %s wss API: %j', this.name, response);
       }
     });
     this.wsApi.on('close', () => {
@@ -66,7 +69,7 @@ class WebSocketWrapper extends EventEmitter {
       this.isForceDisconnectApiWs = false;
     });
     this.wsApi.on('error', (error) => {
-      logger.error(`WebSocket error for ${this.urlApi}: %j`, error);
+      logger.error('WebSocket error for %s: %j', this.urlApi, error);
       this.reconnect(this.urlApi);
     });
   }

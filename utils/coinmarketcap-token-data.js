@@ -5,7 +5,7 @@ import logger from '../utils/logger.js';
 
 dotenv.config();
 
-async function getTokenData() {
+async function getMarketCapTokenData() {
   try {
     const response = await axios.get('https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest', {
       headers: {
@@ -26,13 +26,13 @@ async function getTokenData() {
 
     // Save token data to JSON file
     fs.writeFileSync('token-data.json', JSON.stringify({ top20: top20Tokens, top50: top50Tokens }));
-    logger.info('All top tokens just got updated from CoinMarketCap!');
+    logger.info('All top tokens just got updated from CoinMarketCap! Saved to ./token-data.json');
 
     return { top20: top20Tokens, top50: top50Tokens };
   } catch (error) {
-    logger.error('Error retrieving token data from CoinMarketCap:', error);
+    logger.error('Error retrieving token data from CoinMarketCap: %j', error);
     throw error;
   }
 }
 
-export default getTokenData;
+export default getMarketCapTokenData;

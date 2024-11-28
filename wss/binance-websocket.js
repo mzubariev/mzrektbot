@@ -6,10 +6,42 @@ import base64 from 'base64-js';
 
 class BinanceWebSocket extends WebSocketWrapper {
   constructor(apiKey, secretKeyRaw) {
-    super('wss://fstream.binance.com/ws', 'wss://ws-fapi.binance.com/ws-fapi/v1');
+    super({ 
+      urlStreams: 'wss://fstream.binance.com/ws',
+      urlApi: 'wss://ws-fapi.binance.com/ws-fapi/v1'
+     });
     this.apiKey = apiKey;
-    // Extract the raw private key (32 bytes for Ed25519 seed)
-    this.secretKeyRaw = base64.toByteArray(secretKeyRaw).slice(-32);
+    this.secretKeyRaw = secretKeyRaw;
+    this.name = 'Binance';
+    this.tickerPrices = {};
+  }
+
+  // Authentication
+
+  authenticate() {
+    const timestamp = this.getTimestamp();
+    const signature = this.generateSignature(timestamp);
+
+    const authMessage = {
+        id: 1,
+        method: 'session.logon',
+        params: {
+            apiKey: this.apiKey,
+            timestamp: timestamp,
+            signature: signature
+        }
+    };
+
+    this.wsApi.send(JSON.stringify(authMessage));
+  }
+
+  generateSignature(timestamp) {
+    const secretKeyBytesArray = base64.toByteArray(this.secretKeyRaw).slice(-32);
+    const keyPair = nacl.sign.keyPair.fromSeed(secretKeyBytesArray);
+    const payload = `apiKey=${this.apiKey}&timestamp=${timestamp}`;
+    const payloadUint8 = new TextEncoder().encode(payload);
+    const signature = nacl.sign.detached(payloadUint8, keyPair.secretKey);
+    return base64.fromByteArray(signature);
   }
 
   // Listeners and subscriptions to WSS Streams
@@ -18,32 +50,55 @@ class BinanceWebSocket extends WebSocketWrapper {
     super.connect();
 
     this.wsStreams.on('open', () => {
+      this.subscribeToAllTickers();
       this.subscribeToLiquidations();
     });
 
-    this.wsStreams.on('message', (data) => {      
+    this.wsStreams.on('message', (data) => {
       try {
         const message = JSON.parse(data);
-        if (message.e === 'forceOrder') {
+
+        if (Array.isArray(message) && message[0].e === '24hrTicker' && !message[0].s.includes('USDC')) {
+          this.handleAllTickerUpdates(message);
+        } else if (message.e === 'forceOrder' && !message.o.s.includes('USDC')) {
           // { s: symbol, S: orderSide, q: quantity, ap: price } = message.o;
-          this.events.emit('message', message.o); // Forward the message
+          this.events.emit('message', message.o);
         }
       } catch (error) {
-        logger.error('Error parsing Binance WebSocket message:', error);
+        logger.error('Error parsing Binance WebSocket message: %j', error);
       }
     });
   }
 
   subscribeToLiquidations() {
-    const subscribeMessage = {
-      method: 'SUBSCRIBE',
-      params: ['!forceOrder@arr'],
-      id: 1,
-    };
-    this.wsStreams.send(JSON.stringify(subscribeMessage));
+    this.wsStreams.send(
+      JSON.stringify({
+        method: 'SUBSCRIBE',
+        params: ['!forceOrder@arr'],
+        id: this.generateRequestId(),
+      })
+    );
   }
 
-  // Main methods to communicate via WSS API
+  subscribeToAllTickers() {
+    this.wsStreams.send(
+      JSON.stringify({
+        method: 'SUBSCRIBE',
+        params: ['!ticker@arr'],
+        id: this.generateRequestId(),
+      })
+    );
+  }
+
+  handleAllTickerUpdates(tickerArray) {
+    tickerArray.forEach((ticker) => {
+      const symbol = ticker.s;
+      const lastPrice = parseFloat(ticker.c);
+      this.tickerPrices[symbol] = lastPrice;
+    });
+  }
+
+  // Communication via WSS API
 
   async sendOrder(order) {
     const timestamp = this.getTimestamp();
@@ -52,17 +107,15 @@ class BinanceWebSocket extends WebSocketWrapper {
     const message = {
       id: requestId,
       method: 'order.place',
-      params: { ...order, timestamp: timestamp }
+      params: { ...order, timestamp }
     };
 
     return new Promise((resolve, reject) => {
       const handleResponse = (data) => {
-        logger.info('RESPONSE:');
         try {
           const response = JSON.parse(data);
-          logger.info(data);
           if (response.id === requestId && response.result) {
-            this.wsApi.removeListener('message', orderHandler);
+            this.wsApi.removeListener('message', handleResponse);
             resolve({
               orderId: response.result.orderId,
               status: response.result.status,
@@ -81,17 +134,21 @@ class BinanceWebSocket extends WebSocketWrapper {
     });
   }
 
-  async getOrder(orderId) {
+  async getOrder(orderId, symbol) {
+    const timestamp = this.getTimestamp();
+    const requestId = this.generateRequestId();
+
     const message = {
-      method: 'GET_ORDER',
-      params: { orderId: orderId },
+      id: requestId,
+      method: 'order.status',
+      params: { orderId, symbol, timestamp }
     };
   
     return new Promise((resolve, reject) => {
       const handleResponse = (data) => {
         try {
           const response = JSON.parse(data);
-          if (response.id === orderId) {
+          if (response.id === requestId && response.result) {
             this.wsApi.removeListener('message', handleResponse);
             resolve(response.result);
           }
@@ -107,31 +164,6 @@ class BinanceWebSocket extends WebSocketWrapper {
   }
 
   // Helper methods
-
-  authenticate() {
-    const timestamp = this.getTimestamp();
-    const signature = this.generateSignature(timestamp);
-
-    const authMessage = {
-        id: 1, // Unique identifier for the request
-        method: 'session.logon',
-        params: {
-            apiKey: this.apiKey,
-            timestamp: timestamp,
-            signature: signature
-        }
-    };
-
-    this.wsApi.send(JSON.stringify(authMessage));
-  }
-
-  generateSignature(timestamp) {
-    const keyPair = nacl.sign.keyPair.fromSeed(this.secretKeyRaw);
-    const payload = `apiKey=${this.apiKey}&timestamp=${timestamp}`;
-    const payloadUint8 = new TextEncoder().encode(payload);
-    const signature = nacl.sign.detached(payloadUint8, keyPair.secretKey);
-    return base64.fromByteArray(signature); // Encode signature in Base64
-  }
 
   generateRequestId() {
     return `binance-req-${Date.now()}-${Math.random().toString(36).substring(7)}`;

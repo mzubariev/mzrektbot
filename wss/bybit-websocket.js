@@ -12,12 +12,9 @@ class BybitWebSocket extends WebSocketWrapper {
   }
 
   connect() {
-    this.ws = new WebSocket(this.url);
+    super.connect();
 
     this.ws.on('open', () => {
-      logger.info('Connected to Bybit WebSocket');
-      this.isConnected = true;
-      this.authenticate();
       this.subscribeToLiquidations();
     });
 
@@ -26,21 +23,11 @@ class BybitWebSocket extends WebSocketWrapper {
         const message = JSON.parse(data);
         if (message.topic === 'liquidation') {
           const { symbol, side, price, qty } = message.data;
-          this.events.emit('message', { s: symbol, S: side, q: qty, ap: price }); // Forward the message
+          this.events.emit('message', { s: symbol, S: side, q: qty, ap: price });
         }
       } catch (error) {
-        logger.error('Error parsing Binance WebSocket message:', error);
+        logger.error('Error parsing Binance WebSocket message: %j', error);
       }
-    });
-
-    this.ws.on('close', () => {
-      logger.info('Disconnected from Bybit WebSocket');
-      this.reconnect();
-    });
-      
-    this.ws.on('error', (error) => {
-      logger.error('Bybit WebSocket error:', error);
-      this.reconnect();
     });
   }
 
@@ -78,10 +65,10 @@ class BybitWebSocket extends WebSocketWrapper {
           const response = JSON.parse(data);
           if (response.request && response.request.op === 'order' && response.request.args.orderId === orderId) {
             this.ws.removeListener('message', handleResponse);
-            resolve(response.result); // Ensure result contains fields like `status`
+            resolve(response.result); // Ensure result contains fields like 'status'
           }
         } catch (error) {
-          logger.error('Error parsing Bybit getOrder response:', error);
+          logger.error('Error parsing Bybit getOrder response: %j', error);
           reject(error);
         }
       };
