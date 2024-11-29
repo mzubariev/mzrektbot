@@ -58,7 +58,7 @@ class BinanceWebSocket extends WebSocketWrapper {
       try {
         const message = JSON.parse(data);
 
-        if (Array.isArray(message) && message[0].e === '24hrTicker' && !message[0].s.includes('USDC')) {
+        if (Array.isArray(message) && message[0].e === '24hrTicker') {
           this.handleAllTickerUpdates(message);
         } else if (message.e === 'forceOrder' && !message.o.s.includes('USDC')) {
           // { s: symbol, S: orderSide, q: quantity, ap: price } = message.o;
@@ -93,8 +93,10 @@ class BinanceWebSocket extends WebSocketWrapper {
   handleAllTickerUpdates(tickerArray) {
     tickerArray.forEach((ticker) => {
       const symbol = ticker.s;
-      const lastPrice = parseFloat(ticker.c);
-      this.tickerPrices[symbol] = lastPrice;
+      if (!symbol.includes('USDC')) {
+        const lastPrice = parseFloat(ticker.c);
+        this.tickerPrices[symbol] = lastPrice;
+      }
     });
   }
 
@@ -151,6 +153,39 @@ class BinanceWebSocket extends WebSocketWrapper {
           if (response.id === requestId && response.result) {
             this.wsApi.removeListener('message', handleResponse);
             resolve(response.result);
+          }
+        } catch (error) {
+          logger.error('Error parsing Binance getOrder response: %j', error);
+          reject(error);
+        }
+      };
+  
+      this.wsApi.on('message', handleResponse);
+      this.wsApi.send(JSON.stringify(message));
+    });
+  }
+
+  async getAccountBalance() {
+    const timestamp = this.getTimestamp();
+    const requestId = this.generateRequestId();
+
+    const message = {
+      id: requestId,
+      method: 'v2/account.balance',
+      params: { timestamp }
+    };
+  
+    return new Promise((resolve, reject) => {
+      const handleResponse = (data) => {
+        try {
+          const response = JSON.parse(data);
+          if (response.id === requestId && response.result) {
+            this.wsApi.removeListener('message', handleResponse);
+            const usdtAccount = response.result.find(item => item.asset === 'USDT');
+            resolve({
+              walletBalance: usdtAccount.balance,
+              availableBalance: usdtAccount.availableBalance
+            });
           }
         } catch (error) {
           logger.error('Error parsing Binance getOrder response: %j', error);

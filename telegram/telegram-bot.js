@@ -14,15 +14,15 @@ class TelegramBotWrapper {
 
     this.bot.onText(/\/pause/, () => {
       config.emit('configUpdated', { status: 'paused' });
-      this.sendMsgToTgChat('Bot paused. Use /resume to restart.');
+      this.sendMsgToTgChat('Bot paused. Use /resume to restart trading.');
     });
 
     this.bot.onText(/\/resume/, () => {
       config.emit('configUpdated', { status: 'running' });
-      this.sendMsgToTgChat('Bot resumed.');
+      this.sendMsgToTgChat('Bot resumed. Use /pause to pause trading.');
     });
 
-    this.bot.onText(/\/start/, () => {
+    this.bot.onText(/\/info/, () => {
       this.sendMsgToTgChat("Let's roll!\nTo change settings, type /settings");
       const currentSettings = JSON.stringify(config.config, null, 2);
       this.sendMsgToTgChat(`Current Settings: ${currentSettings}`);

@@ -8,7 +8,7 @@ import getMarketCapTokenData from '../utils/coinmarketcap-token-data.js';
 import getBinanceExchangeInfo from '../utils/binance-exchange-info.js';
 import config from '../utils/configuration.js';
 
-const ORDERS_STATUSES_TO_ALERT = ['NEW', 'PARTIALLY_FILLED', 'CANCELED', 'REJECTED'];
+const STUCK_ORDER_STATUSES_TO_ALERT = ['NEW', 'PARTIALLY_FILLED', 'CANCELED', 'REJECTED'];
 
 class TradingLogic {
   constructor({ binanceApiKey, binanceSecretKey, bybitApiKey, bybitSecretKey, okxApiKey, okxSecretKey, okxPassphrase, mexcApiKey, mexcSecretKey }) {
@@ -54,7 +54,8 @@ class TradingLogic {
   /* Trading */
 
   calculateBidAmount() {
-    return this.config.depositSize * this.config.bidPercentage / 100;
+    const rawValue = this.config.depositSize * this.config.bidPercentage / 100;
+    return this.roundDownToTwoDecimals(rawValue);
   }
 
   getOppositeTradeSide(tradeSide) {
@@ -66,7 +67,7 @@ class TradingLogic {
   }
 
   getTokenTrend(liquidationSide) {
-    return liquidationSide === 'BUY' ? 'Local DOWN-trend' : 'Local UP-trend';
+    return liquidationSide === 'BUY' ? 'Most probably DOWN-trend' : 'Most probably UP-trend';
   }
 
   getBotTradeSide(liquidationSide) {
@@ -80,6 +81,13 @@ class TradingLogic {
   setupLiquidationListeners() {
     // Binance
     this.binanceWs.events.on('message', async (liquidation) => {
+      if (this.isPaused) {
+        logger.info('Start timer!');
+        await this.setBalanceCheckTimer(this.binanceWs)
+        logger.info('End timer!');
+        return;
+      }
+
       await this.processLiquidation(liquidation, this.binanceWs);
     });
 
@@ -100,13 +108,6 @@ class TradingLogic {
   }
 
   async processLiquidation(liquidation, exchange) {
-    console.log('\n---Processing liquidation---');
-
-    if (this.isPaused) {
-      logger.warn('Liquidation processing skipped: Trading is paused!');
-      return;
-    }
-
     const { s: symbol, S: liquidationSide, q: quantity, ap: price } = liquidation;
     const tokenRanking = this.getTokenRanking(symbol);
     const liquidationThreshold = this.getLiquidationThreshold(tokenRanking);
@@ -117,10 +118,22 @@ class TradingLogic {
       return;
     }
 
+    logger.info('\n---Processing liquidation---');
     logger.info(`${exchange.name}, ${symbol}, ${this.translatePositionSide(liquidationSide)} -${liquidationAmount}$ -> ${this.getTokenTrend(liquidationSide)} <- Price: ${price}$, Quantity: ${quantity} | Token rank: ${tokenRanking}, Liquidation threshold: ${liquidationThreshold}$`);
 
     if (liquidationAmount >= liquidationThreshold) {
       try {
+
+        // TODO: need to do this more clever
+        if (this.openOrders.size >= 2) {
+          await this.checkIfEnoughBalanceForBid(exchange);
+
+          if (this.isPaused) {
+            logger.warn('Skip execution since the Bot is paused because there is not enough money for a bid!');
+            return;
+          }
+        }
+
         const tradeSide = this.getBotTradeSide(liquidationSide);
         await this.executeTrade(exchange, symbol, tradeSide);
       } catch (error) {
@@ -135,11 +148,6 @@ class TradingLogic {
   }
 
   async executeTrade(exchange, symbol, tradeSide) {
-    if (this.isPaused) {
-      logger.warn(`Trade execution skipped: Trading is paused (${symbol} on ${exchange.name})`);
-      return;
-    }
-    
     try {
       // Send Market order
       const amountForBid = this.calculateBidAmount();
@@ -274,7 +282,8 @@ class TradingLogic {
       ? avgPrice * (1 + this.config.profitPercentage / 100)
       : avgPrice * (1 - this.config.profitPercentage / 100);
     const tickSizeFloat = this.getTokenPrecisions(symbol, 'tickSize');
-    const formattedLimitPrice = Math.ceil(limitPrice / tickSizeFloat) * tickSizeFloat;
+    const preFormattedLimitPrice = Math.ceil(limitPrice / tickSizeFloat) * tickSizeFloat;
+    const formattedLimitPrice = this.formatSpecificFloatsForToken(symbol, preFormattedLimitPrice, 'pricePrecision'); // TODO: ?????
     const limitOrderSide = this.getOppositeTradeSide(tradeSide);
 
     return { limitOrderSide, formattedLimitPrice };
@@ -332,7 +341,7 @@ class TradingLogic {
   setLimitOrderTimer(exchange, symbol, orderId) {
     const timer = setTimeout(() => {
       this.alertHangingLimitOrder(exchange, symbol, orderId);
-    }, 5 * 60 * 1000); // 5 minutes
+    }, 10 * 60 * 1000); // 10 minutes
 
     const exchangeName = exchange.name;
     this.openOrders.set(orderId, { exchangeName, symbol, timer });
@@ -341,7 +350,7 @@ class TradingLogic {
   async alertHangingLimitOrder(exchange, symbol, orderId) {
     try {
       const order = await exchange.getOrder(orderId, symbol);
-      if (ORDERS_STATUSES_TO_ALERT.includes(order.status)) {
+      if (STUCK_ORDER_STATUSES_TO_ALERT.includes(order.status)) {
         // Notify via Telegram
         this.telegramBot.sendMsgToTgChat(`Limit order for <strong><a href="https://www.binance.com/en/futures/${symbol}">${symbol} on ${exchange.name}</a></strong> have some issues after 5 minutes. Order status: ${order.status}`);
       }
@@ -349,6 +358,25 @@ class TradingLogic {
       logger.error(`Error checking limit order status: ${error}`);
     } finally {
       this.openOrders.delete(orderId);
+    }
+  }
+
+  async setBalanceCheckTimer(exchange) {
+    setTimeout(() => {
+      this.checkIfEnoughBalanceForBid(exchange);
+    }, 5 * 1000); // 5 seconds
+  }
+
+  async checkIfEnoughBalanceForBid(exchange) {
+    logger.info('Checking if the Wallet has enough of available balance for a single bid...');
+    const amountForBid = this.calculateBidAmount();
+    const { availableBalance } = await exchange.getAccountBalance();
+    const formattedAvailableBalance = this.roundDownToTwoDecimals(availableBalance);
+
+    if (formattedAvailableBalance >= amountForBid && this.isPaused) {
+      this.resume();
+    } else if (formattedAvailableBalance <= amountForBid && !this.isPaused) {
+      this.pause();
     }
   }
 
@@ -382,7 +410,7 @@ class TradingLogic {
       throw new Error(`Token ${symbol} not found in exchangeInfo`);
     }
   
-    return parseFloat(tokenInfo[tokenPrecisionSetting]);
+    return tokenInfo[tokenPrecisionSetting];
   }
 
   formatSpecificFloatsForToken(symbol, number, tokenPrecisionSetting) {
@@ -401,6 +429,10 @@ class TradingLogic {
 
     const truncated = numberString.slice(0, decimalIndex + precision + 1);
     return parseFloat(truncated);
+  }
+
+  roundDownToTwoDecimals(number) {
+    return Math.floor(number * 100) / 100;
   }
 
   // Configurations routine
@@ -423,9 +455,17 @@ class TradingLogic {
     this.binanceExchangeInfo = binanceExchangeInfo;
   }
 
+  async updateDepositSizeConfig() {
+    logger.info('Updating Deposit Size config...');
+    const { walletBalance } = await this.binanceWs.getAccountBalance();
+    config.setConfig({ "depositSize": this.roundDownToTwoDecimals(walletBalance) });
+
+    // TODO: Add for other exchanges too
+  }
+
   pause() {
     this.isPaused = true;
-    logger.info('Trading logic paused!');
+    logger.warn('Trading logic paused!');
   }
 
   resume() {

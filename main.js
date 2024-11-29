@@ -30,10 +30,10 @@ async function main() {
     // Start trading
     await tradingLogic.initialize(telegramBot);
 
-    // Schedule token data update
+    // Schedule token data update - every day at 00:00
     cron.schedule('0 0 * * *', async () => {
       try {
-        logger.info('CRON: Running CMC and Binance info updates!');
+        logger.info('CRON: Running Marketcap and Binance info updates!');
 
         const tokenData = await getMarketCapTokenData();
         tradingLogic.updateMarketCapTokenData(tokenData);
@@ -44,6 +44,19 @@ async function main() {
         logger.info('Binance Exchnage data updated successfully!');
       } catch (error) {
         logger.error('Error updating data via cron task: %j', error);
+      }
+    });
+
+    // Schedule Wallet Amount (deposit size) update - at the start of every hour
+    cron.schedule('0 * * * *', async () => {
+      try {
+        logger.info('CRON: Running Deposit Size update!');
+
+        await tradingLogic.updateDepositSizeConfig();
+        
+        logger.info('Deposit Size config updated successfully!');
+      } catch (error) {
+        logger.error('Error updating deposit size config via cron task: %j', error);
       }
     });
   } catch (error) {
