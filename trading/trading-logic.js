@@ -120,6 +120,11 @@ class TradingLogic {
           return;
         }
 
+        if (exchange.positionsInfo[symbol] && exchange.positionsInfo[symbol][positionSide].ordersAmount >= 2) {
+          logger.warn(`Skipping the trade since there are already ${exchange.positionsInfo[symbol][positionSide].ordersAmount} orders opened for this token! Wait till they are closed...`);
+          return;
+        }
+
         await this.executeTrade(exchange, symbol, tradeSide);
       } catch (error) {
         logger.error(`Error executing trade for ${symbol} on ${exchange.name}: ${error.message}`);

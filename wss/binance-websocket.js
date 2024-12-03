@@ -162,6 +162,7 @@ class BinanceWebSocket extends WebSocketWrapper {
               entryPrice: parseFloat(entryPrice),
               breakevenPrice: parseFloat(breakevenPrice),
               lastUpdated: Date.now(),
+              ordersAmount: this.positionsInfo[symbol][positionSide] ? this.positionsInfo[symbol][positionSide].ordersAmount + 1 : 1
             };
           } else {
             delete this.positionsInfo[symbol][positionSide];
