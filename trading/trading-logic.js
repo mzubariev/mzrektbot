@@ -111,6 +111,7 @@ class TradingLogic {
     if (liquidationAmount >= liquidationThreshold) {
       try {
         const tradeSide = getBotTradeSide(liquidationSide);
+        const positionSide = translatePositionSide(tradeSide);
 
         if (config.current.longsOrShortsOrBoth.toUpperCase() === 'LONG' && tradeSide.toUpperCase() === 'SELL') {
           logger.warn(`Skipping the trade since it is to ${tradeSide} while the setting is only for ${config.current.longsOrShortsOrBoth}s!`);
