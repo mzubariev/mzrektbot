@@ -59,7 +59,10 @@ class TelegramBotWrapper {
         { text: 'Bid % for each trade', callback_data: 'setting_bidPercentage' },
         { text: 'Profit % for each trade', callback_data: 'setting_profitPercentage' }
       ],
-      [{ text: 'Bot trade direction. Options: trend OR rebound', callback_data: 'setting_tradeDirection' }]
+      [
+        { text: 'Bot trade direction. Options: "trend" OR "rebound"', callback_data: 'setting_tradeDirection' },
+        { text: 'Only LONGs or only SHORTs, or BOTH directions trades. Options: "long" / "short" / "both"', callback_data: 'setting_longsOrShortsOrBoth' }
+      ]
     ];
     return settingsKeyboard;
   }

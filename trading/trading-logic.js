@@ -82,6 +82,18 @@ class TradingLogic {
     // });
   }
 
+  async checkIfEnoughBalanceForBid(exchange) {
+    const amountForBid = calculateBidAmount(exchange);
+    const availableBalance = exchange.accountInfo.availableBalance;
+
+    if (availableBalance < amountForBid && !this.isPaused) {
+      this.pause();
+      logger.warn('Skip execution since the Bot is paused because there is not enough money for a bid!');
+    } else if (availableBalance >= amountForBid && this.isPaused) {
+      this.resume();
+    }
+  }
+
   async processLiquidation(liquidation, exchange) {
     const { s: symbol, S: liquidationSide, q: quantity, ap: price } = liquidation;
     const tokenRanking = this.getTokenRanking(symbol);
@@ -99,6 +111,15 @@ class TradingLogic {
     if (liquidationAmount >= liquidationThreshold) {
       try {
         const tradeSide = getBotTradeSide(liquidationSide);
+
+        if (config.current.longsOrShortsOrBoth.toUpperCase() === 'LONG' && tradeSide.toUpperCase() === 'SELL') {
+          logger.warn(`Skipping the trade sine it is ${tradeSide} while the setting is only for ${config.current.longsOrShortsOrBoth.toUpperCase()}s!`);
+          return;
+        } else if (config.current.longsOrShortsOrBoth.toUpperCase() === 'SHORT' && tradeSide.toUpperCase() === 'BUY') {
+          logger.warn(`Skipping the trade sine it is ${tradeSide} while the setting is only for ${config.current.longsOrShortsOrBoth.toUpperCase()}s!`);
+          return;
+        }
+
         await this.executeTrade(exchange, symbol, tradeSide);
       } catch (error) {
         logger.error(`Error executing trade for ${symbol} on ${exchange.name}: ${error.message}`);
@@ -108,18 +129,6 @@ class TradingLogic {
       }
     } else {
       this.accumulateLiquidation(exchange, symbol, liquidationSide, liquidationAmount);
-    }
-  }
-
-  async checkIfEnoughBalanceForBid(exchange) {
-    const amountForBid = calculateBidAmount(exchange);
-    const availableBalance = exchange.accountInfo.availableBalance;
-
-    if (availableBalance < amountForBid && !this.isPaused) {
-      this.pause();
-      logger.warn('Skip execution since the Bot is paused because there is not enough money for a bid!');
-    } else if (availableBalance >= amountForBid && this.isPaused) {
-      this.resume();
     }
   }
 
