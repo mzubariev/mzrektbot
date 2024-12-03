@@ -314,24 +314,16 @@ class TradingLogic {
 
   async sendLimitOrderToClosePosition(exchange, symbol, orderSide, positionSide, quantity, price) {
     let accumulatedQuantity = null;
-    let breakevenPrice = null;
-    let formattedBreakevenPrice = null;
-    let bestPrice = null;
+    let closingBreakevenPrice = null;
     
     if (exchange.positionsInfo[symbol] && exchange.positionsInfo[symbol][positionSide]) {
       accumulatedQuantity = exchange.positionsInfo[symbol][positionSide].positionAmount;
-      breakevenPrice = exchange.positionsInfo[symbol][positionSide].breakevenPrice;
+      const breakevenPrice = exchange.positionsInfo[symbol][positionSide].breakevenPrice;
 
       if (breakevenPrice) {
-        formattedBreakevenPrice = this.calculateLimitOrderClosePositionPrice(symbol, positionSide, breakevenPrice)
-
-        if (positionSide === 'LONG') {
-          bestPrice = Math.max(price, formattedBreakevenPrice);
-        } else {
-          bestPrice = Math.min(price, formattedBreakevenPrice);
-        }
+        closingBreakevenPrice = this.calculateLimitOrderClosePositionPrice(symbol, positionSide, breakevenPrice)
       }
-    }    
+    }  
 
     console.log('sendLimitOrderToClosePosition');
     console.log('Quantities');
@@ -340,8 +332,7 @@ class TradingLogic {
     console.log(`Math.max(Math.abs(accumulatedQuantity), quantity) ${Math.max(Math.abs(accumulatedQuantity), quantity)}`);
     console.log('Prices');
     console.log(`price ${price}`);
-    console.log(`formattedBreakevenPrice ${formattedBreakevenPrice}`);
-    console.log(`bestPrice || price ${bestPrice || price}`);
+    console.log(`increasedAndFormattedBreakevenPrice ${closingBreakevenPrice}`);
 
     const limitOrder = {
       symbol: symbol,
@@ -349,7 +340,7 @@ class TradingLogic {
       positionSide: positionSide,
       type: 'LIMIT',
       quantity: Math.max(Math.abs(accumulatedQuantity), quantity),
-      price: bestPrice || price,
+      price: closingBreakevenPrice || price,
       timeInForce: 'GTC',
       newOrderRespType: 'RESULT'
     };
