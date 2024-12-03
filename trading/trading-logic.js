@@ -121,7 +121,7 @@ class TradingLogic {
           return;
         }
 
-        if (exchange.positionsInfo[symbol] && exchange.positionsInfo[symbol][positionSide].ordersAmount >= 2) {
+        if (exchange.positionsInfo[symbol] && exchange.positionsInfo[symbol][positionSide] && exchange.positionsInfo[symbol][positionSide].ordersAmount >= 2) {
           logger.warn(`Skipping the trade since there are already ${exchange.positionsInfo[symbol][positionSide].ordersAmount} orders opened for this token! Wait till they are closed...`);
           return;
         }
