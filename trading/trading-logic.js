@@ -282,7 +282,7 @@ class TradingLogic {
     let preFormattedLimitPrice = Math.ceil(limitPrice / tickSize) * tickSize;
     console.log(`CEIL: ${preFormattedLimitPrice}`);
   
-    if (String(limitPrice).length >= 12) {
+    if (String(preFormattedLimitPrice).length >= 12) {
       preFormattedLimitPrice = Math.floor(limitPrice / tickSize) * tickSize;
       console.log(`FLOOR: ${preFormattedLimitPrice}`);
     }
