@@ -113,10 +113,10 @@ class TradingLogic {
         const tradeSide = getBotTradeSide(liquidationSide);
 
         if (config.current.longsOrShortsOrBoth.toUpperCase() === 'LONG' && tradeSide.toUpperCase() === 'SELL') {
-          logger.warn(`Skipping the trade sine it is ${tradeSide} while the setting is only for ${config.current.longsOrShortsOrBoth.toUpperCase()}s!`);
+          logger.warn(`Skipping the trade since it is to ${tradeSide} while the setting is only for ${config.current.longsOrShortsOrBoth}s!`);
           return;
         } else if (config.current.longsOrShortsOrBoth.toUpperCase() === 'SHORT' && tradeSide.toUpperCase() === 'BUY') {
-          logger.warn(`Skipping the trade sine it is ${tradeSide} while the setting is only for ${config.current.longsOrShortsOrBoth.toUpperCase()}s!`);
+          logger.warn(`Skipping the trade since it is to ${tradeSide} while the setting is only for ${config.current.longsOrShortsOrBoth}s!`);
           return;
         }
 
