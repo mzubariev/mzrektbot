@@ -15,7 +15,7 @@
 # How it works
 Going by a market trend means the opposite direction from a liquidations.
 Example: when the market goes UP then SELL (SHORT) liquidations get trigerred and we need to BUY.
-По тренду ИЛИ в отскок.
+По тренду (trend) ИЛИ в отскок (rebound).
 
 # HEDGE MODE
 * Open position:

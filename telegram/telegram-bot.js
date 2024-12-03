@@ -30,7 +30,7 @@ class TelegramBotWrapper {
 
     this.bot.onText(/\/settings/, () => {
       const settingsKeyboard = this.getSettingsKeyboard();
-      this.sendMsgToTgChat('Bot Settings:', {
+      this.bot.sendMessage(this.chatId, 'Bot Settings:', {
         reply_markup: {
           inline_keyboard: settingsKeyboard,
         },
@@ -60,7 +60,7 @@ class TelegramBotWrapper {
         { text: 'Profit % for each trade', callback_data: 'setting_profitPercentage' }
       ],
       [
-        { text: 'Bot trade direction. Options: "trend" OR "rebound"', callback_data: 'setting_tradeDirection' },
+        { text: 'Bot trade direction. Options: trend OR rebound', callback_data: 'setting_tradeDirection' },
         { text: 'Only LONGs or only SHORTs, or BOTH directions trades. Options: "long" / "short" / "both"', callback_data: 'setting_longsOrShortsOrBoth' }
       ]
     ];
@@ -71,7 +71,8 @@ class TelegramBotWrapper {
     this.sendMsgToTgChat(`Please enter the new value for ${settingKey}:`);
 
     this.bot.once('message', (msg) => {
-      const newValue = parseInt(msg.text, 10);
+      const numericValue = parseFloat(msg.text, 10);
+      const newValue = numericValue ? numericValue : msg.text;
       config.setConfig({ [settingKey]: newValue });
       logger.info(`Setting ${settingKey} updated to ${newValue}`);
       this.sendMsgToTgChat(`Setting ${settingKey} updated to ${newValue}`);
