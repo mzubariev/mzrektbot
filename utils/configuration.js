@@ -3,18 +3,21 @@ import fs from 'fs';
 import { EventEmitter } from 'events';
 import logger from '../utils/logger.js';
 
+EventEmitter.defaultMaxListeners = 30;
+//process.setMaxListeners(100);
+
 class Configuration extends EventEmitter {
   constructor(filePath) {
     super();
     this.filePath = filePath;
-    this.config = {};
+    this.current = {};
     this.loadConfig();
   }
 
   loadConfig() {
     try {
       const data = fs.readFileSync(this.filePath, 'utf8');
-      this.config = JSON.parse(data);
+      this.current = JSON.parse(data);
     } catch (error) {
       logger.error('Error loading configuration: %j', error);
     }
@@ -22,20 +25,20 @@ class Configuration extends EventEmitter {
 
   saveConfig() {
     try {
-      fs.writeFileSync(this.filePath, JSON.stringify(this.config, null, 2));
-      this.emit('configUpdated', this.config); // Emit event when config is updated
+      fs.writeFileSync(this.filePath, JSON.stringify(this.current, null, 2));
     } catch (error) {
       logger.error('Error saving configuration: %j', error);
     }
   }
 
   getConfig() {
-    return this.config;
+    return this.current;
   }
 
   setConfig(newConfig) {
-    this.config = { ...this.config, ...newConfig };
+    this.current = { ...this.current, ...newConfig };
     this.saveConfig();
+    logger.info('Config updated! Current settings: %j', this.current);
   }
 }
 

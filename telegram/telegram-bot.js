@@ -13,18 +13,18 @@ class TelegramBotWrapper {
     logger.info('Telegram Bot started!');
 
     this.bot.onText(/\/pause/, () => {
-      config.emit('configUpdated', { status: 'paused' });
+      config.emit('statusChanged', { status: 'paused' });
       this.sendMsgToTgChat('Bot paused. Use /resume to restart trading.');
     });
 
     this.bot.onText(/\/resume/, () => {
-      config.emit('configUpdated', { status: 'running' });
+      config.emit('statusChanged', { status: 'running' });
       this.sendMsgToTgChat('Bot resumed. Use /pause to pause trading.');
     });
 
     this.bot.onText(/\/info/, () => {
       this.sendMsgToTgChat("Let's roll!\nTo change settings, type /settings");
-      const currentSettings = JSON.stringify(config.config, null, 2);
+      const currentSettings = JSON.stringify(config.current, null, 2);
       this.sendMsgToTgChat(`Current Settings: ${currentSettings}`);
     });
 

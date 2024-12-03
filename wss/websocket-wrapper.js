@@ -3,14 +3,18 @@ import EventEmitter from 'events';
 import WebSocket from 'ws';
 import logger from '../utils/logger.js';
 
+EventEmitter.defaultMaxListeners = 30;
+
 class WebSocketWrapper extends EventEmitter {
   constructor({ urlStreams, urlApi }) {
     super();
+    this.name = '';
     this.urlStreams = urlStreams;
     this.urlApi = urlApi;
-    this.wsStreams = null;
+    this.wsMarketStreams = null;
     this.wsApi = null;
-    this.name = '';
+    this.wsUserDataStreams = null;
+    this.listenKey = null;
     this.reconnectTimerStreamsWs = null;
     this.reconnectTimerApiWs = null;
     this.isForceDisconnectStreamsWs = false;
@@ -23,30 +27,50 @@ class WebSocketWrapper extends EventEmitter {
     // TODO: refactor to not reconnect to both at the same time if only one connection failed,
     // and to not repeat methods
 
-    this.wsStreams = new WebSocket(this.urlStreams);
+    // User Data Stream
 
-    this.wsStreams.on('open', () => {
-      logger.info(`Connected to ${this.urlStreams}!`);
+    this.wsUserDataStreams = new WebSocket(`${this.urlStreams}/${this.listenKey}`);
+
+    this.wsUserDataStreams.on('open', () => {
+      logger.info(`Connected to ${this.urlStreams} User Data Stream!`);
+    });
+    this.wsUserDataStreams.on('close', () => {
+      logger.error('WebSocket connection closed. Reconnecting...');
+      this.reconnect();
+    });
+    this.wsUserDataStreams.on('error', (error) => {
+      logger.error('WebSocket error: %j', error.message);
+      this.reconnect();
+    });
+
+    // Market Streams
+
+    this.wsMarketStreams = new WebSocket(this.urlStreams);
+
+    this.wsMarketStreams.on('open', () => {
+      logger.info(`Connected to ${this.urlStreams} Market Streams!`);
       clearTimeout(this.reconnectTimer);
     });
-    this.wsStreams.on('close', () => {
+    this.wsMarketStreams.on('close', () => {
       logger.info(`Disconnected from ${this.urlStreams}!`);
       if (!this.isForceDisconnectStreamsWs) {
         this.reconnect(this.urlStreams);
       }
       this.isForceDisconnectStreamsWs = false;
     });
-    this.wsStreams.on('error', (error) => {
+    this.wsMarketStreams.on('error', (error) => {
       logger.error('WebSocket error for %s: %j', this.urlStreams, error);
       this.reconnect(this.urlStreams);
     });
 
     // TODO: add pong() method on ping event and send back the same payload we got from ping
 
+    // WSS API
+
     this.wsApi = new WebSocket(this.urlApi);
 
     this.wsApi.on('open', () => {
-      logger.info(`Connected to ${this.urlApi}!`);
+      logger.info(`Connected to ${this.urlApi} WSS API!`);
       clearTimeout(this.reconnectTimer);
       this.authenticate();
     });
@@ -57,8 +81,8 @@ class WebSocketWrapper extends EventEmitter {
         // Proceed with other API calls
       } else if (response.error) {
         logger.error('Received an error message from %s wss API: %j', this.name, response);
-      } else {
-        logger.info('Received message from %s wss API: %j', this.name, response);
+      // } else {
+      //   logger.info('Received message from %s wss API: %j', this.name, response);
       }
     });
     this.wsApi.on('close', () => {
@@ -83,9 +107,9 @@ class WebSocketWrapper extends EventEmitter {
 
   disconnect() {
     logger.info(`Disconnecting WebSocket for ${this.urlStreams}:`);
-    if (this.wsStreams) {
+    if (this.wsMarketStreams) {
       this.isForceDisconnectStreamsWs = true;
-      this.wsStreams.close();
+      this.wsMarketStreams.close();
     }
     logger.info(`Disconnecting WebSocket for ${this.urlApi}:`);
     if (this.wsApi) {
@@ -94,8 +118,8 @@ class WebSocketWrapper extends EventEmitter {
     }
   }
 
-  authenticate() {};
-  send() {};
+  authenticate() {}
+  send() {}
 }
 
 export default WebSocketWrapper;

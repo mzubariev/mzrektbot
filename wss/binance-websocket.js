@@ -3,6 +3,9 @@ import WebSocketWrapper from './websocket-wrapper.js';
 import logger from '../utils/logger.js';
 import nacl from 'tweetnacl';
 import base64 from 'base64-js';
+import axios from 'axios';
+import config from '../utils/configuration.js';
+import { roundDownToTwoDecimals } from '../utils/helpers.js';
 
 class BinanceWebSocket extends WebSocketWrapper {
   constructor(apiKey, secretKeyRaw) {
@@ -10,13 +13,18 @@ class BinanceWebSocket extends WebSocketWrapper {
       urlStreams: 'wss://fstream.binance.com/ws',
       urlApi: 'wss://ws-fapi.binance.com/ws-fapi/v1'
      });
+    this.name = 'Binance';
     this.apiKey = apiKey;
     this.secretKeyRaw = secretKeyRaw;
-    this.name = 'Binance';
+    this.accountInfo = {
+      walletBalance: config.current.depositSize,
+      availableBalance: config.current.depositSize
+    };
+    this.positionsInfo = {};
     this.tickerPrices = {};
   }
 
-  // Authentication
+  // Authentication and ListenKey
 
   authenticate() {
     const timestamp = this.getTimestamp();
@@ -44,17 +52,44 @@ class BinanceWebSocket extends WebSocketWrapper {
     return base64.fromByteArray(signature);
   }
 
+  async getListenKey() {
+    try {
+      const response = await axios.post('https://fapi.binance.com/fapi/v1/listenKey', null, {
+        headers: { 'X-MBX-APIKEY': this.apiKey },
+      });
+      return response.data.listenKey;
+    } catch (error) {
+      logger.error('Error fetching listenKey: %j', error.message);
+      throw error;
+    }
+  }
+
+  keepListenKeyAlive() {
+    setInterval(async () => {
+      try {
+        await axios.put('https://fapi.binance.com/fapi/v1/listenKey', null, {
+          headers: { 'X-MBX-APIKEY': this.apiKey },
+        });
+        logger.info('ListenKey kept alive.');
+      } catch (error) {
+        logger.error('Error keeping listenKey alive: %j', error.message);
+      }
+    }, 30 * 60 * 1000); // Every 30 minutes
+  }
+
   // Listeners and subscriptions to WSS Streams
 
-  connect() {
+  async connect() {
+    this.listenKey = await this.getListenKey();
     super.connect();
+    this.keepListenKeyAlive();
 
-    this.wsStreams.on('open', () => {
+    this.wsMarketStreams.on('open', () => {
       this.subscribeToAllTickers();
       this.subscribeToLiquidations();
     });
 
-    this.wsStreams.on('message', (data) => {
+    this.wsMarketStreams.on('message', (data) => {
       try {
         const message = JSON.parse(data);
 
@@ -63,15 +98,21 @@ class BinanceWebSocket extends WebSocketWrapper {
         } else if (message.e === 'forceOrder' && !message.o.s.includes('USDC')) {
           // { s: symbol, S: orderSide, q: quantity, ap: price } = message.o;
           this.events.emit('message', message.o);
+        } else if (message.error) {
+          throw new Error(`ERROR: %j`, message.error);
         }
       } catch (error) {
         logger.error('Error parsing Binance WebSocket message: %j', error);
       }
     });
+
+    this.wsUserDataStreams.on('message', (data) => {
+      this.handleUserDataMessages(data);
+    });
   }
 
   subscribeToLiquidations() {
-    this.wsStreams.send(
+    this.wsMarketStreams.send(
       JSON.stringify({
         method: 'SUBSCRIBE',
         params: ['!forceOrder@arr'],
@@ -81,7 +122,7 @@ class BinanceWebSocket extends WebSocketWrapper {
   }
 
   subscribeToAllTickers() {
-    this.wsStreams.send(
+    this.wsMarketStreams.send(
       JSON.stringify({
         method: 'SUBSCRIBE',
         params: ['!ticker@arr'],
@@ -98,6 +139,50 @@ class BinanceWebSocket extends WebSocketWrapper {
         this.tickerPrices[symbol] = lastPrice;
       }
     });
+  }
+
+  async handleUserDataMessages(message) {    
+    try {
+      const data = JSON.parse(message);
+
+      if (data.e === 'ACCOUNT_UPDATE') {
+        const positions = data.a.P; // Positions array from the event
+
+        console.log('handleUserDataMessages');
+        positions.forEach((position) => {
+          const { s: symbol, ps: positionSide, pa: positionAmt, ep: entryPrice, bep: breakevenPrice } = position;
+
+          if (!this.positionsInfo[symbol]) {
+            this.positionsInfo[symbol] = {};
+          }
+
+          if (parseFloat(positionAmt) !== 0) {
+            this.positionsInfo[symbol][positionSide] = {
+              positionAmount: parseFloat(positionAmt),
+              entryPrice: parseFloat(entryPrice),
+              breakevenPrice: parseFloat(breakevenPrice),
+              lastUpdated: Date.now(),
+            };
+          } else {
+            delete this.positionsInfo[symbol][positionSide];
+          }
+        });
+
+        console.log(this.positionsInfo);
+        logger.info('Updated positions: %j', this.positionsInfo);
+
+        await this.updateBalances();
+      }
+    } catch (error) {
+      logger.error('Error parsing User Data Stream message: %j', error);
+    }
+  }
+
+  async updateBalances() {
+    logger.warn('Updating Wallet Balance and Available Balance...');
+    const { walletBalance, availableBalance } = await this.getAccountBalance();
+    this.accountInfo.walletBalance = roundDownToTwoDecimals(walletBalance);
+    this.accountInfo.availableBalance = roundDownToTwoDecimals(availableBalance);
   }
 
   // Communication via WSS API

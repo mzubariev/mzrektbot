@@ -6,6 +6,7 @@ import logger from './utils/logger.js';
 import cron from 'node-cron';
 import getMarketCapTokenData from './utils/coinmarketcap-token-data.js';
 import getBinanceExchangeInfo from './utils/binance-exchange-info.js';
+import { enableIsolatedMarginForAll } from './utils/setIsolatedMarginModeBinance.js';
 
 dotenv.config();
 
@@ -30,6 +31,17 @@ async function main() {
     // Start trading
     await tradingLogic.initialize(telegramBot);
 
+    // Schedule token data update - every Sunday at 00:00
+    cron.schedule('0 0 * * 0', async () => {
+      try {
+        logger.info('CRON: Set Isolated margin mode to all USDT pairs on Binance!');
+        enableIsolatedMarginForAll();
+        logger.info('The Isolated margin mode has been set for all USDT pairs on Binance!');
+      } catch (error) {
+        logger.error('Error setting Isolated margin mode to all USDT pairs on Binance. Error: %j', error);
+      }
+    });
+
     // Schedule token data update - every day at 00:00
     cron.schedule('0 0 * * *', async () => {
       try {
@@ -52,7 +64,7 @@ async function main() {
       try {
         logger.info('CRON: Running Deposit Size update!');
 
-        await tradingLogic.updateDepositSizeConfig();
+        tradingLogic.updateDepositSizeConfig();
         
         logger.info('Deposit Size config updated successfully!');
       } catch (error) {
