@@ -264,9 +264,14 @@ class TradingLogic {
     console.log(`limitPrice ${limitPrice}`);
     const tickSize = this.getTokenPrecisions(symbol, 'tickSize');
     console.log(`tickSize ${tickSize}`);
-    const preFormattedLimitPrice = Math.ceil(limitPrice / tickSize) * tickSize;
+    let preFormattedLimitPrice = Math.ceil(limitPrice / tickSize) * tickSize;
     console.log(`CEIL: ${preFormattedLimitPrice}`);
-    console.log(`FLOOR: ${Math.floor(limitPrice / tickSize) * tickSize}`);
+  
+    if (String(limitPrice).length >= 12) {
+      preFormattedLimitPrice = Math.floor(limitPrice / tickSize) * tickSize;
+      console.log(`FLOOR: ${preFormattedLimitPrice}`);
+    }
+
     const formattedLimitPrice = this.formatSpecificFloatsForToken(symbol, preFormattedLimitPrice, 'pricePrecision');
     console.log(`With pricePrecision CUT: ${formattedLimitPrice}`);
     return formattedLimitPrice;
