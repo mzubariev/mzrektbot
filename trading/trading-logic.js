@@ -10,7 +10,7 @@ import config from '../utils/configuration.js';
 import { roundDownToTwoDecimals, calculateBidAmount, getOppositeTradeSide, translatePositionSide, getTokenTrend, getBotTradeSide } from '../utils/helpers.js';
 
 const STUCK_ORDER_STATUSES_TO_ALERT = ['NEW', 'PARTIALLY_FILLED', 'CANCELED', 'REJECTED'];
-const TIMEOUT_TO_SIGNAL_TO_TG = 10; // minutes
+const TIMEOUT_TO_SIGNAL_TO_TG = 20; // minutes
 
 class TradingLogic {
   constructor({ binanceApiKey, binanceSecretKey, bybitApiKey, bybitSecretKey, okxApiKey, okxSecretKey, okxPassphrase, mexcApiKey, mexcSecretKey }) {
@@ -403,7 +403,7 @@ class TradingLogic {
   setLimitOrderTimer(exchange, symbol, orderId) {
     const timer = setTimeout(() => {
       this.alertHangingLimitOrder(exchange, symbol, orderId);
-    }, TIMEOUT_TO_SIGNAL_TO_TG * 60 * 1000); // 10 minutes
+    }, TIMEOUT_TO_SIGNAL_TO_TG * 60 * 1000);
 
     const exchangeName = exchange.name;
     this.openOrders.set(orderId, { exchangeName, symbol, timer });
@@ -419,6 +419,7 @@ class TradingLogic {
     } catch (error) {
       logger.error(`Error checking limit order status: ${error}`);
     } finally {
+      // clearInterval(openOrders.orderId.timer);
       this.openOrders.delete(orderId);
     }
   }

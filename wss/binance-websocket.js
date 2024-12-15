@@ -121,6 +121,7 @@ class BinanceWebSocket extends WebSocketWrapper {
     );
   }
 
+  // ticker.price ?
   subscribeToAllTickers() {
     this.wsMarketStreams.send(
       JSON.stringify({
