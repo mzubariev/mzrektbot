@@ -286,32 +286,25 @@ class TradingLogic {
   }
 
   calculateLimitOrderClosePositionPrice(symbol, positionSide, avgPrice) {
-    console.log('calculateLimitOrderClosePositionPrice');
-    console.log(`avgPrice ${avgPrice}`);
     const limitPrice = positionSide === 'LONG'
       ? avgPrice * (1 + config.current.profitPercentage / 100)
       : avgPrice * (1 - config.current.profitPercentage / 100);
-    console.log(`limitPrice ${limitPrice}`);
+
     const tickSize = this.getTokenPrecisions(symbol, 'tickSize');
-    console.log(`tickSize ${tickSize}`);
+
     let preFormattedLimitPrice = Math.ceil(limitPrice / tickSize) * tickSize;
-    console.log(`CEIL: ${preFormattedLimitPrice}`);
   
+    // These symbols get formatted the wrong way so we exclude them
     if (String(preFormattedLimitPrice).length >= 12 && !['NEIROETHUSDT', 'CKBUSDT'].includes(symbol)) {
       preFormattedLimitPrice = Math.floor(limitPrice / tickSize) * tickSize;
-      console.log(`FLOOR: ${preFormattedLimitPrice}`);
     }
 
     const formattedLimitPrice = this.formatSpecificFloatsForToken(symbol, preFormattedLimitPrice, 'pricePrecision');
-    console.log(`With pricePrecision CUT: ${formattedLimitPrice}`);
     return formattedLimitPrice;
   }
   
   formatSpecificFloatsForToken(symbol, number, tokenPrecisionSetting) {
-    console.log('formatSpecificFloatsForToken');
-    console.log(`Numer ${number}`);
     const numberString = number.toString();
-    console.log(`numberString ${numberString}`);
     const decimalIndex = numberString.indexOf('.');
   
     if (decimalIndex === -1) {
@@ -319,15 +312,12 @@ class TradingLogic {
     }
   
     const precision = this.getTokenPrecisions(symbol, tokenPrecisionSetting);
-    console.log(`precision ${precision}`);
   
     if (precision === 0) {
       return Math.ceil(number);
     }
   
     const truncated = numberString.slice(0, decimalIndex + 1 + precision);
-    console.log(`truncated ${truncated}`);
-    console.log(`parseFloat(truncated) ${parseFloat(truncated)}`);
     return parseFloat(truncated);
   }
 
@@ -354,15 +344,6 @@ class TradingLogic {
         closingBreakevenPrice = this.calculateLimitOrderClosePositionPrice(symbol, positionSide, breakevenPrice)
       }
     }  
-
-    console.log('sendLimitOrderToClosePosition');
-    console.log('Quantities');
-    console.log(`quantity ${quantity}`);
-    console.log(`accumulatedQuantity ${accumulatedQuantity}`);
-    console.log(`Math.max(Math.abs(accumulatedQuantity), quantity) ${Math.max(Math.abs(accumulatedQuantity), quantity)}`);
-    console.log('Prices');
-    console.log(`price ${price}`);
-    console.log(`increasedAndFormattedBreakevenPrice ${closingBreakevenPrice}`);
 
     const limitOrder = {
       symbol: symbol,

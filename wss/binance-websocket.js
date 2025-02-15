@@ -181,7 +181,6 @@ class BinanceWebSocket extends WebSocketWrapper {
       if (data.e === 'ACCOUNT_UPDATE') {
         const positions = data.a.P; // Positions array from the event
 
-        console.log('handleUserDataMessages');
         positions.forEach((position) => {
           const { s: symbol, ps: positionSide, pa: positionAmt, ep: entryPrice, bep: breakevenPrice } = position;
 
@@ -202,7 +201,6 @@ class BinanceWebSocket extends WebSocketWrapper {
           }
         });
 
-        console.log(this.positionsInfo);
         logger.info('Updated positions: %j', this.positionsInfo);
 
         await this.updateBalances();
