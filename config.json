@@ -1,10 +1,10 @@
 {
-  "depositSize": 126.85,
-  "bidPercentage": 5,
+  "depositSize": 60.75,
+  "bidPercentage": 10,
   "profitPercentage": 0.2,
   "tradeDirection": "trend",
-  "longsOrShortsOrBoth": "long",
-  "smallLiquidation": 3000,
+  "longsOrShortsOrBoth": "both",
+  "smallLiquidation": 1000,
   "top20Liquidation": 30000,
   "top50Liquidation": 100000
 }

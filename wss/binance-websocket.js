@@ -7,6 +7,9 @@ import axios from 'axios';
 import config from '../utils/configuration.js';
 import { roundDownToTwoDecimals } from '../utils/helpers.js';
 
+const KLINE_INTERVAL = '3m';
+const REST_API_URL = 'https://fapi.binance.com/fapi/v1';
+
 class BinanceWebSocket extends WebSocketWrapper {
   constructor(apiKey, secretKeyRaw) {
     super({ 
@@ -52,9 +55,11 @@ class BinanceWebSocket extends WebSocketWrapper {
     return base64.fromByteArray(signature);
   }
 
+  // REST API calls
+
   async getListenKey() {
     try {
-      const response = await axios.post('https://fapi.binance.com/fapi/v1/listenKey', null, {
+      const response = await axios.post(`${REST_API_URL}/listenKey`, null, {
         headers: { 'X-MBX-APIKEY': this.apiKey },
       });
       return response.data.listenKey;
@@ -67,7 +72,7 @@ class BinanceWebSocket extends WebSocketWrapper {
   keepListenKeyAlive() {
     setInterval(async () => {
       try {
-        await axios.put('https://fapi.binance.com/fapi/v1/listenKey', null, {
+        await axios.put(`${REST_API_URL}/listenKey`, null, {
           headers: { 'X-MBX-APIKEY': this.apiKey },
         });
         logger.info('ListenKey kept alive.');
@@ -75,6 +80,33 @@ class BinanceWebSocket extends WebSocketWrapper {
         logger.error('Error keeping listenKey alive: %j', error.message);
       }
     }, 30 * 60 * 1000); // Every 30 minutes
+  }
+
+  async getTokenCandleTrend(symbol) {
+    logger.info(`Checking the current 15-minute candle trend for ${symbol}...`);
+    try {
+      const response = await axios.get(`${REST_API_URL}/klines`, {
+        params: {
+          symbol: symbol.toUpperCase(),
+          interval: KLINE_INTERVAL,
+          limit: 1, // Fetch only the latest interval candle
+        },
+      });
+  
+      if (response.data.length === 0) {
+        logger.error(`No data available for ${symbol}`);
+        return;
+      }
+  
+      const [openTime, open, high, low, close] = response.data[0]; // Extract OHLC values
+  
+      const trend = parseFloat(close) > parseFloat(open) ? 'BUY' : 'SELL';
+      logger.info(`${symbol} | ${KLINE_INTERVAL} Candle Trend: ${trend} | Open: ${open}, Close: ${close}`);
+
+      return trend;
+    } catch (error) {
+      logger.error(`Error fetching ${KLINE_INTERVAL} Kline for ${symbol}: %j`, error.response?.data || error.message);
+    }
   }
 
   // Listeners and subscriptions to WSS Streams
@@ -121,7 +153,7 @@ class BinanceWebSocket extends WebSocketWrapper {
     );
   }
 
-  // ticker.price ?
+  // Or maybe per ticker(s) from MarketData request -> ticker.price ?
   subscribeToAllTickers() {
     this.wsMarketStreams.send(
       JSON.stringify({

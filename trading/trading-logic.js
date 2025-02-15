@@ -114,10 +114,10 @@ class TradingLogic {
         const positionSide = translatePositionSide(tradeSide);
 
         if (config.current.longsOrShortsOrBoth.toUpperCase() === 'LONG' && tradeSide.toUpperCase() === 'SELL') {
-          logger.warn(`Skipping the trade since it is to ${tradeSide} while the setting is only for ${config.current.longsOrShortsOrBoth}s!`);
+          logger.warn(`Skipping the trade since it is ${tradeSide} while the setting is only for ${config.current.longsOrShortsOrBoth}s!`);
           return;
         } else if (config.current.longsOrShortsOrBoth.toUpperCase() === 'SHORT' && tradeSide.toUpperCase() === 'BUY') {
-          logger.warn(`Skipping the trade since it is to ${tradeSide} while the setting is only for ${config.current.longsOrShortsOrBoth}s!`);
+          logger.warn(`Skipping the trade since it is ${tradeSide} while the setting is only for ${config.current.longsOrShortsOrBoth}s!`);
           return;
         }
 
@@ -126,7 +126,22 @@ class TradingLogic {
           return;
         }
 
-        await this.executeTrade(exchange, symbol, tradeSide);
+
+        /* Протестировать три варанта проверок: 
+        - Проверить интервалы 1-3-5-15-30 минут (для эфира больший, для монеты меньший)
+        - Пробовать суммы мелких ликвидаций по 1000
+        1) если тренд и tradeSide совпали - только тогда входим
+        2) если tradeSide, 1-4-часовой тренд эфира и тренд монеты совпали - тогда входим, если нет - тогда входим если совпали тренд эфира и tradeSide
+        3) если tradeSide, 1-4-часовой тренд эфира и тренд монеты совпали - тогда входим
+        4) куда тренд - туда сразу и залетам
+        */
+
+        const candleTrend = await exchange.getTokenCandleTrend(symbol);
+        // if (tradeSide === candleTrend) {
+          await this.executeTrade(exchange, symbol, candleTrend); 
+        // }
+
+        return;
       } catch (error) {
         logger.error(`Error executing trade for ${symbol} on ${exchange.name}: ${error.message}`);
         logger.debug('Error details: %j', error);
@@ -149,15 +164,15 @@ class TradingLogic {
         return;
       }
 
-      // Send Limit order to close the Position with 0,1% of 
+      // Send Limit order to close the Position with 0,2% of 
       const avgPrice = parseFloat(marketOrderResult.avgPrice);
       const executedQuantity = parseFloat(marketOrderResult.executedQty);
       const formattedLimitPrice = this.calculateLimitOrderClosePositionPrice(symbol, positionSide, avgPrice);
       const limitOrderSide = getOppositeTradeSide(tradeSide); 
       const limitOrderResult = await this.sendLimitOrderToClosePosition(exchange, symbol, limitOrderSide, positionSide, executedQuantity, formattedLimitPrice);
 
-      // Set a 10-minute timer for the limit order to report in Telegram if the order is still Opened
-      this.setLimitOrderTimer(exchange, symbol, limitOrderResult.orderId);
+      // Set a 20-minute timer for the limit order to report in Telegram if the order is still Opened
+      // this.setLimitOrderTimer(exchange, symbol, limitOrderResult.orderId);
     } catch (error) {
       logger.error(`Error executing trade on ${exchange.name}: ${error.message}`);
       logger.debug('Error details:\n%j', error);
@@ -282,7 +297,7 @@ class TradingLogic {
     let preFormattedLimitPrice = Math.ceil(limitPrice / tickSize) * tickSize;
     console.log(`CEIL: ${preFormattedLimitPrice}`);
   
-    if (String(preFormattedLimitPrice).length >= 12) {
+    if (String(preFormattedLimitPrice).length >= 12 && !['NEIROETHUSDT', 'CKBUSDT'].includes(symbol)) {
       preFormattedLimitPrice = Math.floor(limitPrice / tickSize) * tickSize;
       console.log(`FLOOR: ${preFormattedLimitPrice}`);
     }

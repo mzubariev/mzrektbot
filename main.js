@@ -31,7 +31,7 @@ async function main() {
     // Start trading
     await tradingLogic.initialize(telegramBot);
 
-    // Schedule token data update - every Sunday at 00:00
+    // Schedule isolated margin mode update for all tokens on Binance - every Sunday at 00:00
     cron.schedule('0 0 * * 0', async () => {
       try {
         logger.info('CRON: Set Isolated margin mode to all USDT pairs on Binance!');
@@ -42,24 +42,24 @@ async function main() {
       }
     });
 
-    // Schedule token data update - every day at 00:00
+    // Schedule MarketCap token data and Binance all tokens info updates - every day at 00:00
     cron.schedule('0 0 * * *', async () => {
       try {
         logger.info('CRON: Running Marketcap and Binance info updates!');
 
         const tokenData = await getMarketCapTokenData();
         tradingLogic.updateMarketCapTokenData(tokenData);
-        logger.info('Token data updated successfully!');
+        logger.info('CoinMarketCap tokens ranks info updated successfully!');
 
         const binanceExchangeInfo = await getBinanceExchangeInfo();
         tradingLogic.updateBinanceExchangeInfo(binanceExchangeInfo);
-        logger.info('Binance Exchnage data updated successfully!');
+        logger.info('Binance Exchnage info with all tokens details updated successfully!');
       } catch (error) {
         logger.error('Error updating data via cron task: %j', error);
       }
     });
 
-    // Schedule Wallet Amount (deposit size) update - at the start of every hour
+    // Schedule Wallet Amount (deposit size) auto-update in config - at the start of every hour
     cron.schedule('0 * * * *', async () => {
       try {
         logger.info('CRON: Running Deposit Size update!');
