@@ -11,6 +11,8 @@ import { roundDownToTwoDecimals, calculateBidAmount, getOppositeTradeSide, trans
 
 const STUCK_ORDER_STATUSES_TO_ALERT = ['NEW', 'PARTIALLY_FILLED', 'CANCELED', 'REJECTED'];
 const TIMEOUT_TO_SIGNAL_TO_TG = 20; // minutes
+const PERCENTAGE_HOW_CLOSE_TO_LEVELS = 0.98; // to check if we are 1% close to support/resistance orders level
+const TIME_TO_CHECK_FOR_CANDLE_EDGES = 600000; // 10 minutes after a candle has been opened and before it will be closed
 
 class TradingLogic {
   constructor({ binanceApiKey, binanceSecretKey, bybitApiKey, bybitSecretKey, okxApiKey, okxSecretKey, okxPassphrase, mexcApiKey, mexcSecretKey }) {
@@ -126,20 +128,46 @@ class TradingLogic {
           return;
         }
 
+        // The MAIN logic to determine if we are OK to start a deal, and to choose a direction
 
-        /* Протестировать три варанта проверок: 
-        - Проверить интервалы 1-3-5-15-30 минут (для эфира больший, для монеты меньший)
-        - Пробовать суммы мелких ликвидаций по 1000
-        1) если тренд и tradeSide совпали - только тогда входим
-        2) если tradeSide, 1-4-часовой тренд эфира и тренд монеты совпали - тогда входим, если нет - тогда входим если совпали тренд эфира и tradeSide
-        3) если tradeSide, 1-4-часовой тренд эфира и тренд монеты совпали - тогда входим
-        4) куда тренд - туда сразу и залетам
-        */
+        const { supportLvl, resistanceLvl } = await exchange.getOrderBookSupportResistance(symbol);
+        const { candleTrend, candleOpenTime, candleCloseTime, volume } = await exchange.getTokenCandleTrend(symbol);
+        const lastPrice = exchange.tickerPrices[symbol];
 
-        const candleTrend = await exchange.getTokenCandleTrend(symbol);
-        // if (tradeSide === candleTrend) {
-          await this.executeTrade(exchange, symbol, candleTrend); 
+        // if (['NEIROUSDT', 'CKBUSDT'].includes(symbol)) {
+        //   logger.warn('Skipping NEIROUSDT or CKBUSDT...');
+        //   return;
         // }
+
+        if (tradeSide === candleTrend) {
+          const currentTimestamp = Date.now();
+
+          if ((currentTimestamp - candleOpenTime) <= TIME_TO_CHECK_FOR_CANDLE_EDGES) {
+            logger.warn('Skipping the trade since it is in the very beginning of a candle...');
+            return;
+          }
+
+          if ((candleCloseTime - currentTimestamp) <= TIME_TO_CHECK_FOR_CANDLE_EDGES) {
+            logger.warn('Skipping the trade since it is in the very end of a candle...');
+            return;
+          }
+
+          if (tradeSide === 'BUY') {
+            if (lastPrice < resistanceLvl * PERCENTAGE_HOW_CLOSE_TO_LEVELS) {
+              await this.executeTrade(exchange, symbol, tradeSide); 
+            } else {
+              logger.warn('Too close to the resistance level! Skipping the LONG deal...');
+            }
+          } else if (tradeSide === 'SELL') {
+            if (lastPrice > supportLvl * PERCENTAGE_HOW_CLOSE_TO_LEVELS) {
+              await this.executeTrade(exchange, symbol, tradeSide); 
+            } else {
+              logger.warn('Too close to the support level! Skipping the SHORT deal...');
+            }
+          }
+        } else {
+          logger.warn('The REKT and 4hCandle directions are different! Skipping the deal...');
+        }
 
         return;
       } catch (error) {
@@ -295,7 +323,7 @@ class TradingLogic {
     let preFormattedLimitPrice = Math.ceil(limitPrice / tickSize) * tickSize;
   
     // These symbols get formatted the wrong way so we exclude them
-    if (String(preFormattedLimitPrice).length >= 12 && !['NEIROETHUSDT', 'CKBUSDT'].includes(symbol)) {
+    if (String(preFormattedLimitPrice).length >= 12 && !['NEIROUSDT', 'CKBUSDT'].includes(symbol)) {
       preFormattedLimitPrice = Math.floor(limitPrice / tickSize) * tickSize;
     }
 

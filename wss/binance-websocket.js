@@ -7,8 +7,9 @@ import axios from 'axios';
 import config from '../utils/configuration.js';
 import { roundDownToTwoDecimals } from '../utils/helpers.js';
 
-const KLINE_INTERVAL = '3m';
 const REST_API_URL = 'https://fapi.binance.com/fapi/v1';
+const KLINE_INTERVAL = '4h';
+const MULTIPLIER_TO_DETECT_HUGE_ORDERS_VOLUME_FROM_AVG = 3;
 
 class BinanceWebSocket extends WebSocketWrapper {
   constructor(apiKey, secretKeyRaw) {
@@ -83,7 +84,7 @@ class BinanceWebSocket extends WebSocketWrapper {
   }
 
   async getTokenCandleTrend(symbol) {
-    logger.info(`Checking the current 15-minute candle trend for ${symbol}...`);
+    logger.info(`Checking the current ${KLINE_INTERVAL} candle trend for ${symbol}...`);
     try {
       const response = await axios.get(`${REST_API_URL}/klines`, {
         params: {
@@ -98,14 +99,49 @@ class BinanceWebSocket extends WebSocketWrapper {
         return;
       }
   
-      const [openTime, open, high, low, close] = response.data[0]; // Extract OHLC values
+      const [candleOpenTime, open, high, low, close, volume, candleCloseTime] = response.data[0]; // Extract OHLC values
   
-      const trend = parseFloat(close) > parseFloat(open) ? 'BUY' : 'SELL';
-      logger.info(`${symbol} | ${KLINE_INTERVAL} Candle Trend: ${trend} | Open: ${open}, Close: ${close}`);
+      const candleTrend = parseFloat(close) > parseFloat(open) ? 'BUY' : 'SELL';
+      logger.info(`${symbol} | ${KLINE_INTERVAL} Candle Trend: ${candleTrend} | Open: ${open}, Close: ${close} | Volume: ${volume}`);
 
-      return trend;
+      return { candleTrend, candleOpenTime, candleCloseTime, volume };
     } catch (error) {
       logger.error(`Error fetching ${KLINE_INTERVAL} Kline for ${symbol}: %j`, error.response?.data || error.message);
+    }
+  }
+
+  async getOrderBookSupportResistance(symbol) {
+    try {
+      const response = await axios.get(`${REST_API_URL}/depth`, {
+        params: { symbol: symbol.toUpperCase(), limit: 100 }, // Get top 100 bids/asks
+      });
+
+      const { bids, asks } = response.data;
+
+      const bidOrders = bids.map(([price, volume]) => ({
+        price: parseFloat(price),
+        volume: parseFloat(volume),
+      }));
+
+      const askOrders = asks.map(([price, volume]) => ({
+        price: parseFloat(price),
+        volume: parseFloat(volume),
+      }));
+
+      // Define large order threshold (Example: 5x the average order size)
+      const averageBidSize = bidOrders.reduce((sum, order) => sum + order.volume, 0) / bidOrders.length;
+      const averageAskSize = askOrders.reduce((sum, order) => sum + order.volume, 0) / askOrders.length;
+
+      const largeBidOrders = bidOrders.filter(order => order.volume >= averageBidSize * MULTIPLIER_TO_DETECT_HUGE_ORDERS_VOLUME_FROM_AVG);
+      const largeAskOrders = askOrders.filter(order => order.volume >= averageAskSize * MULTIPLIER_TO_DETECT_HUGE_ORDERS_VOLUME_FROM_AVG);
+
+      const supportLevel = largeBidOrders.length ? largeBidOrders[0].price : null;
+      const resistanceLevel = largeAskOrders.length ? largeAskOrders[0].price : null;
+
+      return { supportLvl: supportLevel, resistanceLvl: resistanceLevel };
+    } catch (error) {
+      logger.error(`Error fetching order book for ${symbol}: %j`, error.message);
+      return { supportLvl: null, resistanceLvl: null };
     }
   }
 
