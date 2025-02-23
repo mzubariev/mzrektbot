@@ -135,10 +135,10 @@ class TradingLogic {
         const { supportLvl, resistanceLvl } = await exchange.getOrderBookSupportResistance(symbol);
         const lastPrice = await exchange.getSymbolLastPrice(symbol);
 
-        // if (['NEIROUSDT', 'CKBUSDT'].includes(symbol)) {
-        //   logger.warn('Skipping NEIROUSDT or CKBUSDT...');
-        //   return;
-        // }
+        if (['FARTCOINUSDT', 'BAKEUSDT', 'WUSDT', 'AI16ZUSDT'].includes(symbol)) {
+          logger.warn('Skipping FARTCOINUSDT / BAKEUSDT / WUSDT / AI16ZUSDT /...');
+          return;
+        }
 
         if (tradeSide === candle15m.trend === candle4h.trend) {
           const currentTimestamp = Date.now();
