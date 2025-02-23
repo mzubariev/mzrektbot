@@ -9,6 +9,7 @@ import { roundDownToTwoDecimals } from '../utils/helpers.js';
 
 const REST_API_URL = 'https://fapi.binance.com/fapi/v1';
 const KLINE_INTERVAL = '4h';
+const ORDERBOOK_DEPTH = 100;
 const MULTIPLIER_TO_DETECT_HUGE_ORDERS_VOLUME_FROM_AVG = 3;
 
 class BinanceWebSocket extends WebSocketWrapper {
@@ -107,41 +108,6 @@ class BinanceWebSocket extends WebSocketWrapper {
       return { candleTrend, candleOpenTime, candleCloseTime, volume };
     } catch (error) {
       logger.error(`Error fetching ${KLINE_INTERVAL} Kline for ${symbol}: %j`, error.response?.data || error.message);
-    }
-  }
-
-  async getOrderBookSupportResistance(symbol) {
-    try {
-      const response = await axios.get(`${REST_API_URL}/depth`, {
-        params: { symbol: symbol.toUpperCase(), limit: 100 }, // Get top 100 bids/asks
-      });
-
-      const { bids, asks } = response.data;
-
-      const bidOrders = bids.map(([price, volume]) => ({
-        price: parseFloat(price),
-        volume: parseFloat(volume),
-      }));
-
-      const askOrders = asks.map(([price, volume]) => ({
-        price: parseFloat(price),
-        volume: parseFloat(volume),
-      }));
-
-      // Define large order threshold (Example: 5x the average order size)
-      const averageBidSize = bidOrders.reduce((sum, order) => sum + order.volume, 0) / bidOrders.length;
-      const averageAskSize = askOrders.reduce((sum, order) => sum + order.volume, 0) / askOrders.length;
-
-      const largeBidOrders = bidOrders.filter(order => order.volume >= averageBidSize * MULTIPLIER_TO_DETECT_HUGE_ORDERS_VOLUME_FROM_AVG);
-      const largeAskOrders = askOrders.filter(order => order.volume >= averageAskSize * MULTIPLIER_TO_DETECT_HUGE_ORDERS_VOLUME_FROM_AVG);
-
-      const supportLevel = largeBidOrders.length ? largeBidOrders[0].price : null;
-      const resistanceLevel = largeAskOrders.length ? largeAskOrders[0].price : null;
-
-      return { supportLvl: supportLevel, resistanceLvl: resistanceLevel };
-    } catch (error) {
-      logger.error(`Error fetching order book for ${symbol}: %j`, error.message);
-      return { supportLvl: null, resistanceLvl: null };
     }
   }
 
@@ -351,7 +317,64 @@ class BinanceWebSocket extends WebSocketWrapper {
     });
   }
 
+  async getOrderBookSupportResistance(symbol) {
+    const timestamp = this.getTimestamp();
+    const requestId = this.generateRequestId();
+    const message = {
+      id: requestId,
+      method: 'depth',
+      params: { symbol, limit: ORDERBOOK_DEPTH, timestamp }
+    };
+  
+    return new Promise((resolve, reject) => {
+      const handleResponse = (data) => {
+        try {
+          const response = JSON.parse(data);
+          if (response.id === requestId && response.result) {
+            this.wsApi.removeListener('message', handleResponse);
+
+            const { b, a } = response.result; // Bids & Asks
+  
+            const bidOrders = b.map(([price, volume]) => ({
+              price: parseFloat(price),
+              volume: parseFloat(volume),
+            }));
+  
+            const askOrders = a.map(([price, volume]) => ({
+              price: parseFloat(price),
+              volume: parseFloat(volume),
+            }));
+  
+            const supportResistanceLevels = this.calculateSupportResistance(bidOrders, askOrders);
+            resolve(supportResistanceLevels);
+          }
+        } catch (error) {
+          logger.error('Error parsing Binance order book response: %j', error);
+          reject(error);
+        }
+      };
+  
+      this.wsApi.on('message', handleResponse);
+      this.wsApi.send(JSON.stringify(message));
+    });
+  }  
+
   // Helper methods
+
+  calculateSupportResistance(bidOrders, askOrders) {
+    if (!bidOrders.length || !askOrders.length) return { supportLvl: null, resistanceLvl: null };
+  
+    const averageBidSize = bidOrders.reduce((sum, order) => sum + order.volume, 0) / bidOrders.length;
+    const averageAskSize = askOrders.reduce((sum, order) => sum + order.volume, 0) / askOrders.length;
+  
+    const largeBidOrders = bidOrders.filter(order => order.volume >= averageBidSize * MULTIPLIER_TO_DETECT_HUGE_ORDERS_VOLUME_FROM_AVG);
+    const largeAskOrders = askOrders.filter(order => order.volume >= averageAskSize * MULTIPLIER_TO_DETECT_HUGE_ORDERS_VOLUME_FROM_AVG);
+  
+    return {
+      supportLvl: largeBidOrders.length ? largeBidOrders[0].price : null,
+      resistanceLvl: largeAskOrders.length ? largeAskOrders[0].price : null,
+    };
+  }  
 
   generateRequestId() {
     return `binance-req-${Date.now()}-${Math.random().toString(36).substring(7)}`;
