@@ -4,7 +4,7 @@ const { format } = winston;
 
 const customConsoleFormat = format.combine(
   format.colorize(),
-  format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+  format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss.SSS' }),
   format.printf(
     (info) => `${info.timestamp} [${info.level}]: ${info.message}${info.stack ? `\nStack: ${info.stack}` : ''}`
   )

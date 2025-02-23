@@ -141,7 +141,15 @@ class TradingLogic {
           return;
         }
 
-        if (tradeSide === candle15m.trend === candle4h.trend) {
+        console.log(`tradeSide: ${tradeSide}`);
+        console.log(`candle4h.trend: ${candle4h.trend}`);
+        console.log(`candle15m.trend: ${candle15m.trend}`);
+        console.log(`REKT+15m+4h: ${tradeSide === candle15m.trend && candle15m.trend === candle4h.trend}`);
+        console.log(`15m+4h: ${candle4h.trend === candle15m.trend}`);
+        console.log(`REKT+15m: ${tradeSide === candle15m.trend}`);
+
+        if (candle15m.trend === candle4h.trend) { // если будет застрявать, то сделать (tradeSide === candle15m.trend && candle15m.trend === candle4h.trend)
+          logger.warn('Starting a trade attempt in the direct side...');
           const currentTimestamp = Date.now();
 
           if ((currentTimestamp - candle4h.openTime) <= TIME_TO_CHECK_FOR_CANDLE_EDGES) {
@@ -154,22 +162,22 @@ class TradingLogic {
             return;
           }
 
-          if (tradeSide === 'BUY') {
+          if (candle15m.trend === 'BUY') {
             if (lastPrice < resistanceLvl * PERCENTAGE_HOW_CLOSE_TO_LEVELS) {
-              await this.executeTrade(exchange, symbol, tradeSide); 
+              await this.executeTrade(exchange, symbol, candle15m.trend); 
             } else {
               logger.warn('Too close to the resistance level! Skipping the LONG deal...');
             }
-          } else if (tradeSide === 'SELL') {
+          } else if (candle15m.trend === 'SELL') {
             if (lastPrice > supportLvl * PERCENTAGE_HOW_CLOSE_TO_LEVELS) {
-              await this.executeTrade(exchange, symbol, tradeSide); 
+              await this.executeTrade(exchange, symbol, candle15m.trend); 
             } else {
               logger.warn('Too close to the support level! Skipping the SHORT deal...');
             }
           }
         } else if (tradeSide === candle15m.trend) {
           logger.warn('Opening a deal in an opposite side from 4h candle but along with 15m candle and REKT direction!');
-          await this.executeTrade(exchange, symbol, tradeSide); 
+          await this.executeTrade(exchange, symbol, candle15m.trend); 
         } else {
           logger.warn('The REKT and 4hCandle directions are different! Skipping the deal...');
         }
@@ -220,7 +228,7 @@ class TradingLogic {
       let result;
       switch (exchange.name) {
         case 'Binance':
-          result = await this.executeBinanceMarketOrder(symbol, tradeSide, positionSide, amountForBid);
+          result = await this.executeBinanceMarketOrder(exchange, symbol, tradeSide, positionSide, amountForBid);
           break;
         case 'Bybit':
           result = await this.executeBybitMarketOrder(symbol, tradeSide, amountForBid);
@@ -244,9 +252,9 @@ class TradingLogic {
   }
 
   // Binance
-  async executeBinanceMarketOrder(symbol, tradeSide, positionSide, amountForBid) {
+  async executeBinanceMarketOrder(exchange, symbol, tradeSide, positionSide, amountForBid) {
     try {      
-      const lastPrice = this.binanceWs.tickerPrices[symbol];
+      const lastPrice = await exchange.getSymbolLastPrice(symbol);
     
       if (!lastPrice) {
         throw new Error(`Price for ${symbol} is not available. Ensure the ticker subscription is active.`);
