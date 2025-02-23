@@ -1,7 +1,7 @@
 {
-  "depositSize": 207.73,
-  "bidPercentage": 4,
-  "profitPercentage": 0.15,
+  "depositSize": 207.77,
+  "bidPercentage": 5,
+  "profitPercentage": 0.1,
   "tradeDirection": "trend",
   "longsOrShortsOrBoth": "both",
   "smallLiquidation": 500,
