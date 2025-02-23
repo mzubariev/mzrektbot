@@ -26,7 +26,6 @@ class BinanceWebSocket extends WebSocketWrapper {
       availableBalance: config.current.depositSize
     };
     this.positionsInfo = {};
-    this.tickerPrices = {};
   }
 
   // Authentication and ListenKey
@@ -119,7 +118,6 @@ class BinanceWebSocket extends WebSocketWrapper {
     this.keepListenKeyAlive();
 
     this.wsMarketStreams.on('open', () => {
-      this.subscribeToAllTickers();
       this.subscribeToLiquidations();
     });
 
@@ -127,9 +125,7 @@ class BinanceWebSocket extends WebSocketWrapper {
       try {
         const message = JSON.parse(data);
 
-        if (Array.isArray(message) && message[0].e === '24hrTicker') {
-          this.handleAllTickerUpdates(message);
-        } else if (message.e === 'forceOrder' && !message.o.s.includes('USDC')) {
+        if (message.e === 'forceOrder' && !message.o.s.includes('USDC')) {
           // { s: symbol, S: orderSide, q: quantity, ap: price } = message.o;
           this.events.emit('message', message.o);
         } else if (message.error) {
@@ -153,27 +149,6 @@ class BinanceWebSocket extends WebSocketWrapper {
         id: this.generateRequestId(),
       })
     );
-  }
-
-  // Or maybe per ticker(s) from MarketData request -> ticker.price ?
-  subscribeToAllTickers() {
-    this.wsMarketStreams.send(
-      JSON.stringify({
-        method: 'SUBSCRIBE',
-        params: ['!ticker@arr'],
-        id: this.generateRequestId(),
-      })
-    );
-  }
-
-  handleAllTickerUpdates(tickerArray) {
-    tickerArray.forEach((ticker) => {
-      const symbol = ticker.s;
-      if (!symbol.includes('USDC')) {
-        const lastPrice = parseFloat(ticker.c);
-        this.tickerPrices[symbol] = lastPrice;
-      }
-    });
   }
 
   async handleUserDataMessages(message) {    
@@ -316,6 +291,42 @@ class BinanceWebSocket extends WebSocketWrapper {
       this.wsApi.send(JSON.stringify(message));
     });
   }
+
+  async getSymbolLastPrice(symbol) {
+    const requestId = this.generateRequestId();
+    const message = {
+      id: requestId,
+      method: 'ticker.price',
+      params: {
+        symbol: symbol.toUpperCase(),
+        timestamp
+      }
+    };
+  
+    return new Promise((resolve, reject) => {
+      const handleResponse = (data) => {
+        try {
+          const response = JSON.parse(data);
+  
+          if (response.id === requestId && response.result) {
+            const lastPrice = parseFloat(response.result.price);
+
+            logger.info(`The last prise for ${symbol} is ${lastPrice}.`);
+  
+            this.wsApi.removeListener('message', handleResponse);
+            resolve(lastPrice);
+          }
+        } catch (error) {
+          logger.error('Error parsing Binance ticker price response: %j', error);
+          reject(error);
+        }
+      };
+  
+      this.wsApi.on('message', handleResponse);
+      this.wsApi.send(JSON.stringify(message));
+    });
+  }
+  
 
   async getOrderBookSupportResistance(symbol) {
     const timestamp = this.getTimestamp();

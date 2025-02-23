@@ -130,9 +130,9 @@ class TradingLogic {
 
         // The MAIN logic to determine if we are OK to start a deal, and to choose a direction
 
-        const { supportLvl, resistanceLvl } = await exchange.getOrderBookSupportResistance(symbol);
         const { candleTrend, candleOpenTime, candleCloseTime, volume } = await exchange.getTokenCandleTrend(symbol);
-        const lastPrice = exchange.tickerPrices[symbol];
+        const { supportLvl, resistanceLvl } = await exchange.getOrderBookSupportResistance(symbol);
+        const lastPrice = await exchange.getSymbolLastPrice(symbol);
 
         // if (['NEIROUSDT', 'CKBUSDT'].includes(symbol)) {
         //   logger.warn('Skipping NEIROUSDT or CKBUSDT...');
