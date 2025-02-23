@@ -19,7 +19,7 @@ const logger = winston.createLogger({
     debug: 4,
   },
   format: format.combine(
-    // format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+    // format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss.SSS' }),
     format.errors({ stack: true }),
     format.splat(),
     format.json()
