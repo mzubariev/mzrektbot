@@ -8,7 +8,6 @@ import config from '../utils/configuration.js';
 import { roundDownToTwoDecimals } from '../utils/helpers.js';
 
 const REST_API_URL = 'https://fapi.binance.com/fapi/v1';
-const KLINE_INTERVAL = '4h';
 const ORDERBOOK_DEPTH = 100;
 const MULTIPLIER_TO_DETECT_HUGE_ORDERS_VOLUME_FROM_AVG = 3;
 
@@ -83,13 +82,13 @@ class BinanceWebSocket extends WebSocketWrapper {
     }, 30 * 60 * 1000); // Every 30 minutes
   }
 
-  async getTokenCandleTrend(symbol) {
-    logger.info(`Checking the current ${KLINE_INTERVAL} candle trend for ${symbol}...`);
+  async getTokenCandleTrend(symbol, klineInterval) {
+    logger.info(`Checking the current ${klineInterval} candle trend for ${symbol}...`);
     try {
       const response = await axios.get(`${REST_API_URL}/klines`, {
         params: {
           symbol: symbol.toUpperCase(),
-          interval: KLINE_INTERVAL,
+          interval: klineInterval,
           limit: 1, // Fetch only the latest interval candle
         },
       });
@@ -99,14 +98,14 @@ class BinanceWebSocket extends WebSocketWrapper {
         return;
       }
   
-      const [candleOpenTime, open, high, low, close, volume, candleCloseTime] = response.data[0]; // Extract OHLC values
+      const [openTime, open, high, low, close, volume, closeTime] = response.data[0];
   
-      const candleTrend = parseFloat(close) > parseFloat(open) ? 'BUY' : 'SELL';
-      logger.info(`${symbol} | ${KLINE_INTERVAL} Candle Trend: ${candleTrend} | Open: ${open}, Close: ${close} | Volume: ${volume}`);
+      const trend = parseFloat(close) > parseFloat(open) ? 'BUY' : 'SELL';
+      logger.info(`${symbol} | ${klineInterval} Candle Trend: ${trend} | Open: ${open}, Close: ${close} | Volume: ${volume}`);
 
-      return { candleTrend, candleOpenTime, candleCloseTime, volume };
+      return { trend, openTime, closeTime, volume };
     } catch (error) {
-      logger.error(`Error fetching ${KLINE_INTERVAL} Kline for ${symbol}: %j`, error.response?.data || error.message);
+      logger.error(`Error fetching ${klineInterval} Kline for ${symbol}: %j`, error.response?.data || error.message);
     }
   }
 

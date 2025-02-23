@@ -12,7 +12,7 @@ import { roundDownToTwoDecimals, calculateBidAmount, getOppositeTradeSide, trans
 const STUCK_ORDER_STATUSES_TO_ALERT = ['NEW', 'PARTIALLY_FILLED', 'CANCELED', 'REJECTED'];
 const TIMEOUT_TO_SIGNAL_TO_TG = 20; // minutes
 const PERCENTAGE_HOW_CLOSE_TO_LEVELS = 0.98; // to check if we are 1% close to support/resistance orders level
-const TIME_TO_CHECK_FOR_CANDLE_EDGES = 600000; // 10 minutes after a candle has been opened and before it will be closed
+const TIME_TO_CHECK_FOR_CANDLE_EDGES = 300000; // 5 minutes after a candle has been opened and before it will be closed
 
 class TradingLogic {
   constructor({ binanceApiKey, binanceSecretKey, bybitApiKey, bybitSecretKey, okxApiKey, okxSecretKey, okxPassphrase, mexcApiKey, mexcSecretKey }) {
@@ -130,7 +130,8 @@ class TradingLogic {
 
         // The MAIN logic to determine if we are OK to start a deal, and to choose a direction
 
-        const { candleTrend, candleOpenTime, candleCloseTime, volume } = await exchange.getTokenCandleTrend(symbol);
+        const candle4h = await exchange.getTokenCandleTrend(symbol, '4h');
+        const candle15m = await exchange.getTokenCandleTrend(symbol, '15m');
         const { supportLvl, resistanceLvl } = await exchange.getOrderBookSupportResistance(symbol);
         const lastPrice = await exchange.getSymbolLastPrice(symbol);
 
@@ -139,15 +140,15 @@ class TradingLogic {
         //   return;
         // }
 
-        if (tradeSide === candleTrend) {
+        if (tradeSide === candle15m.trend === candle4h.trend) {
           const currentTimestamp = Date.now();
 
-          if ((currentTimestamp - candleOpenTime) <= TIME_TO_CHECK_FOR_CANDLE_EDGES) {
+          if ((currentTimestamp - candle4h.openTime) <= TIME_TO_CHECK_FOR_CANDLE_EDGES) {
             logger.warn('Skipping the trade since it is in the very beginning of a candle...');
             return;
           }
 
-          if ((candleCloseTime - currentTimestamp) <= TIME_TO_CHECK_FOR_CANDLE_EDGES) {
+          if ((candle4h.closeTime - currentTimestamp) <= TIME_TO_CHECK_FOR_CANDLE_EDGES) {
             logger.warn('Skipping the trade since it is in the very end of a candle...');
             return;
           }
@@ -165,6 +166,9 @@ class TradingLogic {
               logger.warn('Too close to the support level! Skipping the SHORT deal...');
             }
           }
+        } else if (tradeSide === candle15m.trend) {
+          logger.warn('Opening a deal in an opposite side from 4h candle but along with 15m candle and REKT direction!');
+          await this.executeTrade(exchange, symbol, tradeSide); 
         } else {
           logger.warn('The REKT and 4hCandle directions are different! Skipping the deal...');
         }
