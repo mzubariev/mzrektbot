@@ -293,6 +293,7 @@ class BinanceWebSocket extends WebSocketWrapper {
   }
 
   async getSymbolLastPrice(symbol) {
+    const timestamp = this.getTimestamp();
     const requestId = this.generateRequestId();
     const message = {
       id: requestId,
@@ -327,36 +328,40 @@ class BinanceWebSocket extends WebSocketWrapper {
     });
   }
   
-
   async getOrderBookSupportResistance(symbol) {
     const timestamp = this.getTimestamp();
     const requestId = this.generateRequestId();
     const message = {
       id: requestId,
       method: 'depth',
-      params: { symbol, limit: ORDERBOOK_DEPTH, timestamp }
+      params: {
+        symbol: symbol.toUpperCase(),
+        limit: ORDERBOOK_DEPTH,
+        timestamp
+      }
     };
   
     return new Promise((resolve, reject) => {
       const handleResponse = (data) => {
         try {
           const response = JSON.parse(data);
-          if (response.id === requestId && response.result) {
-            this.wsApi.removeListener('message', handleResponse);
-
-            const { b, a } = response.result; // Bids & Asks
   
-            const bidOrders = b.map(([price, volume]) => ({
+          if (response.id === requestId && response.result) {
+            const { bids, asks } = response.result;
+  
+            const bidOrders = bids.map(([price, volume]) => ({
               price: parseFloat(price),
               volume: parseFloat(volume),
             }));
   
-            const askOrders = a.map(([price, volume]) => ({
+            const askOrders = asks.map(([price, volume]) => ({
               price: parseFloat(price),
               volume: parseFloat(volume),
             }));
   
             const supportResistanceLevels = this.calculateSupportResistance(bidOrders, askOrders);
+  
+            this.wsApi.removeListener('message', handleResponse);
             resolve(supportResistanceLevels);
           }
         } catch (error) {
@@ -368,7 +373,7 @@ class BinanceWebSocket extends WebSocketWrapper {
       this.wsApi.on('message', handleResponse);
       this.wsApi.send(JSON.stringify(message));
     });
-  }  
+  }    
 
   // Helper methods
 
