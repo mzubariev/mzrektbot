@@ -11,8 +11,9 @@ import { roundDownToTwoDecimals, calculateBidAmount, getOppositeTradeSide, trans
 
 const STUCK_ORDER_STATUSES_TO_ALERT = ['NEW', 'PARTIALLY_FILLED', 'CANCELED', 'REJECTED'];
 const TIMEOUT_TO_SIGNAL_TO_TG = 20; // minutes
-const PERCENTAGE_HOW_CLOSE_TO_LEVELS = 0.98; // to check if we are 1% close to support/resistance orders level
+const PERCENTAGE_HOW_CLOSE_TO_LEVELS = 0.98; // to check if we are 2% close to support/resistance orders level
 const TIME_TO_CHECK_FOR_CANDLE_EDGES = 300000; // 5 minutes after a candle has been opened and before it will be closed
+const THE_SAME_SYMBOL_ORDERS_LIMIT = 4; // maximum 4 orders for longs and 4 for shorts for the same token at the same time
 
 class TradingLogic {
   constructor({ binanceApiKey, binanceSecretKey, bybitApiKey, bybitSecretKey, okxApiKey, okxSecretKey, okxPassphrase, mexcApiKey, mexcSecretKey }) {
@@ -123,7 +124,7 @@ class TradingLogic {
           return;
         }
 
-        if (exchange.positionsInfo[symbol] && exchange.positionsInfo[symbol][positionSide] && exchange.positionsInfo[symbol][positionSide].ordersAmount >= 2) {
+        if (exchange.positionsInfo[symbol] && exchange.positionsInfo[symbol][positionSide] && exchange.positionsInfo[symbol][positionSide].ordersAmount >= THE_SAME_SYMBOL_ORDERS_LIMIT) {
           logger.warn(`Skipping the trade since there are already ${exchange.positionsInfo[symbol][positionSide].ordersAmount} orders opened for this token! Wait till they are closed...`);
           return;
         }
@@ -193,7 +194,7 @@ class TradingLogic {
       const marketOrderResult = await this.executeMarketOrder(exchange, symbol, tradeSide, positionSide, amountForBid);
 
       if (!marketOrderResult) {
-        return;
+        return; 
       }
 
       // Send Limit order to close the Position with 0,2% of 
