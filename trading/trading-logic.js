@@ -103,8 +103,8 @@ class TradingLogic {
     const liquidationThreshold = this.getLiquidationThreshold(tokenRanking);
     const liquidationAmount = parseFloat(quantity) * parseFloat(price);
 
-    if (['top20', 'top50'].includes(tokenRanking)) {
-      logger.warn(`Skipping ${tokenRanking} token for now...`);
+    if (symbol.includes('BTCUSDT')) {
+      logger.warn(`Skipping BTCUSDT for now...`);
       return;
     }
 
