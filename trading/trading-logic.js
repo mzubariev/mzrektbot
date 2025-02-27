@@ -10,10 +10,6 @@ import config from '../utils/configuration.js';
 import { roundDownToTwoDecimals, calculateBidAmount, getOppositeTradeSide, translatePositionSide, getTokenTrend, getBotTradeSide } from '../utils/helpers.js';
 
 const STUCK_ORDER_STATUSES_TO_ALERT = ['NEW', 'PARTIALLY_FILLED', 'CANCELED', 'REJECTED'];
-const TIMEOUT_TO_SIGNAL_TO_TG = 20; // minutes
-const PERCENTAGE_HOW_CLOSE_TO_LEVELS = 0.98; // to check if we are 2% close to support/resistance orders level
-const TIME_TO_CHECK_FOR_CANDLE_EDGES = 300000; // 5 minutes after a candle has been opened and before it will be closed
-const THE_SAME_SYMBOL_ORDERS_LIMIT = 4; // maximum 4 orders for longs and 4 for shorts for the same token at the same time
 
 class TradingLogic {
   constructor({ binanceApiKey, binanceSecretKey, bybitApiKey, bybitSecretKey, okxApiKey, okxSecretKey, okxPassphrase, mexcApiKey, mexcSecretKey }) {
@@ -124,7 +120,7 @@ class TradingLogic {
           return;
         }
 
-        if (exchange.positionsInfo[symbol] && exchange.positionsInfo[symbol][positionSide] && exchange.positionsInfo[symbol][positionSide].ordersAmount >= THE_SAME_SYMBOL_ORDERS_LIMIT) {
+        if (exchange.positionsInfo[symbol] && exchange.positionsInfo[symbol][positionSide] && exchange.positionsInfo[symbol][positionSide].ordersAmount >= config.current.sameSymbolOrdersLimit) {
           logger.warn(`Skipping the trade since there are already ${exchange.positionsInfo[symbol][positionSide].ordersAmount} orders opened for this token! Wait till they are closed...`);
           return;
         }
@@ -152,24 +148,24 @@ class TradingLogic {
           logger.warn('Starting a trade attempt in the direct side...');
           const currentTimestamp = Date.now();
 
-          if ((currentTimestamp - candle4h.openTime) <= TIME_TO_CHECK_FOR_CANDLE_EDGES) {
+          if ((currentTimestamp - candle4h.openTime) <= config.current.timeToCheckForCandleEdges) {
             logger.warn('Skipping the trade since it is in the very beginning of a candle...');
             return;
           }
 
-          if ((candle4h.closeTime - currentTimestamp) <= TIME_TO_CHECK_FOR_CANDLE_EDGES) {
+          if ((candle4h.closeTime - currentTimestamp) <= config.current.timeToCheckForCandleEdges) {
             logger.warn('Skipping the trade since it is in the very end of a candle...');
             return;
           }
 
           if (candle15m.trend === 'BUY') {
-            if (lastPrice < resistanceLvl * PERCENTAGE_HOW_CLOSE_TO_LEVELS) {
+            if (lastPrice < resistanceLvl * config.current.percentageHowCloseToLevels) {
               await this.executeTrade(exchange, symbol, candle15m.trend); 
             } else {
               logger.warn('Too close to the resistance level! Skipping the LONG deal...');
             }
           } else if (candle15m.trend === 'SELL') {
-            if (lastPrice > supportLvl * PERCENTAGE_HOW_CLOSE_TO_LEVELS) {
+            if (lastPrice > supportLvl * config.current.percentageHowCloseToLevels) {
               await this.executeTrade(exchange, symbol, candle15m.trend); 
             } else {
               logger.warn('Too close to the support level! Skipping the SHORT deal...');
@@ -444,7 +440,7 @@ class TradingLogic {
   setLimitOrderTimer(exchange, symbol, orderId) {
     const timer = setTimeout(() => {
       this.alertHangingLimitOrder(exchange, symbol, orderId);
-    }, TIMEOUT_TO_SIGNAL_TO_TG * 60 * 1000);
+    }, config.current.timeoutToSignalToTG * 60 * 1000);
 
     const exchangeName = exchange.name;
     this.openOrders.set(orderId, { exchangeName, symbol, timer });
@@ -455,7 +451,7 @@ class TradingLogic {
       const order = await exchange.getOrder(orderId, symbol);
       if (STUCK_ORDER_STATUSES_TO_ALERT.includes(order.status)) {
         // Notify via Telegram
-        this.telegramBot.sendMsgToTgChat(`Limit order for <strong><a href="https://www.binance.com/en/futures/${symbol}">${symbol} on ${exchange.name}</a></strong> have some issues after ${TIMEOUT_TO_SIGNAL_TO_TG} minutes. Order status: ${order.status}`);
+        this.telegramBot.sendMsgToTgChat(`Limit order for <strong><a href="https://www.binance.com/en/futures/${symbol}">${symbol} on ${exchange.name}</a></strong> have some issues after ${config.current.timeoutToSignalToTG} minutes. Order status: ${order.status}`);
       }
     } catch (error) {
       logger.error(`Error checking limit order status: ${error}`);

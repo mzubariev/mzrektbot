@@ -8,8 +8,6 @@ import config from '../utils/configuration.js';
 import { roundDownToTwoDecimals } from '../utils/helpers.js';
 
 const REST_API_URL = 'https://fapi.binance.com/fapi/v1';
-const ORDERBOOK_DEPTH = 100;
-const MULTIPLIER_TO_DETECT_HUGE_ORDERS_VOLUME_FROM_AVG = 3;
 
 class BinanceWebSocket extends WebSocketWrapper {
   constructor(apiKey, secretKeyRaw) {
@@ -335,7 +333,7 @@ class BinanceWebSocket extends WebSocketWrapper {
       method: 'depth',
       params: {
         symbol: symbol.toUpperCase(),
-        limit: ORDERBOOK_DEPTH,
+        limit: config.current.orderbookDepth,
         timestamp
       }
     };
@@ -383,8 +381,8 @@ class BinanceWebSocket extends WebSocketWrapper {
     const averageBidSize = bidOrders.reduce((sum, order) => sum + order.volume, 0) / bidOrders.length;
     const averageAskSize = askOrders.reduce((sum, order) => sum + order.volume, 0) / askOrders.length;
   
-    const largeBidOrders = bidOrders.filter(order => order.volume >= averageBidSize * MULTIPLIER_TO_DETECT_HUGE_ORDERS_VOLUME_FROM_AVG);
-    const largeAskOrders = askOrders.filter(order => order.volume >= averageAskSize * MULTIPLIER_TO_DETECT_HUGE_ORDERS_VOLUME_FROM_AVG);
+    const largeBidOrders = bidOrders.filter(order => order.volume >= averageBidSize * config.current.multiplierToDetectHugeOrdersVolumeFromAvg);
+    const largeAskOrders = askOrders.filter(order => order.volume >= averageAskSize * config.current.multiplierToDetectHugeOrdersVolumeFromAvg);
   
     return {
       supportLvl: largeBidOrders.length ? largeBidOrders[0].price : null,

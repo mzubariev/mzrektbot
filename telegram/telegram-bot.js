@@ -62,6 +62,16 @@ class TelegramBotWrapper {
       [
         { text: 'Bot trade direction. Options: trend OR rebound', callback_data: 'setting_tradeDirection' },
         { text: 'Only LONGs or only SHORTs, or BOTH directions trades. Options: "long" / "short" / "both"', callback_data: 'setting_longsOrShortsOrBoth' }
+      ],
+      [
+        { text: 'An orderbook depth to calculate support/resistance levels (ex.: 100)', callback_data: 'setting_orderbookDepth' },
+        { text: 'A multiplier to detect huge limits levels (multiply to an average order amount. ex.: 3)', callback_data: 'setting_multiplierToDetectHugeOrdersVolumeFromAvg' },
+        { text: 'Percentage, how close to levels we should avoid traids (ex.: 0.97 means 3%)', callback_data: 'setting_percentageHowCloseToLevels' }
+      ],
+      [
+        { text: 'Minutes to cut candles from both sides to avoid trades there (in milliseconds)', callback_data: 'setting_timeToCheckForCandleEdges' },
+        { text: 'How many positions of one side may be opened at the same time for the same token (ex.: 4)', callback_data: 'setting_sameSymbolOrdersLimit' },
+        { text: 'Time to signal to TG for stuck limit orders (in minutes)', callback_data: 'setting_timeoutToSignalToTG' }
       ]
     ];
     return settingsKeyboard;
