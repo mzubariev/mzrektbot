@@ -335,9 +335,13 @@ class TradingLogic {
 
     let preFormattedLimitPrice = Math.ceil(limitPrice / tickSize) * tickSize;
   
-    // These symbols get formatted the wrong way so we exclude them
-    if (String(preFormattedLimitPrice).length >= 12 && !['NEIROUSDT', 'CKBUSDT'].includes(symbol)) {
+    if ((preFormattedLimitPrice / tickSize) % 1 !== 0) {
       preFormattedLimitPrice = Math.floor(limitPrice / tickSize) * tickSize;
+
+      if ((preFormattedLimitPrice / tickSize) % 1 !== 0) {
+        const tempPrice = Math.trunc(preFormattedLimitPrice / tickSize);
+        preFormattedLimitPrice = tempPrice * tickSize;
+      }
     }
 
     const formattedLimitPrice = this.formatSpecificFloatsForToken(symbol, preFormattedLimitPrice, 'pricePrecision');

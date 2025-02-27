@@ -359,6 +359,7 @@ class BinanceWebSocket extends WebSocketWrapper {
             }));
   
             const supportResistanceLevels = this.calculateSupportResistance(bidOrders, askOrders);
+            logger.info(`The orderbook with resistance/support levels has been checked.`);
   
             this.wsApi.removeListener('message', handleResponse);
             resolve(supportResistanceLevels);
