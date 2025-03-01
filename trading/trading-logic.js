@@ -25,16 +25,15 @@ class TradingLogic {
     this.isPaused = false;
 
     this.statisticsData = {
-      skipPausedNotEnoughForBid: 0,
       skipBTC: 0,
+      skipPausedNotEnoughForBid: 0,
+      allRektsInThresholdNoBTC: 0,
       skipAlready4orders: 0,
       skipExcludedHardcoded: 0,
       skipRektAnd4hFalse: 0,
       yes4hAnd15mTrue: 0,
-      executeYes4hAnd15mTrue: 0,
       idealYesRektAnd4hAnd15mTrue: 0,
       yesRektAnd15mTrue: 0,
-      executeRektAnd15mTrue: 0,
       skipBeginningOfCandle: 0,
       skipEndOfCandle: 0,
       skipLongResistanceLvl: 0,
@@ -43,11 +42,14 @@ class TradingLogic {
       errOnMarketExecution: 0,
       errOnLimitExecution: 0,
       errGeneralOnTrade: 0,
+      executeYes4hAnd15mTrue: 0,
+      executeRektAnd15mTrue: 0,
       executedOpeningMarketOrders: 0,
       executedClosingLimitOrders: 0,
       accumulatedRektExecution: 0,
-      preFormatFloor: { count: 0, symbolPrice: [] },
-      preFormatTrunc: { count: 0, symbolPrice: [] }
+      preFormatCeil: 0,
+      preFormatFloor: 0,
+      preFormatTrunc: 0
     }
 
     logger.info('BOT Initialized with config: %j', config.current);
@@ -141,6 +143,8 @@ class TradingLogic {
 
     if (liquidationAmount >= liquidationThreshold) {
       try {
+        this.statisticsData.allRektsInThresholdNoBTC += 1;
+
         const tradeSide = getBotTradeSide(liquidationSide);
         const positionSide = translatePositionSide(tradeSide);
 
@@ -390,20 +394,25 @@ class TradingLogic {
 
     const tickSize = this.getTokenPrecisions(symbol, 'tickSize');
 
-    let preFormattedLimitPrice = Math.ceil(limitPrice / tickSize) * tickSize;
-  
-    if ((preFormattedLimitPrice / tickSize) % 1 !== 0) {
-      preFormattedLimitPrice = Math.floor(limitPrice / tickSize) * tickSize;
+    console.log(`preFormattedLimitPrice avgPrice: ${avgPrice} / limitPrice: ${limitPrice}`);
+    console.log(`preFormattedLimitPrice tickSize: ${tickSize}`);
 
-      this.statisticsData.preFormatFloor.count += 1;
-      this.statisticsData.preFormatFloor.symbolPrice.push([symbol, limitPrice]);
+    let preFormattedLimitPrice = 0;
+    if (positionSide === 'LONG') {
+      preFormattedLimitPrice = Math.ceil(limitPrice / tickSize) * tickSize;
+      console.log(`preFormattedLimitPrice CEIL: ${preFormattedLimitPrice}`);
+      this.statisticsData.preFormatCeil += 1;
+    } else {
+      preFormattedLimitPrice = Math.floor(limitPrice / tickSize) * tickSize;
+      console.log(`preFormattedLimitPrice FLOOR: ${preFormattedLimitPrice}`);
+      this.statisticsData.preFormatFloor += 1;
 
       if ((preFormattedLimitPrice / tickSize) % 1 !== 0) {
         const tempPrice = Math.trunc(preFormattedLimitPrice / tickSize);
         preFormattedLimitPrice = tempPrice * tickSize;
+        console.log(`preFormattedLimitPrice TRUNC: ${preFormattedLimitPrice}`);
 
-        this.statisticsData.preFormatTrunc.count += 1;
-        this.statisticsData.preFormatTrunc.symbolPrice.push([symbol, limitPrice]);
+        this.statisticsData.preFormatTrunc += 1;
       }
     }
 

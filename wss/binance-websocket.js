@@ -81,7 +81,6 @@ class BinanceWebSocket extends WebSocketWrapper {
   }
 
   async getTokenCandleTrend(symbol, klineInterval) {
-    logger.info(`Checking the current ${klineInterval} candle trend for ${symbol}...`);
     try {
       const response = await axios.get(`${REST_API_URL}/klines`, {
         params: {
