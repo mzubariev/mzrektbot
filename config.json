@@ -1,16 +1,16 @@
 {
-  "depositSize": 211.11,
-  "bidPercentage": 5,
+  "depositSize": 382.65,
+  "bidPercentage": 7.84,
   "profitPercentage": 0.2,
   "tradeDirection": "trend",
   "longsOrShortsOrBoth": "both",
   "smallLiquidation": 1000,
-  "top20Liquidation": 30000,
-  "top50Liquidation": 100000,
+  "top50Liquidation": 15000,
+  "top20Liquidation": 50000,
   "orderbookDepth": 100,
   "multiplierToDetectHugeOrdersVolumeFromAvg": 3,
   "percentageHowCloseToLevels": 0.97,
   "timeToCheckForCandleEdges": 300000,
   "sameSymbolOrdersLimit": 4,
-  "timeoutToSignalToTG": 20 
+  "timeoutToSignalToTG": 20
 }

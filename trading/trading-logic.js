@@ -40,12 +40,14 @@ class TradingLogic {
       skipLongResistanceLvl: 0,
       skipShortSupportLvl: 0,
       skipTradeSmallBid: 0,
-      errorOnMarketExecution: 0,
-      errorOnLimitExecution: 0,
-      errorGeneralOnTrade: 0,
+      errOnMarketExecution: 0,
+      errOnLimitExecution: 0,
+      errGeneralOnTrade: 0,
       executedOpeningMarketOrders: 0,
       executedClosingLimitOrders: 0,
-      accumulateRekts: 0
+      accumulatedRektExecution: 0,
+      preFormatFloor: { count: 0, symbolPrice: [] },
+      preFormatTrunc: { count: 0, symbolPrice: [] }
     }
 
     logger.info('BOT Initialized with config: %j', config.current);
@@ -234,12 +236,11 @@ class TradingLogic {
 
         return;
       } catch (error) {
-        this.statisticsData.errorGeneralOnTrade += 1;
+        this.statisticsData.errGeneralOnTrade += 1;
         logger.error(`Skipping trade execution for ${symbol} on ${exchange.name} due to an error: %j`, error);
         return;
       }
     } else {
-      this.statisticsData.accumulateRekts += 1;
       this.accumulateLiquidation(exchange, symbol, liquidationSide, liquidationAmount);
     }
   }
@@ -338,7 +339,7 @@ class TradingLogic {
       return await this.binanceWs.sendOrder(order);
     } catch (error) {
       logger.error('Error executing MARKET ORDER:\n%j', error);
-      this.statisticsData.errorOnMarketExecution += 1;
+      this.statisticsData.errOnMarketExecution += 1;
 
       this.pause();
 
@@ -394,9 +395,15 @@ class TradingLogic {
     if ((preFormattedLimitPrice / tickSize) % 1 !== 0) {
       preFormattedLimitPrice = Math.floor(limitPrice / tickSize) * tickSize;
 
+      this.statisticsData.preFormatFloor.count += 1;
+      this.statisticsData.preFormatFloor.symbolPrice.push([symbol, limitPrice]);
+
       if ((preFormattedLimitPrice / tickSize) % 1 !== 0) {
         const tempPrice = Math.trunc(preFormattedLimitPrice / tickSize);
         preFormattedLimitPrice = tempPrice * tickSize;
+
+        this.statisticsData.preFormatTrunc.count += 1;
+        this.statisticsData.preFormatTrunc.symbolPrice.push([symbol, limitPrice]);
       }
     }
 
@@ -465,7 +472,7 @@ class TradingLogic {
       return limitOrderResult;
     } catch (error) {
       logger.error('Error executing LIMIT ORDER:\n%j', error);
-      this.statisticsData.errorOnLimitExecution += 1;
+      this.statisticsData.errOnLimitExecution += 1;
 
       throw error;
     }
@@ -493,6 +500,7 @@ class TradingLogic {
       
       if (this.liquidationAccumulation[symbol].amount >= liquidationThreshold) {
         logger.warn(`Executing a trade for ${symbol} after liquidations accumulation!`);
+        this.statisticsData.accumulatedRektExecution += 1;
         this.executeTrade(exchange, symbol, tradeSide);
       }
 
@@ -560,7 +568,7 @@ class TradingLogic {
   handleGetStatisticsInfo() {
     logger.info('=== INTERMEDIATE STATISTICS ===');
     console.log(this.statisticsData);
-    this.telegramBot.sendMsgToTgChat(this.statisticsData);
+    this.telegramBot.sendMsgToTgChat(JSON.stringify(this.statisticsData, null, 2));
   }
 
   updateMarketCapTokenData(tokenData) {
