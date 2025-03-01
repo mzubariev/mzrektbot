@@ -25,6 +25,7 @@ class TradingLogic {
     this.isPaused = false;
 
     this.statisticsData = {
+      allREKTS: 0,
       skipBTC: 0,
       skipPausedNotEnoughForBid: 0,
       allRektsInThresholdNoBTC: 0,
@@ -131,6 +132,8 @@ class TradingLogic {
     const tokenRanking = this.getTokenRanking(symbol);
     const liquidationThreshold = this.getLiquidationThreshold(tokenRanking);
     const liquidationAmount = parseFloat(quantity) * parseFloat(price);
+
+    this.statisticsData.allREKTS += 1;
 
     if (symbol.includes('BTCUSDT')) {
       logger.warn(`Skipping BTCUSDT for now...`);
