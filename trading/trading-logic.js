@@ -24,10 +24,38 @@ class TradingLogic {
     this.openOrders = new Map();
     this.isPaused = false;
 
+    this.statisticsData = {
+      skipPausedNotEnoughForBid: 0,
+      skipBTC: 0,
+      skipAlready4orders: 0,
+      skipExcludedHardcoded: 0,
+      skipRektAnd4hFalse: 0,
+      yes4hAnd15mTrue: 0,
+      executeYes4hAnd15mTrue: 0,
+      idealYesRektAnd4hAnd15mTrue: 0,
+      yesRektAnd15mTrue: 0,
+      executeRektAnd15mTrue: 0,
+      skipBeginningOfCandle: 0,
+      skipEndOfCandle: 0,
+      skipLongResistanceLvl: 0,
+      skipShortSupportLvl: 0,
+      skipTradeSmallBid: 0,
+      errorOnMarketExecution: 0,
+      errorOnLimitExecution: 0,
+      errorGeneralOnTrade: 0,
+      executedOpeningMarketOrders: 0,
+      executedClosingLimitOrders: 0,
+      accumulateRekts: 0
+    }
+
     logger.info('BOT Initialized with config: %j', config.current);
 
     config.on('statusChanged', ({ status }) => {
       this.handleStatusChange(status);
+    });
+
+    config.on('statistics', ({}) => {
+      this.handleGetStatisticsInfo();
     });
   }
 
@@ -88,6 +116,7 @@ class TradingLogic {
     if (availableBalance < amountForBid && !this.isPaused) {
       this.pause();
       logger.warn('Skip execution since the Bot is paused because there is not enough money for a bid!');
+      this.statisticsData.skipPausedNotEnoughForBid += 1;
     } else if (availableBalance >= amountForBid && this.isPaused) {
       this.resume();
     }
@@ -101,6 +130,7 @@ class TradingLogic {
 
     if (symbol.includes('BTCUSDT')) {
       logger.warn(`Skipping BTCUSDT for now...`);
+      this.statisticsData.skipBTC += 1;
       return;
     }
 
@@ -122,6 +152,7 @@ class TradingLogic {
 
         if (exchange.positionsInfo[symbol] && exchange.positionsInfo[symbol][positionSide] && exchange.positionsInfo[symbol][positionSide].ordersAmount >= config.current.sameSymbolOrdersLimit) {
           logger.warn(`Skipping the trade since there are already ${exchange.positionsInfo[symbol][positionSide].ordersAmount} orders opened for this token! Wait till they are closed...`);
+          this.statisticsData.skipAlready4orders += 1;
           return;
         }
 
@@ -132,60 +163,83 @@ class TradingLogic {
         const { supportLvl, resistanceLvl } = await exchange.getOrderBookSupportResistance(symbol);
         const lastPrice = await exchange.getSymbolLastPrice(symbol);
 
-        if (['FARTCOINUSDT', 'BAKEUSDT', 'WUSDT', 'AI16ZUSDT'].includes(symbol)) {
-          logger.warn('Skipping FARTCOINUSDT / BAKEUSDT / WUSDT / AI16ZUSDT /...');
+        if (['BAKEUSDT', 'WUSDT', 'TLMUSDT'].includes(symbol)) {
+          logger.warn('Skipping BAKEUSDT / WUSDT / TLMUSDT /...');
+          this.statisticsData.skipExcludedHardcoded += 1;
           return;
         }
 
-        console.log(`tradeSide: ${tradeSide}`);
-        console.log(`candle4h.trend: ${candle4h.trend}`);
-        console.log(`candle15m.trend: ${candle15m.trend}`);
-        console.log(`REKT+15m+4h: ${tradeSide === candle15m.trend && candle15m.trend === candle4h.trend}`);
-        console.log(`15m+4h: ${candle4h.trend === candle15m.trend}`);
-        console.log(`REKT+15m: ${tradeSide === candle15m.trend}`);
-
         if (candle15m.trend === candle4h.trend) { // если будет застрявать, то сделать (tradeSide === candle15m.trend && candle15m.trend === candle4h.trend)
-          logger.warn('Starting a trade attempt in the direct side...');
+          this.statisticsData.yes4hAnd15mTrue += 1;
+
+          if (candle4h.trend === tradeSide) {
+            this.statisticsData.idealYesRektAnd4hAnd15mTrue += 1;
+          }
+
           const currentTimestamp = Date.now();
 
           if ((currentTimestamp - candle4h.openTime) <= config.current.timeToCheckForCandleEdges) {
             logger.warn('Skipping the trade since it is in the very beginning of a candle...');
+            this.statisticsData.skipBeginningOfCandle += 1;
             return;
           }
 
           if ((candle4h.closeTime - currentTimestamp) <= config.current.timeToCheckForCandleEdges) {
             logger.warn('Skipping the trade since it is in the very end of a candle...');
+            this.statisticsData.skipEndOfCandle += 1;
             return;
           }
 
           if (candle15m.trend === 'BUY') {
             if (lastPrice < resistanceLvl * config.current.percentageHowCloseToLevels) {
+              this.statisticsData.executeYes4hAnd15mTrue += 1;
               await this.executeTrade(exchange, symbol, candle15m.trend); 
             } else {
               logger.warn('Too close to the resistance level! Skipping the LONG deal...');
+              this.statisticsData.skipLongResistanceLvl += 1;
             }
           } else if (candle15m.trend === 'SELL') {
             if (lastPrice > supportLvl * config.current.percentageHowCloseToLevels) {
+              this.statisticsData.executeYes4hAnd15mTrue += 1;
               await this.executeTrade(exchange, symbol, candle15m.trend); 
             } else {
               logger.warn('Too close to the support level! Skipping the SHORT deal...');
+              this.statisticsData.skipShortSupportLvl += 1;
             }
           }
         } else if (tradeSide === candle15m.trend) {
-          logger.warn('Opening a deal in an opposite side from 4h candle but along with 15m candle and REKT direction!');
-          await this.executeTrade(exchange, symbol, candle15m.trend); 
+          this.statisticsData.yesRektAnd15mTrue += 1;
+
+          if (candle15m.trend === 'BUY') {
+            if (lastPrice < resistanceLvl * config.current.percentageHowCloseToLevels) {
+              this.statisticsData.executeRektAnd15mTrue += 1;
+              await this.executeTrade(exchange, symbol, candle15m.trend); 
+            } else {
+              logger.warn('Too close to the resistance level! Skipping the LONG deal...');
+              this.statisticsData.skipLongResistanceLvl += 1;
+            }
+          } else if (candle15m.trend === 'SELL') {
+            if (lastPrice > supportLvl * config.current.percentageHowCloseToLevels) {
+              this.statisticsData.executeRektAnd15mTrue += 1;
+              await this.executeTrade(exchange, symbol, candle15m.trend); 
+            } else {
+              logger.warn('Too close to the support level! Skipping the SHORT deal...');
+              this.statisticsData.skipShortSupportLvl += 1;
+            }
+          }
         } else {
+          this.statisticsData.skipRektAnd4hFalse += 1;
           logger.warn('The REKT and 4hCandle directions are different! Skipping the deal...');
         }
 
         return;
       } catch (error) {
-        logger.error(`Error executing trade for ${symbol} on ${exchange.name}: ${error.message}`);
-        logger.debug('Error details: %j', error);
-        logger.warn(`Skipping trade execution for ${symbol} on ${exchange.name} due to an error.`);
+        this.statisticsData.errorGeneralOnTrade += 1;
+        logger.error(`Skipping trade execution for ${symbol} on ${exchange.name} due to an error: %j`, error);
         return;
       }
     } else {
+      this.statisticsData.accumulateRekts += 1;
       this.accumulateLiquidation(exchange, symbol, liquidationSide, liquidationAmount);
     }
   }
@@ -200,6 +254,7 @@ class TradingLogic {
       if (!marketOrderResult) {
         return; 
       }
+      this.statisticsData.executedOpeningMarketOrders += 1;
 
       // Send Limit order to close the Position with 0,2% of 
       const avgPrice = parseFloat(marketOrderResult.avgPrice);
@@ -208,11 +263,13 @@ class TradingLogic {
       const limitOrderSide = getOppositeTradeSide(tradeSide); 
       const limitOrderResult = await this.sendLimitOrderToClosePosition(exchange, symbol, limitOrderSide, positionSide, executedQuantity, formattedLimitPrice);
 
+      if (limitOrderResult) {
+        this.statisticsData.executedClosingLimitOrders += 1;
+      }
+
       // Set a 20-minute timer for the limit order to report in Telegram if the order is still Opened
       // this.setLimitOrderTimer(exchange, symbol, limitOrderResult.orderId);
     } catch (error) {
-      logger.error(`Error executing trade on ${exchange.name}: ${error.message}`);
-      logger.debug('Error details:\n%j', error);
       throw new Error(`Trade execution failed for ${symbol} on ${exchange.name}: ${error.message}`);
     }
   }
@@ -263,6 +320,7 @@ class TradingLogic {
 
       if (formatted_quantity <= 0) {
         logger.warn(`Skipping the trade - too small Bid for this token...`);
+        this.statisticsData.skipTradeSmallBid += 1;
         return;
       }
 
@@ -275,10 +333,12 @@ class TradingLogic {
         newOrderRespType: 'RESULT'
       };
 
-      logger.info('Placing the Order:\n%j', order);
+      logger.info('Placing the MARKET ORDER:\n%j', order);
+
       return await this.binanceWs.sendOrder(order);
     } catch (error) {
-      logger.error('Error executing market order:\n%j', error);
+      logger.error('Error executing MARKET ORDER:\n%j', error);
+      this.statisticsData.errorOnMarketExecution += 1;
 
       this.pause();
 
@@ -374,34 +434,41 @@ class TradingLogic {
   }
 
   async sendLimitOrderToClosePosition(exchange, symbol, orderSide, positionSide, quantity, price) {
-    let accumulatedQuantity = null;
-    let closingBreakevenPrice = null;
-    
-    if (exchange.positionsInfo[symbol] && exchange.positionsInfo[symbol][positionSide]) {
-      accumulatedQuantity = exchange.positionsInfo[symbol][positionSide].positionAmount;
-      const breakevenPrice = exchange.positionsInfo[symbol][positionSide].breakevenPrice;
-
-      if (breakevenPrice) {
-        closingBreakevenPrice = this.calculateLimitOrderClosePositionPrice(symbol, positionSide, breakevenPrice)
+    try {
+      let accumulatedQuantity = null;
+      let closingBreakevenPrice = null;
+      
+      if (exchange.positionsInfo[symbol] && exchange.positionsInfo[symbol][positionSide]) {
+        accumulatedQuantity = exchange.positionsInfo[symbol][positionSide].positionAmount;
+        const breakevenPrice = exchange.positionsInfo[symbol][positionSide].breakevenPrice;
+  
+        if (breakevenPrice) {
+          closingBreakevenPrice = this.calculateLimitOrderClosePositionPrice(symbol, positionSide, breakevenPrice)
+        }
       }
-    }  
+  
+      const limitOrder = {
+        symbol: symbol,
+        side: orderSide,
+        positionSide: positionSide,
+        type: 'LIMIT',
+        quantity: Math.max(Math.abs(accumulatedQuantity), quantity),
+        price: closingBreakevenPrice || price,
+        timeInForce: 'GTC',
+        newOrderRespType: 'RESULT'
+      };
+  
+      logger.info('Sending LIMIT ORDER to close the position:\n%j', limitOrder);
+      const limitOrderResult = await exchange.sendOrder(limitOrder);
+      logger.info('Limit order result:\n%j', limitOrderResult);
+  
+      return limitOrderResult;
+    } catch (error) {
+      logger.error('Error executing LIMIT ORDER:\n%j', error);
+      this.statisticsData.errorOnLimitExecution += 1;
 
-    const limitOrder = {
-      symbol: symbol,
-      side: orderSide,
-      positionSide: positionSide,
-      type: 'LIMIT',
-      quantity: Math.max(Math.abs(accumulatedQuantity), quantity),
-      price: closingBreakevenPrice || price,
-      timeInForce: 'GTC',
-      newOrderRespType: 'RESULT'
-    };
-
-    logger.info('Sending limit order to close the position:\n%j', limitOrder);
-    const limitOrderResult = await exchange.sendOrder(limitOrder);
-    logger.info('Limit order result:\n%j', limitOrderResult);
-
-    return limitOrderResult;
+      throw error;
+    }
   }
 
   accumulateLiquidation(exchange, symbol, liquidationSide, amount) {
@@ -488,6 +555,12 @@ class TradingLogic {
   handleStatusChange(status) {
     logger.info('Applying new status...');
     status === 'paused' ? this.pause() : this.resume();
+  }
+
+  handleGetStatisticsInfo() {
+    logger.info('=== INTERMEDIATE STATISTICS ===');
+    console.log(this.statisticsData);
+    this.telegramBot.sendMsgToTgChat(this.statisticsData);
   }
 
   updateMarketCapTokenData(tokenData) {

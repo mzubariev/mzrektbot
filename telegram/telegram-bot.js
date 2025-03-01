@@ -12,6 +12,11 @@ class TelegramBotWrapper {
   start() {
     logger.info('Telegram Bot started!');
 
+    this.bot.onText(/\/stat/, () => {
+      config.emit('statistics', {});
+      this.sendMsgToTgChat('Sending an intermediate trading statistics to the console and to the chat...');
+    });
+    
     this.bot.onText(/\/pause/, () => {
       config.emit('statusChanged', { status: 'paused' });
       this.sendMsgToTgChat('Bot paused. Use /resume to restart trading.');

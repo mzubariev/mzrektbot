@@ -308,8 +308,6 @@ class BinanceWebSocket extends WebSocketWrapper {
   
           if (response.id === requestId && response.result) {
             const lastPrice = parseFloat(response.result.price);
-
-            logger.info(`The last prise for ${symbol} is ${lastPrice}.`);
   
             this.wsApi.removeListener('message', handleResponse);
             resolve(lastPrice);
@@ -357,7 +355,6 @@ class BinanceWebSocket extends WebSocketWrapper {
             }));
   
             const supportResistanceLevels = this.calculateSupportResistance(bidOrders, askOrders);
-            logger.info(`The orderbook with resistance/support levels has been checked.`);
   
             this.wsApi.removeListener('message', handleResponse);
             resolve(supportResistanceLevels);
