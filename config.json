@@ -8,11 +8,10 @@
   "smallLiquidation": 1000,
   "top50Liquidation": 15000,
   "top20Liquidation": 50000,
-  "orderbookDepth": 1000,
   
   "multiplierToDetectHugeOrdersVolumeFromAvg": 1.5,
-  "percentageHowCloseToLevels": 0.997,
-  "timeToCheckForCandleEdges": 300000,
+  "percentageHowCloseToLevels": 0.3,
+  "timeToCheckForCandleEdges": 5,
   "sameSymbolOrdersLimit": 4,
   "timeoutToSignalToTG": 20
 }

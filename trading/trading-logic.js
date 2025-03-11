@@ -184,81 +184,39 @@ class TradingLogic {
           distanceToSupport
         } = await exchange.getOrderBookSupportResistance(symbol, tokenInfo.orderBookMinimalDepth, lastPrice);
 
+        // ✅ Main Decision Logic
+        const currentTimestamp = Date.now();
+
+        // ✅ Skip if the trade is too close to the start or end of the candle
+        if ((currentTimestamp - candle4h.openTime) <= config.current.timeToCheckForCandleEdges / 60000) {
+          logger.warn('Skipping the trade since it is in the very beginning of a candle...');
+          this.statisticsData.skipBeginningOfCandle += 1;
+          return;
+        }
+
+        if ((candle4h.closeTime - currentTimestamp) <= config.current.timeToCheckForCandleEdges / 60000) {
+          logger.warn('Skipping the trade since it is in the very end of a candle...');
+          this.statisticsData.skipEndOfCandle += 1;
+          return;
+        }
+
+        // ✅ Case 1: When 15m trend matches 4h trend
         if (candle15m.trend === candle4h.trend) {
           this.statisticsData.yes4hAnd15mTrue += 1;
 
           if (candle4h.trend === tradeSide) {
-            this.statisticsData.idealYesRektAnd4hAnd15mTrue += 1;
+              this.statisticsData.idealYesRektAnd4hAnd15mTrue += 1;
           }
 
-          const currentTimestamp = Date.now();
-
-          if ((currentTimestamp - candle4h.openTime) <= config.current.timeToCheckForCandleEdges) {
-            logger.warn('Skipping the trade since it is in the very beginning of a candle...');
-            this.statisticsData.skipBeginningOfCandle += 1;
-            return;
-          }
-
-          if ((candle4h.closeTime - currentTimestamp) <= config.current.timeToCheckForCandleEdges) {
-            logger.warn('Skipping the trade since it is in the very end of a candle...');
-            this.statisticsData.skipEndOfCandle += 1;
-            return;
-          }
-
-          if (candle15m.trend === 'BUY') {
-            if (lastPrice < resistanceLvl * config.current.percentageHowCloseToLevels) {
-              this.statisticsData.executeYes4hAnd15mTrue += 1;
-              await this.executeTrade(exchange, symbol, candle15m.trend); 
-            } else if (distanceToSupport > (1 - config.current.percentageHowCloseToLevels) * 100) {
-              logger.warn('Too close to the resistance level! Try the SHORT deal...');
-              this.statisticsData.skipLongResistanceLvlMakeShort += 1;
-              await this.executeTrade(exchange, symbol, getOppositeTradeSide(candle15m.trend));
-            } else {
-              logger.warn('Too close to the resistance level! Skipping the LONG deal...');
-              this.statisticsData.skipLongResistanceLvl += 1;
-            }
-          } else if (candle15m.trend === 'SELL') {
-            if (lastPrice * config.current.percentageHowCloseToLevels > supportLvl) {
-              this.statisticsData.executeYes4hAnd15mTrue += 1;
-              await this.executeTrade(exchange, symbol, candle15m.trend);
-            } else if (distanceToResistance > (1 - config.current.percentageHowCloseToLevels) * 100) { 
-              logger.warn('Too close to the resistance level! Try the LONG deal...');
-              this.statisticsData.skipShortSupportLvlMakeLong += 1;
-              await this.executeTrade(exchange, symbol, getOppositeTradeSide(candle15m.trend));
-            } else {
-              logger.warn('Too close to the support level! Skipping the SHORT deal...');
-              this.statisticsData.skipShortSupportLvl += 1;
-            }
-          }
-        } else if (tradeSide === candle15m.trend) {
+          await processTrade(exchange, symbol, candle15m.trend, distanceToResistance, distanceToSupport, "executeYes4hAnd15mTrue");
+        } 
+        // ✅ Case 2: When liquidation (tradeSide) matches 15m trend
+        else if (tradeSide === candle15m.trend) {
           this.statisticsData.yesRektAnd15mTrue += 1;
-
-          if (candle15m.trend === 'BUY') {
-            if (lastPrice < resistanceLvl * config.current.percentageHowCloseToLevels) {
-              this.statisticsData.executeRektAnd15mTrue += 1;
-              await this.executeTrade(exchange, symbol, candle15m.trend);
-            } else if (distanceToSupport > (1 - config.current.percentageHowCloseToLevels) * 100) {
-              logger.warn('Too close to the resistance level! Try the SHORT deal...');
-              this.statisticsData.skipLongResistanceLvlMakeShort += 1;
-              await this.executeTrade(exchange, symbol, getOppositeTradeSide(candle15m.trend));
-            } else {
-              logger.warn('Too close to the resistance level! Skipping the LONG deal...');
-              this.statisticsData.skipLongResistanceLvl += 1;
-            }
-          } else if (candle15m.trend === 'SELL') {
-            if (lastPrice * config.current.percentageHowCloseToLevels > supportLvl) {
-              this.statisticsData.executeRektAnd15mTrue += 1;
-              await this.executeTrade(exchange, symbol, candle15m.trend);
-            } else if (distanceToResistance > (1 - config.current.percentageHowCloseToLevels) * 100) { 
-              logger.warn('Too close to the resistance level! Try the LONG deal...');
-              this.statisticsData.skipShortSupportLvlMakeLong += 1;
-              await this.executeTrade(exchange, symbol, getOppositeTradeSide(candle15m.trend));
-            } else {
-              logger.warn('Too close to the support level! Skipping the SHORT deal...');
-              this.statisticsData.skipShortSupportLvl += 1;
-            }
-          }
-        } else {
+          await processTrade(exchange, symbol, candle15m.trend, distanceToResistance, distanceToSupport, "executeRektAnd15mTrue");
+        } 
+        // ✅ Case 3: Trends do not align → Skip the trade
+        else {
           this.statisticsData.skipRektAnd4hFalse += 1;
           logger.warn('The REKT and 4hCandle directions are different! Skipping the deal...');
         }
@@ -269,6 +227,38 @@ class TradingLogic {
         logger.error(`Skipping trade execution for ${symbol} on ${exchange.name} due to an error: %j`, error);
         console.log(error);
         return;
+      }
+    }
+  }
+
+  async processTradeDecideSellOrBuy(exchange, symbol, trend, distanceToResistance, distanceToSupport, tradeType) {
+    const isBuy = trend === 'BUY';
+    const isFarFromResistance = distanceToResistance > config.current.percentageHowCloseToLevels;
+    const isFarFromSupport = distanceToSupport > config.current.percentageHowCloseToLevels;
+
+    if (isBuy) {
+      if (isFarFromResistance) {
+        this.statisticsData[tradeType] += 1;
+        await this.executeTrade(exchange, symbol, 'BUY');
+      } else if (isFarFromSupport) {
+        logger.warn('Too close to the resistance level! Try the SHORT deal...');
+        this.statisticsData.skipLongResistanceLvlMakeShort += 1;
+        await this.executeTrade(exchange, symbol, 'SELL');
+      } else {
+        logger.warn('Too close to the resistance level! Skipping the LONG deal...');
+        this.statisticsData.skipLongResistanceLvl += 1;
+      }
+    } else { // SELL case
+      if (isFarFromSupport) {
+        this.statisticsData[tradeType] += 1;
+        await this.executeTrade(exchange, symbol, 'SELL');
+      } else if (isFarFromResistance) {
+        logger.warn('Too close to the support level! Try the LONG deal...');
+        this.statisticsData.skipShortSupportLvlMakeLong += 1;
+        await this.executeTrade(exchange, symbol, 'BUY');
+      } else {
+        logger.warn('Too close to the support level! Skipping the SHORT deal...');
+        this.statisticsData.skipShortSupportLvl += 1;
       }
     }
   }
