@@ -274,8 +274,6 @@ class TradingLogic {
         console.log(error);
         return;
       }
-    } else {
-      this.accumulateLiquidation(exchange, symbol, liquidationSide, liquidationAmount);
     }
   }
 
@@ -514,40 +512,6 @@ class TradingLogic {
       this.statisticsData.errOnLimitExecution += 1;
 
       throw error;
-    }
-  }
-
-  accumulateLiquidation(exchange, symbol, liquidationSide, amount) {
-    const now = Date.now();
-    if (!this.liquidationAccumulation[symbol]) {
-      this.liquidationAccumulation[symbol] = {
-        amount: 0,
-        side: '',
-        startTime: now,
-      };
-    } else if (this.liquidationAccumulation[symbol].side === liquidationSide) {
-      this.liquidationAccumulation[symbol].amount += amount;
-    }
-
-    const tradeSide = getBotTradeSide(liquidationSide);
-
-    // 5 seconds to accumulate the liquidations per a token
-    if (now - this.liquidationAccumulation[symbol].startTime >= 5000) {
-      // Check if accumulated amount meets the threshold
-      const tokenRanking = this.getTokenRanking(symbol);
-      const liquidationThreshold = this.getLiquidationThreshold(tokenRanking);
-      
-      if (this.liquidationAccumulation[symbol].amount >= liquidationThreshold) {
-        logger.warn(`Executing a trade for ${symbol} after liquidations accumulation!`);
-        this.statisticsData.accumulatedRektExecution += 1;
-        this.executeTrade(exchange, symbol, tradeSide);
-      }
-
-      // Reset accumulation
-      this.liquidationAccumulation[symbol] = {
-        amount: 0,
-        startTime: now,
-      };
     }
   }
 
