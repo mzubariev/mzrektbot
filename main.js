@@ -60,17 +60,17 @@ async function main() {
     });
 
     // Schedule Wallet Amount (deposit size) auto-update in config - at the start of every hour
-    // cron.schedule('0 * * * *', async () => {
-    //   try {
-    //     logger.info('CRON: Running Deposit Size update!');
+    cron.schedule('0 * * * *', async () => {
+      try {
+        logger.info('CRON: Running Deposit Size update!');
 
-    //     tradingLogic.updateDepositSizeConfig();
+        tradingLogic.updateDepositSizeConfig();
         
-    //     logger.info('Deposit Size config updated successfully!');
-    //   } catch (error) {
-    //     logger.error('Error updating deposit size config via cron task: %j', error);
-    //   }
-    // });
+        logger.info('Deposit Size config updated successfully!');
+      } catch (error) {
+        logger.error('Error updating deposit size config via cron task: %j', error);
+      }
+    });
   } catch (error) {
     logger.error('Bot initialization error: %j', error);
     process.exit(1);

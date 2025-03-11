@@ -88,9 +88,9 @@ class WebSocketWrapper extends EventEmitter {
         //   return;
         // }
         logger.error('Received an error message from %s wss API: %j', this.name, response);
-      } //else {
-        // logger.info('Received message from %s wss API: %j', this.name, response);
-      // }
+      } else {
+        logger.info('Received message from %s wss API: %j', this.name, response);
+      }
     });
     this.wsApi.on('close', () => {
       logger.info(`Disconnected from ${this.urlApi}!`);

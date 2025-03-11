@@ -385,18 +385,18 @@ class BinanceWebSocket extends WebSocketWrapper {
     const resistanceLvl = largeAskOrders.length ? largeAskOrders[0].price : null;
     const supportLvl = largeBidOrders.length ? largeBidOrders[0].price : null;
 
-    const distance2resistance = (Math.abs(resistanceLvl - currentPrice)/currentPrice) * 100;
-    const distance2support = (Math.abs(supportLvl - currentPrice)/currentPrice) * 100;
+    const distanceToResistance = (Math.abs(resistanceLvl - currentPrice)/currentPrice) * 100;
+    const distanceToSupport = (Math.abs(supportLvl - currentPrice)/currentPrice) * 100;
   
     return {
       averageAskSize,
       largeAskOrders,
       resistanceLvl,
-      distance2resistance,
+      distanceToResistance,
       averageBidSize,
       largeBidOrders,
       supportLvl,
-      distance2support
+      distanceToSupport
     };
   }  
 
