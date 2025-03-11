@@ -212,8 +212,7 @@ class TradingLogic {
             } else if (distanceToSupport > (1 - config.current.percentageHowCloseToLevels) * 100) {
               logger.warn('Too close to the resistance level! Try the SHORT deal...');
               this.statisticsData.skipLongResistanceLvlMakeShort += 1;
-              // ?
-
+              await this.executeTrade(exchange, symbol, getOppositeTradeSide(candle15m.trend));
             } else {
               logger.warn('Too close to the resistance level! Skipping the LONG deal...');
               this.statisticsData.skipLongResistanceLvl += 1;
@@ -225,8 +224,7 @@ class TradingLogic {
             } else if (distanceToResistance > (1 - config.current.percentageHowCloseToLevels) * 100) { 
               logger.warn('Too close to the resistance level! Try the LONG deal...');
               this.statisticsData.skipShortSupportLvlMakeLong += 1;
-              // ?
-
+              await this.executeTrade(exchange, symbol, getOppositeTradeSide(candle15m.trend));
             } else {
               logger.warn('Too close to the support level! Skipping the SHORT deal...');
               this.statisticsData.skipShortSupportLvl += 1;
@@ -242,8 +240,7 @@ class TradingLogic {
             } else if (distanceToSupport > (1 - config.current.percentageHowCloseToLevels) * 100) {
               logger.warn('Too close to the resistance level! Try the SHORT deal...');
               this.statisticsData.skipLongResistanceLvlMakeShort += 1;
-              // ?
-
+              await this.executeTrade(exchange, symbol, getOppositeTradeSide(candle15m.trend));
             } else {
               logger.warn('Too close to the resistance level! Skipping the LONG deal...');
               this.statisticsData.skipLongResistanceLvl += 1;
@@ -255,8 +252,7 @@ class TradingLogic {
             } else if (distanceToResistance > (1 - config.current.percentageHowCloseToLevels) * 100) { 
               logger.warn('Too close to the resistance level! Try the LONG deal...');
               this.statisticsData.skipShortSupportLvlMakeLong += 1;
-              // ?
-
+              await this.executeTrade(exchange, symbol, getOppositeTradeSide(candle15m.trend));
             } else {
               logger.warn('Too close to the support level! Skipping the SHORT deal...');
               this.statisticsData.skipShortSupportLvl += 1;
