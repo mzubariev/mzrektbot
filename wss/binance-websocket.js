@@ -322,7 +322,7 @@ class BinanceWebSocket extends WebSocketWrapper {
     });
   }
   
-  async getOrderBookSupportResistance(symbol) {
+  async getOrderBookSupportResistance(symbol, orderBookMinimalDepth, currentPrice) {
     const timestamp = this.getTimestamp();
     const requestId = this.generateRequestId();
     const message = {
@@ -330,7 +330,7 @@ class BinanceWebSocket extends WebSocketWrapper {
       method: 'depth',
       params: {
         symbol: symbol.toUpperCase(),
-        limit: config.current.orderbookDepth,
+        limit: orderBookMinimalDepth,
         timestamp
       }
     };
@@ -346,14 +346,16 @@ class BinanceWebSocket extends WebSocketWrapper {
             const bidOrders = bids.map(([price, volume]) => ({
               price: parseFloat(price),
               volume: parseFloat(volume),
+              amountUsdt: parseFloat(price) * parseFloat(volume)
             }));
   
             const askOrders = asks.map(([price, volume]) => ({
               price: parseFloat(price),
               volume: parseFloat(volume),
+              amountUsdt: parseFloat(price) * parseFloat(volume)
             }));
   
-            const supportResistanceLevels = this.calculateSupportResistance(bidOrders, askOrders);
+            const supportResistanceLevels = this.calculateSupportResistance(bidOrders, askOrders, currentPrice);
   
             this.wsApi.removeListener('message', handleResponse);
             resolve(supportResistanceLevels);
@@ -371,18 +373,30 @@ class BinanceWebSocket extends WebSocketWrapper {
 
   // Helper methods
 
-  calculateSupportResistance(bidOrders, askOrders) {
+  calculateSupportResistance(bidOrders, askOrders, currentPrice) {
     if (!bidOrders.length || !askOrders.length) return { supportLvl: null, resistanceLvl: null };
   
-    const averageBidSize = bidOrders.reduce((sum, order) => sum + order.volume, 0) / bidOrders.length;
     const averageAskSize = askOrders.reduce((sum, order) => sum + order.volume, 0) / askOrders.length;
+    const averageBidSize = bidOrders.reduce((sum, order) => sum + order.volume, 0) / bidOrders.length;
   
-    const largeBidOrders = bidOrders.filter(order => order.volume >= averageBidSize * config.current.multiplierToDetectHugeOrdersVolumeFromAvg);
     const largeAskOrders = askOrders.filter(order => order.volume >= averageAskSize * config.current.multiplierToDetectHugeOrdersVolumeFromAvg);
+    const largeBidOrders = bidOrders.filter(order => order.volume >= averageBidSize * config.current.multiplierToDetectHugeOrdersVolumeFromAvg);
+
+    const resistanceLvl = largeAskOrders.length ? largeAskOrders[0].price : null;
+    const supportLvl = largeBidOrders.length ? largeBidOrders[0].price : null;
+
+    const distance2resistance = (Math.abs(resistanceLvl - currentPrice)/currentPrice) * 100;
+    const distance2support = (Math.abs(supportLvl - currentPrice)/currentPrice) * 100;
   
     return {
-      supportLvl: largeBidOrders.length ? largeBidOrders[0].price : null,
-      resistanceLvl: largeAskOrders.length ? largeAskOrders[0].price : null,
+      averageAskSize,
+      largeAskOrders,
+      resistanceLvl,
+      distance2resistance,
+      averageBidSize,
+      largeBidOrders,
+      supportLvl,
+      distance2support
     };
   }  
 

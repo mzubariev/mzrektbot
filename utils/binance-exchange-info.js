@@ -2,23 +2,41 @@ import axios from 'axios';
 import fs from 'fs';
 import logger from './logger.js';
 
+const ORDERBOOK_DEPTHS = [10, 20, 50, 100, 500, 1000];
+const DISTANCE_FROM_CURR_PRICE_TO_WALL_PRCNT = 0.8;
+
 async function getBinanceExchangeInfo() {
   try {
     const response = await axios.get('https://fapi.binance.com/fapi/v1/exchangeInfo');
     const data = response.data;
 
-    // Process the data to only include relevant fields
+    // Fetch the latest prices from Binance to calculate tickSizePercent
+    const priceResponse = await axios.get('https://fapi.binance.com/fapi/v1/ticker/price');
+    const prices = priceResponse.data.reduce((acc, item) => {
+      acc[item.symbol] = parseFloat(item.price);
+      return acc;
+    }, {});
+
+    // Process the data to include relevant fields
     const formattedData = data.symbols.reduce((acc, symbolInfo) => {
       const priceFilter = symbolInfo.filters.find(filter => filter.filterType === 'PRICE_FILTER');
       const tickSize = priceFilter ? parseFloat(priceFilter.tickSize) : null;
+      const currentPrice = prices[symbolInfo.symbol] || null;
 
-      if (!symbolInfo.symbol.includes('USDC')) {
+      if (!symbolInfo.symbol.includes('USDC') && tickSize && currentPrice) {
+        const orderBookStepPrcnt = (tickSize / currentPrice) * 100;
+
+        // Find the smallest multiplier that satisfies the condition
+        const orderBookMinimalDepth = ORDERBOOK_DEPTHS.find(depth => orderBookStepPrcnt * depth >= DISTANCE_FROM_CURR_PRICE_TO_WALL_PRCNT) || 1000;
+
         acc[symbolInfo.symbol] = {
           pricePrecision: symbolInfo.pricePrecision,
           quantityPrecision: symbolInfo.quantityPrecision,
           baseAssetPrecision: symbolInfo.baseAssetPrecision,
           quotePrecision: symbolInfo.quotePrecision,
-          tickSize: tickSize
+          tickSize,
+          orderBookStepPrcnt,
+          orderBookMinimalDepth
         };
       }
 

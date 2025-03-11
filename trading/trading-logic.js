@@ -8,6 +8,7 @@ import getMarketCapTokenData from '../utils/coinmarketcap-token-data.js';
 import getBinanceExchangeInfo from '../utils/binance-exchange-info.js';
 import config from '../utils/configuration.js';
 import { roundDownToTwoDecimals, calculateBidAmount, getOppositeTradeSide, translatePositionSide, getTokenTrend, getBotTradeSide } from '../utils/helpers.js';
+import { testOrderbook } from '../test.js';
 
 const STUCK_ORDER_STATUSES_TO_ALERT = ['NEW', 'PARTIALLY_FILLED', 'CANCELED', 'REJECTED'];
 
@@ -28,7 +29,7 @@ class TradingLogic {
       allREKTS: 0,
       skipBTC: 0,
       skipPausedNotEnoughForBid: 0,
-      allRektsInThresholdNoBTC: 0,
+      allRektsInThreshold: 0,
       skipAlready4orders: 0,
       skipExcludedHardcoded: 0,
       skipRektAnd4hFalse: 0,
@@ -37,7 +38,9 @@ class TradingLogic {
       yesRektAnd15mTrue: 0,
       skipBeginningOfCandle: 0,
       skipEndOfCandle: 0,
+      skipLongResistanceLvlMakeShort: 0,
       skipLongResistanceLvl: 0,
+      skipShortSupportLvlMakeLong: 0,
       skipShortSupportLvl: 0,
       skipTradeSmallBid: 0,
       errOnMarketExecution: 0,
@@ -52,6 +55,8 @@ class TradingLogic {
       preFormatFloor: 0,
       preFormatTrunc: 0
     }
+
+    this.mainLogicStatisticsData = [];
 
     logger.info('BOT Initialized with config: %j', config.current);
 
@@ -89,7 +94,7 @@ class TradingLogic {
   setupLiquidationListeners() {
     // Binance
     this.binanceWs.events.on('message', async (liquidation) => {
-      await this.checkIfEnoughBalanceForBid(this.binanceWs);
+      // await this.checkIfEnoughBalanceForBid(this.binanceWs);
 
       if (this.isPaused) {
         return;
@@ -135,18 +140,18 @@ class TradingLogic {
 
     this.statisticsData.allREKTS += 1;
 
-    if (symbol.includes('BTCUSDT')) {
-      logger.warn(`Skipping BTCUSDT for now...`);
-      this.statisticsData.skipBTC += 1;
-      return;
-    }
+    // if (symbol.includes('BTCUSDT')) {
+    //   logger.warn(`Skipping BTCUSDT for now...`);
+    //   this.statisticsData.skipBTC += 1;
+    //   return;
+    // }
 
-    logger.info('\n---Processing liquidation---');
-    logger.info(`${exchange.name}, ${symbol}, ${translatePositionSide(liquidationSide)} -${liquidationAmount}$ -> ${getTokenTrend(liquidationSide)} <- Price: ${price}$, Quantity: ${quantity} | Token rank: ${tokenRanking}, Liquidation threshold: ${liquidationThreshold}$`);
+    // logger.info('\n---Processing liquidation---');
+    // logger.info(`${exchange.name}, ${symbol}, ${translatePositionSide(liquidationSide)} -${liquidationAmount}$ -> ${getTokenTrend(liquidationSide)} <- Price: ${price}$, Quantity: ${quantity} | Token rank: ${tokenRanking}, Liquidation threshold: ${liquidationThreshold}$`);
 
     if (liquidationAmount >= liquidationThreshold) {
       try {
-        this.statisticsData.allRektsInThresholdNoBTC += 1;
+        this.statisticsData.allRektsInThreshold += 1;
 
         const tradeSide = getBotTradeSide(liquidationSide);
         const positionSide = translatePositionSide(tradeSide);
@@ -167,16 +172,60 @@ class TradingLogic {
 
         // The MAIN logic to determine if we are OK to start a deal, and to choose a direction
 
+        const tokenInfo = this.binanceExchangeInfo[symbol]
         const candle4h = await exchange.getTokenCandleTrend(symbol, '4h');
         const candle15m = await exchange.getTokenCandleTrend(symbol, '15m');
-        const { supportLvl, resistanceLvl } = await exchange.getOrderBookSupportResistance(symbol);
         const lastPrice = await exchange.getSymbolLastPrice(symbol);
+        const {
+          averageAskSize,
+          largeAskOrders,
+          resistanceLvl,
+          distance2resistance,
+          averageBidSize,
+          largeBidOrders,
+          supportLvl,
+          distance2support
+        } = await exchange.getOrderBookSupportResistance(symbol, tokenInfo.orderBookMinimalDepth, lastPrice);
 
-        if (['BAKEUSDT', 'WUSDT', 'TLMUSDT'].includes(symbol)) {
-          logger.warn('Skipping BAKEUSDT / WUSDT / TLMUSDT /...');
-          this.statisticsData.skipExcludedHardcoded += 1;
-          return;
-        }
+        // if (['WUSDT', 'TLMUSDT'].includes(symbol)) {
+        //   logger.warn('Skipping WUSDT / TLMUSDT /...');
+        //   this.statisticsData.skipExcludedHardcoded += 1;
+        //   return;
+        // }
+
+        const now = new Date();
+        const timeString = now.toLocaleString('en-GB', { timeZone: 'Europe/Budapest', hour12: false });
+        let tempObj = {
+          number: this.mainLogicStatisticsData.length + 1,
+          timeStamp: timeString,
+          tokenRanking,
+          symbol,
+          liquidationPrice: price,
+          liquidationAmoundUsdt: liquidationAmount,
+          splitter: '-------------------',
+          liquidationPointsTo: tradeSide,
+          candle15mTrend: candle15m.trend,
+          candle4hTrend: candle4h.trend,
+          splitter1: '-------------------',
+          orderBookMinimalDepth: tokenInfo.orderBookMinimalDepth,
+          volumeMultiplier: config.current.multiplierToDetectHugeOrdersVolumeFromAvg,
+          orderbookStep: tokenInfo.tickSize,
+          orderbookStepPrcnt: tokenInfo.orderBookStepPrcnt,
+          splitter2: '-------------------',
+          averageAskVolume: averageAskSize,
+          multipliedAverageAskVolume: averageAskSize * config.current.multiplierToDetectHugeOrdersVolumeFromAvg,
+          largeAskOrders: largeAskOrders ? largeAskOrders.reverse().slice(-5) : [],
+          distanceToClosestResistancePrcnt: distance2resistance,
+          currentPrice: lastPrice,
+          distanceToClosestSupportPrcnt: distance2support,
+          largeBidOrders: largeBidOrders ? largeBidOrders.slice(0, 5) : [],
+          multipliedAverageBidVolume: averageBidSize * config.current.multiplierToDetectHugeOrdersVolumeFromAvg,
+          averageBidVolume: averageBidSize,
+          splitter3: '-------------------',
+          lastPrice: null,
+          commentWhereBotDistributedTrade: '',
+          veryLastManualCommentWherePriceWentEventually: ''
+        };
 
         if (candle15m.trend === candle4h.trend) { // если будет застрявать, то сделать (tradeSide === candle15m.trend && candle15m.trend === candle4h.trend)
           this.statisticsData.yes4hAnd15mTrue += 1;
@@ -190,30 +239,89 @@ class TradingLogic {
           if ((currentTimestamp - candle4h.openTime) <= config.current.timeToCheckForCandleEdges) {
             logger.warn('Skipping the trade since it is in the very beginning of a candle...');
             this.statisticsData.skipBeginningOfCandle += 1;
+
+            tempObj.commentWhereBotDistributedTrade = 'Skipping - the beginning of 4h candle (5 minutes)';
+            tempObj.lastPrice = await exchange.getSymbolLastPrice(symbol);
+            console.log('🔹 NEW LIQUIDATION matching the threshold:');
+            console.log(tempObj);
+            this.mainLogicStatisticsData.push(tempObj);
+
             return;
           }
 
           if ((candle4h.closeTime - currentTimestamp) <= config.current.timeToCheckForCandleEdges) {
             logger.warn('Skipping the trade since it is in the very end of a candle...');
             this.statisticsData.skipEndOfCandle += 1;
+
+            tempObj.commentWhereBotDistributedTrade = 'Skipping - the end of 4h candle (5 minutes)';
+            tempObj.lastPrice = await exchange.getSymbolLastPrice(symbol);
+            console.log('🔹 NEW LIQUIDATION matching the threshold:');
+            console.log(tempObj);
+            this.mainLogicStatisticsData.push(tempObj);
+
             return;
           }
 
           if (candle15m.trend === 'BUY') {
             if (lastPrice < resistanceLvl * config.current.percentageHowCloseToLevels) {
               this.statisticsData.executeYes4hAnd15mTrue += 1;
-              await this.executeTrade(exchange, symbol, candle15m.trend); 
+              // await this.executeTrade(exchange, symbol, candle15m.trend); 
+
+              tempObj.commentWhereBotDistributedTrade = 'Bot decided to LONG (candle15mTrend === candle4hTrend === BUY), the distance to resistance level is more than 0.3%, we have a distance for 0,2% profit';
+              tempObj.lastPrice = await exchange.getSymbolLastPrice(symbol);
+              console.log('🔹 NEW LIQUIDATION matching the threshold:');
+              console.log(tempObj);
+              this.mainLogicStatisticsData.push(tempObj);
+
+            } else if (distance2support > (1 - config.current.percentageHowCloseToLevels) * 100) {
+              logger.warn('Too close to the resistance level! Try the SHORT deal...');
+              this.statisticsData.skipLongResistanceLvlMakeShort += 1;
+
+              tempObj.commentWhereBotDistributedTrade = 'Skipping LONG (candle15mTrend === candle4hTrend === BUY) - too close to the resistance level. Bot assumes to go in the opposite SHORT';
+              tempObj.lastPrice = await exchange.getSymbolLastPrice(symbol);
+              console.log('🔹 NEW LIQUIDATION matching the threshold:');
+              console.log(tempObj);
+              this.mainLogicStatisticsData.push(tempObj);
             } else {
               logger.warn('Too close to the resistance level! Skipping the LONG deal...');
               this.statisticsData.skipLongResistanceLvl += 1;
+
+              tempObj.commentWhereBotDistributedTrade = 'Skipping the trade (candle15mTrend === candle4hTrend === BUY) - resistance and support levels are too close';
+              tempObj.lastPrice = await exchange.getSymbolLastPrice(symbol);
+              console.log('🔹 NEW LIQUIDATION matching the threshold:');
+              console.log(tempObj);
+              this.mainLogicStatisticsData.push(tempObj);
+              
             }
           } else if (candle15m.trend === 'SELL') {
-            if (lastPrice > supportLvl * config.current.percentageHowCloseToLevels) {
+            if (lastPrice * config.current.percentageHowCloseToLevels > supportLvl) {
               this.statisticsData.executeYes4hAnd15mTrue += 1;
-              await this.executeTrade(exchange, symbol, candle15m.trend); 
+              // await this.executeTrade(exchange, symbol, candle15m.trend);
+
+              tempObj.commentWhereBotDistributedTrade = 'Bot decided to SHORT (candle15mTrend === candle4hTrend === SELL), the distance down to support level is more than 0.3%, we have a distance for 0,2% profit';
+              tempObj.lastPrice = await exchange.getSymbolLastPrice(symbol);
+              console.log('🔹 NEW LIQUIDATION matching the threshold:');
+              console.log(tempObj);
+              this.mainLogicStatisticsData.push(tempObj);
+            
+            } else if (distance2resistance > (1 - config.current.percentageHowCloseToLevels) * 100) { 
+              logger.warn('Too close to the resistance level! Try the LONG deal...');
+              this.statisticsData.skipShortSupportLvlMakeLong += 1;
+
+              tempObj.commentWhereBotDistributedTrade = 'Skipping SHORT (candle15mTrend === candle4hTrend === SELL) - too close to the support level. Bot assumes to go in the opposite LONG';
+              tempObj.lastPrice = await exchange.getSymbolLastPrice(symbol);
+              console.log('🔹 NEW LIQUIDATION matching the threshold:');
+              console.log(tempObj);
+              this.mainLogicStatisticsData.push(tempObj);
             } else {
               logger.warn('Too close to the support level! Skipping the SHORT deal...');
               this.statisticsData.skipShortSupportLvl += 1;
+
+              tempObj.commentWhereBotDistributedTrade = 'Skipping the trade (candle15mTrend === candle4hTrend === SELL) - resistance and support levels are too close';
+              tempObj.lastPrice = await exchange.getSymbolLastPrice(symbol);
+              console.log('🔹 NEW LIQUIDATION matching the threshold:');
+              console.log(tempObj);
+              this.mainLogicStatisticsData.push(tempObj);
             }
           }
         } else if (tradeSide === candle15m.trend) {
@@ -222,32 +330,84 @@ class TradingLogic {
           if (candle15m.trend === 'BUY') {
             if (lastPrice < resistanceLvl * config.current.percentageHowCloseToLevels) {
               this.statisticsData.executeRektAnd15mTrue += 1;
-              await this.executeTrade(exchange, symbol, candle15m.trend); 
+              // await this.executeTrade(exchange, symbol, candle15m.trend);
+
+              tempObj.commentWhereBotDistributedTrade = 'Bot decided to BUY (candle15mTrend === liquidationPointsTo === BUY), the distance to resistance level is more than 0.3%, we have a distance for 0,2% profit';
+              tempObj.lastPrice = await exchange.getSymbolLastPrice(symbol);
+              console.log('🔹 NEW LIQUIDATION matching the threshold:');
+              console.log(tempObj);
+              this.mainLogicStatisticsData.push(tempObj);
+
+            } else if (distance2support > (1 - config.current.percentageHowCloseToLevels) * 100) {
+              logger.warn('Too close to the resistance level! Try the SHORT deal...');
+              this.statisticsData.skipLongResistanceLvlMakeShort += 1;
+
+              tempObj.commentWhereBotDistributedTrade = 'Skipping LONG (candle15mTrend === liquidationPointsTo === BUY) - too close to the resistance level. Bot assumes to go in the opposite SHORT';
+              tempObj.lastPrice = await exchange.getSymbolLastPrice(symbol);
+              console.log('🔹 NEW LIQUIDATION matching the threshold:');
+              console.log(tempObj);
+              this.mainLogicStatisticsData.push(tempObj);
             } else {
               logger.warn('Too close to the resistance level! Skipping the LONG deal...');
               this.statisticsData.skipLongResistanceLvl += 1;
+
+              tempObj.commentWhereBotDistributedTrade = 'Skipping the trade (candle15mTrend === liquidationPointsTo === BUY) - resistance and support levels are too close';
+              tempObj.lastPrice = await exchange.getSymbolLastPrice(symbol);
+              console.log('🔹 NEW LIQUIDATION matching the threshold:');
+              console.log(tempObj);
+              this.mainLogicStatisticsData.push(tempObj);
             }
           } else if (candle15m.trend === 'SELL') {
-            if (lastPrice > supportLvl * config.current.percentageHowCloseToLevels) {
+            if (lastPrice * config.current.percentageHowCloseToLevels > supportLvl) {
               this.statisticsData.executeRektAnd15mTrue += 1;
-              await this.executeTrade(exchange, symbol, candle15m.trend); 
+              // await this.executeTrade(exchange, symbol, candle15m.trend);
+
+              tempObj.commentWhereBotDistributedTrade = 'Bot decided to SHORT (candle15mTrend === liquidationPointsTo === SELL), the distance down to support level is more than 0.3%, we have a distance for 0,2% profit';
+              tempObj.lastPrice = await exchange.getSymbolLastPrice(symbol);
+              console.log('🔹 NEW LIQUIDATION matching the threshold:');
+              console.log(tempObj);
+              this.mainLogicStatisticsData.push(tempObj);
+
+            } else if (distance2resistance > (1 - config.current.percentageHowCloseToLevels) * 100) { 
+              logger.warn('Too close to the resistance level! Try the LONG deal...');
+              this.statisticsData.skipShortSupportLvlMakeLong += 1;
+
+              tempObj.commentWhereBotDistributedTrade = 'Skipping SHORT (candle15mTrend === liquidationPointsTo === SELL) - too close to the support level. Bot assumes to go in the opposite LONG';
+              tempObj.lastPrice = await exchange.getSymbolLastPrice(symbol);
+              console.log('🔹 NEW LIQUIDATION matching the threshold:');
+              console.log(tempObj);
+              this.mainLogicStatisticsData.push(tempObj);
             } else {
               logger.warn('Too close to the support level! Skipping the SHORT deal...');
               this.statisticsData.skipShortSupportLvl += 1;
+
+              tempObj.commentWhereBotDistributedTrade = 'Skipping the trade (candle15mTrend === liquidationPointsTo === SELL) - resistance and support levels are too close';
+              tempObj.lastPrice = await exchange.getSymbolLastPrice(symbol);
+              console.log('🔹 NEW LIQUIDATION matching the threshold:');
+              console.log(tempObj);
+              this.mainLogicStatisticsData.push(tempObj);
             }
           }
         } else {
           this.statisticsData.skipRektAnd4hFalse += 1;
           logger.warn('The REKT and 4hCandle directions are different! Skipping the deal...');
+
+          tempObj.commentWhereBotDistributedTrade = 'Skipping the TRADE at ALL (candle4hTrend != liquidationPointsTo)';
+          tempObj.lastPrice = await exchange.getSymbolLastPrice(symbol);
+          console.log('🔹 NEW LIQUIDATION matching the threshold:');
+          console.log(tempObj);
+          this.mainLogicStatisticsData.push(tempObj);
         }
 
         return;
       } catch (error) {
         this.statisticsData.errGeneralOnTrade += 1;
         logger.error(`Skipping trade execution for ${symbol} on ${exchange.name} due to an error: %j`, error);
+        console.log(error);
         return;
       }
     } else {
+      return; //delete
       this.accumulateLiquidation(exchange, symbol, liquidationSide, liquidationAmount);
     }
   }
@@ -580,6 +740,7 @@ class TradingLogic {
   handleGetStatisticsInfo() {
     logger.info('=== INTERMEDIATE STATISTICS ===');
     console.log(this.statisticsData);
+    console.log(JSON.stringify(this.mainLogicStatisticsData, null, 2));
     this.telegramBot.sendMsgToTgChat(JSON.stringify(this.statisticsData, null, 2));
   }
 
