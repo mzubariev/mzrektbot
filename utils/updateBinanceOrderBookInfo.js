@@ -1,9 +1,9 @@
 import fs from 'fs';
 import logger from './logger.js';
+import config from '../configuration.js';
 import axios from 'axios';
 
 const ORDERBOOK_DEPTHS = [10, 20, 50, 100, 500, 1000];
-const DISTANCE_FROM_CURR_PRICE_TO_WALL_PRCNT = 0.8;
 
 export async function updateBinanceOrderBookInfo(binanceExchangeInfo) {
 	try {
@@ -31,7 +31,7 @@ export async function updateBinanceOrderBookInfo(binanceExchangeInfo) {
 
 			// Find minimal depth that satisfies condition
 			tokenData.orderBookMinimalDepth = ORDERBOOK_DEPTHS.find(depth => 
-				tokenData.orderBookStepPrcnt * depth >= DISTANCE_FROM_CURR_PRICE_TO_WALL_PRCNT
+				tokenData.orderBookStepPrcnt * depth >= config.current.distanceFromCurrPriceToWallToCountBookMinDepthPrcnt
 			) || 1000;
 
 			// Fetch avgAsk and avgBid from Binance REST API

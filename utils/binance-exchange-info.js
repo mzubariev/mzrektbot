@@ -1,10 +1,10 @@
 import axios from 'axios';
 import fs from 'fs';
 import logger from './logger.js';
+import config from '../configuration.js';
 import { getOrderBookAvgOrderSize } from './updateBinanceOrderBookInfo.js';
 
 const ORDERBOOK_DEPTHS = [10, 20, 50, 100, 500, 1000];
-const DISTANCE_FROM_CURR_PRICE_TO_WALL_PRCNT = 0.8;
 
 async function getBinanceExchangeInfo() {
   try {
@@ -30,7 +30,7 @@ async function getBinanceExchangeInfo() {
         const orderBookStepPrcnt = (tickSize / currentPrice) * 100;
 
         // Find the smallest multiplier that satisfies the condition
-        const orderBookMinimalDepth = ORDERBOOK_DEPTHS.find(depth => orderBookStepPrcnt * depth >= DISTANCE_FROM_CURR_PRICE_TO_WALL_PRCNT) || 1000;
+        const orderBookMinimalDepth = ORDERBOOK_DEPTHS.find(depth => orderBookStepPrcnt * depth >= config.current.distanceFromCurrPriceToWallToCountBookMinDepthPrcnt) || 1000;
 
         acc[symbolInfo.symbol] = {
           pricePrecision: symbolInfo.pricePrecision,

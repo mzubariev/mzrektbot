@@ -67,8 +67,16 @@ class TelegramBotWrapper {
         { text: 'Only LONGs or only SHORTs, or BOTH directions trades ("long" / "short" / "both")', callback_data: 'setting_longsOrShortsOrBoth' }
       ],
       [
+        { text: 'Global candle interval (ex.: 30m-1h-4h)', callback_data: 'setting_globalCandleInterval' },
+        { text: 'Local candle interval (ex.: 1m-3m-5m-15m)', callback_data: 'setting_localCandleInterval' }
+      ],
+      [
         { text: 'A multiplier to detect huge limits levels (* avg_bid_size (ex.: 1.5)', callback_data: 'setting_multiplierToDetectHugeOrdersVolumeFromAvg' },
-        { text: '%, how close to levels we should avoid traids (ex.: 0.3)', callback_data: 'setting_percentageHowCloseToLevels' }
+        { text: 'A multiplier to detect significant Rekt volumes to trigger the trade (* avg_bid_size (ex.: 1)', callback_data: 'setting_multiplierForRektThreshold' }
+      ],
+      [
+        { text: '%, how close to levels we should avoid traids (ex.: 0.3)', callback_data: 'setting_percentageHowCloseToLevels' },
+        { text: '%, how much movement distance do we need to calculate minimal orderBook depth (ex.: 0.8)', callback_data: 'setting_distanceFromCurrPriceToWallToCountBookMinDepthPrcnt' }
       ],
       [
         { text: 'Minutes to cut the bigger candle from both sides to avoid trades there (in minutes)', callback_data: 'setting_timeToCheckForCandleEdges' },

@@ -30,10 +30,10 @@ class TradingLogic {
       allRektsInThreshold: 0,
       skipAlready4orders: 0,
       skipExcludedHardcoded: 0,
-      skipRektAnd4hFalse: 0,
-      yes4hAnd15mTrue: 0,
-      idealYesRektAnd4hAnd15mTrue: 0,
-      yesRektAnd15mTrue: 0,
+      skipRektAndGlobalFalse: 0,
+      yesGlobalAndLocalTrue: 0,
+      idealYesRektAndGlobalAndLocalTrue: 0,
+      yesRektAndLocalTrue: 0,
       skipBeginningOfCandle: 0,
       skipEndOfCandle: 0,
       skipLongResistanceLvlMakeShort: 0,
@@ -44,8 +44,8 @@ class TradingLogic {
       errOnMarketExecution: 0,
       errOnLimitExecution: 0,
       errGeneralOnTrade: 0,
-      executeYes4hAnd15mTrue: 0,
-      executeRektAnd15mTrue: 0,
+      executeYesGlobalAndLocalTrue: 0,
+      executeRektAndLocalTrue: 0,
       executedOpeningMarketOrders: 0,
       executedClosingLimitOrders: 0,
       accumulatedRektExecution: 0,
@@ -147,7 +147,7 @@ class TradingLogic {
     logger.info(`${exchange.name}, ${symbol}, Liquidated ${whichPositionsLiquidated} (${liquidationSide}) -${liquidationAmount}$ -> ${getTokenTrend(liquidationSide)} <- Price: ${price}$, Quantity: ${quantity} | Average Ask Volume: ${tokenInfo.avgAskVolume}, Average Bid Volume: ${tokenInfo.avgBidVolume}`);
 
     // if BUY/SHORT rekts - it is buys so the trend goes up and we check Asks above; if SELL/LONG rekts - it is sells and the trend goes down and we check Bids below
-    if ((liquidationSide === 'BUY' && quantity >= tokenInfo.avgAskVolume) || (liquidationSide === 'SELL' && quantity >= tokenInfo.avgBidVolume)) {
+    if ((liquidationSide === 'BUY' && quantity >= tokenInfo.avgAskVolume * config.current.multiplierForRektThreshold) || (liquidationSide === 'SELL' && quantity >= tokenInfo.avgBidVolume * config.current.multiplierForRektThreshold)) {
       try {
         this.statisticsData.allRektsInThreshold += 1;
 
@@ -167,8 +167,8 @@ class TradingLogic {
 
         // The MAIN logic to determine if we are OK to start a deal, and to choose a direction
 
-        const candle4h = await exchange.getTokenCandleTrend(symbol, '4h');
-        const candle15m = await exchange.getTokenCandleTrend(symbol, '15m');
+        const globalCandle = await exchange.getTokenCandleTrend(symbol, config.current.globalCandleInterval);
+        const localCandle = await exchange.getTokenCandleTrend(symbol, config.current.localCandleInterval);
         const lastPrice = await exchange.getSymbolLastPrice(symbol);
         const { distanceToResistance, distanceToSupport } = await exchange.getOrderBookSupportResistance(symbol, tokenInfo.orderBookMinimalDepth, lastPrice);
 
@@ -176,37 +176,37 @@ class TradingLogic {
         const currentTimestamp = Date.now();
 
         // ✅ Skip if the trade is too close to the start or end of the candle
-        if ((currentTimestamp - candle4h.openTime) <= config.current.timeToCheckForCandleEdges / 60000) {
+        if ((currentTimestamp - globalCandle.openTime) <= config.current.timeToCheckForCandleEdges / 60000) {
           logger.warn('Skipping the trade since it is in the very beginning of a candle...');
           this.statisticsData.skipBeginningOfCandle += 1;
           return;
         }
 
-        if ((candle4h.closeTime - currentTimestamp) <= config.current.timeToCheckForCandleEdges / 60000) {
+        if ((globalCandle.closeTime - currentTimestamp) <= config.current.timeToCheckForCandleEdges / 60000) {
           logger.warn('Skipping the trade since it is in the very end of a candle...');
           this.statisticsData.skipEndOfCandle += 1;
           return;
         }
 
-        // ✅ Case 1: When 15m trend matches 4h trend
-        if (candle15m.trend === candle4h.trend) {
-          this.statisticsData.yes4hAnd15mTrue += 1;
+        // ✅ Case 1: When local trend matches global trend
+        if (localCandle.trend === globalCandle.trend) {
+          this.statisticsData.yesGlobalAndLocalTrue += 1;
 
-          if (candle4h.trend === tradeSide) {
-              this.statisticsData.idealYesRektAnd4hAnd15mTrue += 1;
+          if (globalCandle.trend === tradeSide) {
+              this.statisticsData.idealYesRektAndGlobalAndLocalTrue += 1;
           }
 
-          await this.processTradeDecideSellOrBuy(exchange, symbol, candle15m.trend, distanceToResistance, distanceToSupport, "executeYes4hAnd15mTrue");
+          await this.processTradeDecideSellOrBuy(exchange, symbol, localCandle.trend, distanceToResistance, distanceToSupport, "executeYesGlobalAndLocalTrue");
         } 
-        // ✅ Case 2: When liquidation (tradeSide) matches 15m trend
-        else if (tradeSide === candle15m.trend) {
-          this.statisticsData.yesRektAnd15mTrue += 1;
-          await this.processTradeDecideSellOrBuy(exchange, symbol, candle15m.trend, distanceToResistance, distanceToSupport, "executeRektAnd15mTrue");
+        // ✅ Case 2: When liquidation (tradeSide) matches local trend
+        else if (tradeSide === localCandle.trend) {
+          this.statisticsData.yesRektAndLocalTrue += 1;
+          await this.processTradeDecideSellOrBuy(exchange, symbol, localCandle.trend, distanceToResistance, distanceToSupport, "executeRektAndLocalTrue");
         } 
         // ✅ Case 3: Trends do not align → Skip the trade
         else {
-          this.statisticsData.skipRektAnd4hFalse += 1;
-          logger.warn('The REKT and 4hCandle directions are different! Skipping the deal...');
+          this.statisticsData.skipRektAndGlobalFalse += 1;
+          logger.warn('The REKT and Global Candle directions are different! Skipping the deal...');
         }
       } catch (error) {
         this.statisticsData.errGeneralOnTrade += 1;
