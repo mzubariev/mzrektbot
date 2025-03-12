@@ -114,6 +114,10 @@ class BinanceWebSocket extends WebSocketWrapper {
     this.listenKey = await this.getListenKey();
     super.connect();
     this.keepListenKeyAlive();
+    
+    this.wsApi.on('open', () => {
+      this.getHangingPositionsOnBotStart();
+    });
 
     this.wsMarketStreams.on('open', () => {
       this.subscribeToLiquidations();
@@ -285,6 +289,53 @@ class BinanceWebSocket extends WebSocketWrapper {
         }
       };
   
+      this.wsApi.on('message', handleResponse);
+      this.wsApi.send(JSON.stringify(message));
+    });
+  }
+
+  async getHangingPositionsOnBotStart() {    
+    const timestamp = this.getTimestamp();
+    const requestId = this.generateRequestId();
+
+    const message = {
+      id: requestId,
+      method: 'v2/account.position',
+      params: { timestamp }
+    };
+
+    return new Promise((resolve, reject) => {
+      const handleResponse = (data) => {
+        try {
+          const response = JSON.parse(data);
+          if (response.id === requestId && response.result) {
+            this.wsApi.removeListener('message', handleResponse);
+
+            response.result.forEach(position => {
+              const { symbol, positionSide, positionAmt, entryPrice, breakEvenPrice } = position;
+
+              this.positionsInfo[symbol] = {};
+
+              this.positionsInfo[symbol][positionSide] = {
+                positionAmount: parseFloat(positionAmt),
+                entryPrice: parseFloat(entryPrice),
+                breakevenPrice: parseFloat(breakEvenPrice),
+                lastUpdated: Date.now(),
+                ordersAmount: 0, // to not block other separate trades if we have a stuck position for this token
+                stuckOldPosition: true
+              };
+            });
+
+            logger.info('Updated positions: %j', this.positionsInfo);
+            resolve();
+          }
+        } catch (error) {
+          logger.error('Error parsing Binance getHangingPositionsOnBotStart response: %j', error);
+          console.log(error);
+          reject(error);
+        }
+      };
+
       this.wsApi.on('message', handleResponse);
       this.wsApi.send(JSON.stringify(message));
     });

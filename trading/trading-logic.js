@@ -69,7 +69,7 @@ class TradingLogic {
   async initialize(telegramBot) {
     try {
       // await enableIsolatedMarginForAll();
-      this.binanceExchangeInfo = await getBinanceExchangeInfo();
+      // this.binanceExchangeInfo = await getBinanceExchangeInfo();
 
       this.telegramBot = telegramBot;
 
@@ -462,7 +462,8 @@ class TradingLogic {
       let accumulatedQuantity = null;
       let closingBreakevenPrice = null;
       
-      if (exchange.positionsInfo[symbol] && exchange.positionsInfo[symbol][positionSide]) {
+      // stuck old positions are untouched; we don't block the token from a new separate trades and don't mix them with old via accumulatedQuantity and breakevenPrice
+      if (exchange.positionsInfo[symbol] && exchange.positionsInfo[symbol][positionSide] && !exchange.positionsInfo[symbol][positionSide].stuckOldPosition) {
         accumulatedQuantity = exchange.positionsInfo[symbol][positionSide].positionAmount;
         const breakevenPrice = exchange.positionsInfo[symbol][positionSide].breakevenPrice;
   

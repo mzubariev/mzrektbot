@@ -1,6 +1,6 @@
 import fs from 'fs';
 import logger from './logger.js';
-import config from '../configuration.js';
+import config from './configuration.js';
 import axios from 'axios';
 
 const ORDERBOOK_DEPTHS = [10, 20, 50, 100, 500, 1000];
