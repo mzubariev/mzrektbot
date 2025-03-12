@@ -4,8 +4,8 @@ import TradingLogic from './trading/trading-logic.js';
 import TelegramBotWrapper from './telegram/telegram-bot.js';
 import logger from './utils/logger.js';
 import cron from 'node-cron';
-import getMarketCapTokenData from './utils/coinmarketcap-token-data.js';
 import getBinanceExchangeInfo from './utils/binance-exchange-info.js';
+import { updateBinanceOrderBookInfo } from './utils/updateBinanceOrderBookInfo.js';
 import { enableIsolatedMarginForAll } from './utils/setIsolatedMarginModeBinance.js';
 
 dotenv.config();
@@ -50,6 +50,29 @@ async function main() {
         const binanceExchangeInfo = await getBinanceExchangeInfo();
         tradingLogic.updateBinanceExchangeInfo(binanceExchangeInfo);
         logger.info('Binance Exchnage info with all tokens details updated successfully!');
+      } catch (error) {
+        logger.error('Error updating data via cron task: %j', error);
+      }
+    });
+
+    // Schedule Binance all tokens orderBook updates - every 20 minutes (except for - every day at 00:00)
+    cron.schedule('*/5 * * * *', async () => {
+      try {
+        logger.info('CRON: Running Binance orderBooks updates!');
+
+        const now = new Date();
+        const hours = now.getHours();
+        const minutes = now.getMinutes();
+
+        // Skip execution at exactly 00:00
+        if (hours === 0 && minutes === 0) {
+          console.log('Skipping execution at 00:00');
+          return;
+        }
+
+        const binanceExchangeInfo = await updateBinanceOrderBookInfo(tradingLogic.binanceExchangeInfo);
+        tradingLogic.updateBinanceExchangeInfo(binanceExchangeInfo);
+        logger.info('Binance Exchnage info with all tokens orderBooks updated successfully!');
       } catch (error) {
         logger.error('Error updating data via cron task: %j', error);
       }

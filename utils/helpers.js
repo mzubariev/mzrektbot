@@ -19,14 +19,14 @@ export function translatePositionSide(tradeSide) {
 }
 
 export function getTokenTrend(liquidationSide) {
-  return liquidationSide === 'BUY' ? 'Most probably DOWN-trend' : 'Most probably UP-trend';
+  return liquidationSide === 'BUY' ? 'Most likely UP-trend' : 'Most likely DOWN-trend';
 }
 
 export function getBotTradeSide(liquidationSide) {
   if (config.current.tradeDirection === 'trend') {
-    return getOppositeTradeSide(liquidationSide);
-  } else if (config.current.tradeDirection === 'rebound') {
     return liquidationSide;
+  } else if (config.current.tradeDirection === 'rebound') {
+    return getOppositeTradeSide(liquidationSide);
   }
 }
 

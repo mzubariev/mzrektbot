@@ -6,7 +6,7 @@ import MEXCWebSocket from '../wss/mexc-websocket.js';
 import logger from '../utils/logger.js';
 import getBinanceExchangeInfo from '../utils/binance-exchange-info.js';
 import config from '../utils/configuration.js';
-import { roundDownToTwoDecimals, calculateBidAmount, getOppositeTradeSide, translatePositionSide, getTokenTrend, getBotTradeSide } from '../utils/helpers.js';
+import { calculateBidAmount, getOppositeTradeSide, translatePositionSide, getTokenTrend, getBotTradeSide } from '../utils/helpers.js';
 
 const STUCK_ORDER_STATUSES_TO_ALERT = ['NEW', 'PARTIALLY_FILLED', 'CANCELED', 'REJECTED'];
 
@@ -129,8 +129,8 @@ class TradingLogic {
   async processLiquidation(liquidation, exchange) {
     const { s: symbol, S: liquidationSide, q: quantity, ap: price } = liquidation;
     const tokenInfo = this.binanceExchangeInfo[symbol];
-    const liquidationThreshold = tokenInfo.liquidationThreshold;
     const liquidationAmount = parseFloat(quantity) * parseFloat(price);
+    const whichPositionsLiquidated = translatePositionSide(getOppositeTradeSide(liquidationSide)); // liquidationSide: BUY - go up, liquidates SHORTs; SELL - go down, liquidates LONGs
 
     this.statisticsData.allREKTS += 1;
 
@@ -141,20 +141,18 @@ class TradingLogic {
     }
 
     logger.info('\n---Processing liquidation---');
-    logger.info(`${exchange.name}, ${symbol}, ${translatePositionSide(liquidationSide)} -${liquidationAmount}$ -> ${getTokenTrend(liquidationSide)} <- Price: ${price}$, Quantity: ${quantity} | Liquidation threshold: ${liquidationThreshold}$`);
+    logger.info(`${exchange.name}, ${symbol}, ${whichPositionsLiquidated} -${liquidationAmount}$ -> ${getTokenTrend(liquidationSide)} <- Price: ${price}$, Quantity: ${quantity} | Average Ask Volume: ${tokenInfo.avgAskVolume}, Average Bid Volume: ${tokenInfo.avgBidVolume}`);
 
-    if (liquidationAmount >= liquidationThreshold) {
+    // if BUY/SHORT rekts - it is buys so the trend goes up and we check Asks above; if SELL/LONG rekts - it is sells and the trend goes down and we check Bids below
+    if ((liquidationSide === 'BUY' && quantity >= tokenInfo.avgAskVolume) || (liquidationSide === 'SELL' && quantity >= tokenInfo.avgBidVolume)) {
       try {
         this.statisticsData.allRektsInThreshold += 1;
 
         const tradeSide = getBotTradeSide(liquidationSide);
         const positionSide = translatePositionSide(tradeSide);
 
-        if (config.current.longsOrShortsOrBoth.toUpperCase() === 'LONG' && tradeSide.toUpperCase() === 'SELL') {
-          logger.warn(`Skipping the trade since it is ${tradeSide} while the setting is only for ${config.current.longsOrShortsOrBoth}s!`);
-          return;
-        } else if (config.current.longsOrShortsOrBoth.toUpperCase() === 'SHORT' && tradeSide.toUpperCase() === 'BUY') {
-          logger.warn(`Skipping the trade since it is ${tradeSide} while the setting is only for ${config.current.longsOrShortsOrBoth}s!`);
+        if (config.current.longsOrShortsOrBoth.toUpperCase() !== 'BOTH' && (config.current.longsOrShortsOrBoth.toUpperCase() !== positionSide.toUpperCase())) {
+          logger.warn(`Skipping the trade since it is ${positionSide} while the setting is only for ${config.current.longsOrShortsOrBoth}s!`);
           return;
         }
 
@@ -207,47 +205,45 @@ class TradingLogic {
           this.statisticsData.skipRektAnd4hFalse += 1;
           logger.warn('The REKT and 4hCandle directions are different! Skipping the deal...');
         }
-
-        return;
       } catch (error) {
         this.statisticsData.errGeneralOnTrade += 1;
         logger.error(`Skipping trade execution for ${symbol} on ${exchange.name} due to an error: %j`, error);
         console.log(error);
-        return;
       }
     }
   }
 
   async processTradeDecideSellOrBuy(exchange, symbol, trend, distanceToResistance, distanceToSupport, tradeType) {
-    const isBuy = trend === 'BUY';
-    const isFarFromResistance = distanceToResistance > config.current.percentageHowCloseToLevels;
-    const isFarFromSupport = distanceToSupport > config.current.percentageHowCloseToLevels;
+    return;
+    // const isBuy = trend === 'BUY';
+    // const isFarFromResistance = distanceToResistance > config.current.percentageHowCloseToLevels;
+    // const isFarFromSupport = distanceToSupport > config.current.percentageHowCloseToLevels;
 
-    if (isBuy) {
-      if (isFarFromResistance) {
-        this.statisticsData[tradeType] += 1;
-        await this.executeTrade(exchange, symbol, 'BUY');
-      } else if (isFarFromSupport) {
-        logger.warn('Too close to the resistance level! Try the SHORT deal...');
-        this.statisticsData.skipLongResistanceLvlMakeShort += 1;
-        await this.executeTrade(exchange, symbol, 'SELL');
-      } else {
-        logger.warn('Too close to the resistance level! Skipping the LONG deal...');
-        this.statisticsData.skipLongResistanceLvl += 1;
-      }
-    } else { // SELL case
-      if (isFarFromSupport) {
-        this.statisticsData[tradeType] += 1;
-        await this.executeTrade(exchange, symbol, 'SELL');
-      } else if (isFarFromResistance) {
-        logger.warn('Too close to the support level! Try the LONG deal...');
-        this.statisticsData.skipShortSupportLvlMakeLong += 1;
-        await this.executeTrade(exchange, symbol, 'BUY');
-      } else {
-        logger.warn('Too close to the support level! Skipping the SHORT deal...');
-        this.statisticsData.skipShortSupportLvl += 1;
-      }
-    }
+    // if (isBuy) {
+    //   if (isFarFromResistance) {
+    //     this.statisticsData[tradeType] += 1;
+    //     await this.executeTrade(exchange, symbol, 'BUY');
+    //   } else if (isFarFromSupport) {
+    //     logger.warn('Too close to the resistance level! Try the SHORT deal...');
+    //     this.statisticsData.skipLongResistanceLvlMakeShort += 1;
+    //     await this.executeTrade(exchange, symbol, 'SELL');
+    //   } else {
+    //     logger.warn('Too close to the resistance level! Skipping the LONG deal...');
+    //     this.statisticsData.skipLongResistanceLvl += 1;
+    //   }
+    // } else { // SELL case
+    //   if (isFarFromSupport) {
+    //     this.statisticsData[tradeType] += 1;
+    //     await this.executeTrade(exchange, symbol, 'SELL');
+    //   } else if (isFarFromResistance) {
+    //     logger.warn('Too close to the support level! Try the LONG deal...');
+    //     this.statisticsData.skipShortSupportLvlMakeLong += 1;
+    //     await this.executeTrade(exchange, symbol, 'BUY');
+    //   } else {
+    //     logger.warn('Too close to the support level! Skipping the SHORT deal...');
+    //     this.statisticsData.skipShortSupportLvl += 1;
+    //   }
+    // }
   }
 
   async executeTrade(exchange, symbol, tradeSide) {

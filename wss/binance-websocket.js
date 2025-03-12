@@ -307,7 +307,7 @@ class BinanceWebSocket extends WebSocketWrapper {
   
           if (response.id === requestId && response.result) {
             const lastPrice = parseFloat(response.result.price);
-  
+
             this.wsApi.removeListener('message', handleResponse);
             resolve(lastPrice);
           }
@@ -321,7 +321,7 @@ class BinanceWebSocket extends WebSocketWrapper {
       this.wsApi.send(JSON.stringify(message));
     });
   }
-  
+
   async getOrderBookSupportResistance(symbol, orderBookMinimalDepth, currentPrice) {
     const timestamp = this.getTimestamp();
     const requestId = this.generateRequestId();
@@ -345,14 +345,12 @@ class BinanceWebSocket extends WebSocketWrapper {
   
             const bidOrders = bids.map(([price, volume]) => ({
               price: parseFloat(price),
-              volume: parseFloat(volume),
-              amountUsdt: parseFloat(price) * parseFloat(volume)
+              volume: parseFloat(volume)
             }));
   
             const askOrders = asks.map(([price, volume]) => ({
               price: parseFloat(price),
-              volume: parseFloat(volume),
-              amountUsdt: parseFloat(price) * parseFloat(volume)
+              volume: parseFloat(volume)
             }));
   
             const supportResistanceLevels = this.calculateSupportResistance(bidOrders, askOrders, currentPrice);
@@ -389,7 +387,7 @@ class BinanceWebSocket extends WebSocketWrapper {
     const distanceToSupport = (Math.abs(supportLvl - currentPrice)/currentPrice) * 100;
   
     return { distanceToResistance, distanceToSupport };
-  }  
+  }
 
   generateRequestId() {
     return `binance-req-${Date.now()}-${Math.random().toString(36).substring(7)}`;
