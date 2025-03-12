@@ -444,7 +444,7 @@ class BinanceWebSocket extends WebSocketWrapper {
   }
 
   getCandleDuration(openTime) {
-    const currentTime = this.getTimestamp;
+    const currentTime = this.getTimestamp();
     const durationMs = currentTime - openTime;
 
     const totalSeconds = Math.floor(durationMs / 1000);
