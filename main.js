@@ -55,8 +55,8 @@ async function main() {
       }
     });
 
-    // Schedule Binance all tokens orderBook updates - every 20 minutes (except for - every day at 00:00)
-    cron.schedule('*/20 * * * *', async () => {
+    // Schedule Binance all tokens orderBook updates - every 10 minutes (except for - every day at 00:00)
+    cron.schedule('*/10 * * * *', async () => {
       try {
         logger.info('CRON: Running Binance orderBooks updates!');
 
