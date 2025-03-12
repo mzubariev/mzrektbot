@@ -18,13 +18,23 @@ class TelegramBotWrapper {
     });
     
     this.bot.onText(/\/pause/, () => {
-      config.emit('statusChanged', { status: 'paused' });
+      config.emit('statusChanged', { status: 'pause' });
       this.sendMsgToTgChat('Bot paused. Use /resume to restart trading.');
     });
 
     this.bot.onText(/\/resume/, () => {
-      config.emit('statusChanged', { status: 'running' });
+      config.emit('statusChanged', { status: 'resume' });
       this.sendMsgToTgChat('Bot resumed. Use /pause to pause trading.');
+    });
+
+    this.bot.onText(/\/stop/, () => {
+      config.emit('statusChanged', { status: 'stop' });
+      this.sendMsgToTgChat('Bot stopped. Use /unstop to continue trading.');
+    });
+
+    this.bot.onText(/\/unstop/, () => {
+      config.emit('statusChanged', { status: 'unstop' });
+      this.sendMsgToTgChat('Bot unstopped. Use /stop to stop trading.');
     });
 
     this.bot.onText(/\/info/, () => {

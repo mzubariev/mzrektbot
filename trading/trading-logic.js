@@ -22,6 +22,7 @@ class TradingLogic {
     this.liquidationAccumulation = {};
     this.openOrders = new Map();
     this.isPaused = false;
+    this.isStopped = false;
 
     this.statisticsData = {
       allREKTS: 0,
@@ -91,8 +92,15 @@ class TradingLogic {
   setupLiquidationListeners() {
     // Binance
     this.binanceWs.events.on('message', async (liquidation) => {
+
+      // this means stopped manualy and may be unstopped only manually via tg command (important - to average/close trades manually on Binance UI)
+      if (this.isStopped) {
+        return;
+      }
+
       await this.checkIfEnoughBalanceForBid(this.binanceWs);
 
+      // paused by Bot; will be unpaused once it is enough available money for a bid
       if (this.isPaused) {
         return;
       }
@@ -515,7 +523,23 @@ class TradingLogic {
 
   handleStatusChange(status) {
     logger.info('Applying new status...');
-    status === 'paused' ? this.pause() : this.resume();
+
+    switch (status) {
+      case 'pause':
+        this.pause();
+        break;
+      case 'resume':
+        this.resume();
+        break;
+      case 'stop':
+        this.stop();
+        break;
+      case 'unstop':
+        this.unstop();
+        break;
+      default:
+        throw new Error(`Unsupported status to change: ${status}`);
+    }
   }
 
   handleGetStatisticsInfo() {
@@ -544,6 +568,16 @@ class TradingLogic {
   resume() {
     this.isPaused = false;
     logger.info('Trading logic resumed!');
+  }
+
+  stop() {
+    this.isStopped = true;
+    logger.warn('Trading logic stopped manually!');
+  }
+
+  unstop() {
+    this.isStopped = false;
+    logger.info('Trading logic unstopped manually!');
   }
 }
 
