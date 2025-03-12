@@ -40,6 +40,7 @@ class WebSocketWrapper extends EventEmitter {
     });
     this.wsUserDataStreams.on('error', (error) => {
       logger.error('WebSocket error: %j', error.message);
+      console.log(error);
       this.reconnect();
     });
 
@@ -60,6 +61,7 @@ class WebSocketWrapper extends EventEmitter {
     });
     this.wsMarketStreams.on('error', (error) => {
       logger.error('WebSocket error for %s: %j', this.urlStreams, error);
+      console.log(error);
       this.reconnect(this.urlStreams);
     });
 
@@ -88,6 +90,7 @@ class WebSocketWrapper extends EventEmitter {
         //   return;
         // }
         logger.error('Received an error message from %s wss API: %j', this.name, response);
+        console.log(response);
       } else {
         return;
         //logger.info('Received message from %s wss API: %j', this.name, response);
@@ -102,6 +105,7 @@ class WebSocketWrapper extends EventEmitter {
     });
     this.wsApi.on('error', (error) => {
       logger.error('WebSocket error for %s: %j', this.urlApi, error);
+      console.log(error);
       this.reconnect(this.urlApi);
     });
   }

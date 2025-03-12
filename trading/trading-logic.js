@@ -5,6 +5,7 @@ import OKXWebSocket from '../wss/okx-websocket.js';
 import MEXCWebSocket from '../wss/mexc-websocket.js';
 import logger from '../utils/logger.js';
 import getBinanceExchangeInfo from '../utils/binance-exchange-info.js';
+import { enableIsolatedMarginForAll } from '../utils/setIsolatedMarginModeBinance.js';
 import config from '../utils/configuration.js';
 import { calculateBidAmount, getOppositeTradeSide, translatePositionSide, getTokenTrend, getBotTradeSide } from '../utils/helpers.js';
 
@@ -66,6 +67,7 @@ class TradingLogic {
 
   async initialize(telegramBot) {
     try {
+      // await enableIsolatedMarginForAll();
       this.binanceExchangeInfo = await getBinanceExchangeInfo();
 
       this.telegramBot = telegramBot;
@@ -79,6 +81,7 @@ class TradingLogic {
       this.setupLiquidationListeners();
     } catch (error) {
       logger.error('Error initializing Trading Logic: %j', error);
+      console.log(error);
       throw error;
     }
   }
@@ -141,7 +144,7 @@ class TradingLogic {
     }
 
     logger.info('\n---Processing liquidation---');
-    logger.info(`${exchange.name}, ${symbol}, ${whichPositionsLiquidated} -${liquidationAmount}$ -> ${getTokenTrend(liquidationSide)} <- Price: ${price}$, Quantity: ${quantity} | Average Ask Volume: ${tokenInfo.avgAskVolume}, Average Bid Volume: ${tokenInfo.avgBidVolume}`);
+    logger.info(`${exchange.name}, ${symbol}, Liquidated ${whichPositionsLiquidated} -${liquidationAmount}$ -> ${getTokenTrend(liquidationSide)} <- Price: ${price}$, Quantity: ${quantity} | Average Ask Volume: ${tokenInfo.avgAskVolume}, Average Bid Volume: ${tokenInfo.avgBidVolume}`);
 
     // if BUY/SHORT rekts - it is buys so the trend goes up and we check Asks above; if SELL/LONG rekts - it is sells and the trend goes down and we check Bids below
     if ((liquidationSide === 'BUY' && quantity >= tokenInfo.avgAskVolume) || (liquidationSide === 'SELL' && quantity >= tokenInfo.avgBidVolume)) {
@@ -193,12 +196,12 @@ class TradingLogic {
               this.statisticsData.idealYesRektAnd4hAnd15mTrue += 1;
           }
 
-          await processTrade(exchange, symbol, candle15m.trend, distanceToResistance, distanceToSupport, "executeYes4hAnd15mTrue");
+          await this.processTradeDecideSellOrBuy(exchange, symbol, candle15m.trend, distanceToResistance, distanceToSupport, "executeYes4hAnd15mTrue");
         } 
         // ✅ Case 2: When liquidation (tradeSide) matches 15m trend
         else if (tradeSide === candle15m.trend) {
           this.statisticsData.yesRektAnd15mTrue += 1;
-          await processTrade(exchange, symbol, candle15m.trend, distanceToResistance, distanceToSupport, "executeRektAnd15mTrue");
+          await this.processTradeDecideSellOrBuy(exchange, symbol, candle15m.trend, distanceToResistance, distanceToSupport, "executeRektAnd15mTrue");
         } 
         // ✅ Case 3: Trends do not align → Skip the trade
         else {

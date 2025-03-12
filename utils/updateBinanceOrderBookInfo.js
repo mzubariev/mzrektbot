@@ -5,8 +5,11 @@ import axios from 'axios';
 const ORDERBOOK_DEPTHS = [10, 20, 50, 100, 500, 1000];
 const DISTANCE_FROM_CURR_PRICE_TO_WALL_PRCNT = 0.8;
 
-async function updateBinanceOrderBookInfo(binanceExchangeInfo) {
+export async function updateBinanceOrderBookInfo(binanceExchangeInfo) {
 	try {
+		logger.info('Starting to parse info to: ./binance-exchange-info.json...');
+		const filePath = 'binance-exchange-info.json';
+
 		if (!binanceExchangeInfo) {
 			logger.error('binanceExchangeInfo variable is empty!');
 			return;
@@ -39,13 +42,7 @@ async function updateBinanceOrderBookInfo(binanceExchangeInfo) {
 			tokenData.avgBidVolume = avgBidVolume;
 
 			// Update the token data
-			binanceExchangeInfo[symbol] = {
-        ...tokenData, // Preserve existing fields
-        avgAskVolume,
-        avgBidVolume
-    	};
-
-			logger.info(`Updated order book info for ${symbol}: avgAskVolume=${avgAskVolume}, avgBidVolume=${avgBidVolume}`);
+			binanceExchangeInfo[symbol] = tokenData;
 		}
 
 		// Save updated info back to the file
@@ -58,7 +55,7 @@ async function updateBinanceOrderBookInfo(binanceExchangeInfo) {
 	}
 }
 
-async function getOrderBookAvgOrderSize(symbol, orderBookMinimalDepth) {
+export async function getOrderBookAvgOrderSize(symbol, orderBookMinimalDepth) {
 	try {
 		const response = await axios.get(`https://fapi.binance.com/fapi/v1/depth`, {
 			params: { symbol: symbol.toUpperCase(), limit: orderBookMinimalDepth }
@@ -68,11 +65,11 @@ async function getOrderBookAvgOrderSize(symbol, orderBookMinimalDepth) {
 
 		// Calculate average bid size
 		const totalBidSize = bids.reduce((sum, [_, volume]) => sum + parseFloat(volume), 0);
-		const avgBidVolume = bids.length ? totalBidSize / bids.length : 0;
+		const avgBidVolume = bids.length ? Math.ceil(totalBidSize / bids.length) : 0;
 
 		// Calculate average ask size
 		const totalAskSize = asks.reduce((sum, [_, volume]) => sum + parseFloat(volume), 0);
-		const avgAskVolume = asks.length ? totalAskSize / asks.length : 0;
+		const avgAskVolume = asks.length ? Math.ceil(totalAskSize / asks.length) : 0;
 
 		return { avgAskVolume, avgBidVolume };
 

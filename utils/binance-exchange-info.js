@@ -8,6 +8,8 @@ const DISTANCE_FROM_CURR_PRICE_TO_WALL_PRCNT = 0.8;
 
 async function getBinanceExchangeInfo() {
   try {
+    logger.info('Starting to parse info to: ./binance-exchange-info.json...');
+
     const response = await axios.get('https://fapi.binance.com/fapi/v1/exchangeInfo');
     const data = response.data;
 
@@ -19,7 +21,7 @@ async function getBinanceExchangeInfo() {
     }, {});
 
     // Process the data to include relevant fields
-    const formattedData = data.symbols.reduce(async (acc, symbolInfo) => {
+    const formattedData = data.symbols.reduce((acc, symbolInfo) => {
       const priceFilter = symbolInfo.filters.find(filter => filter.filterType === 'PRICE_FILTER');
       const tickSize = priceFilter ? parseFloat(priceFilter.tickSize) : null;
       const currentPrice = prices[symbolInfo.symbol] || null;
@@ -30,9 +32,6 @@ async function getBinanceExchangeInfo() {
         // Find the smallest multiplier that satisfies the condition
         const orderBookMinimalDepth = ORDERBOOK_DEPTHS.find(depth => orderBookStepPrcnt * depth >= DISTANCE_FROM_CURR_PRICE_TO_WALL_PRCNT) || 1000;
 
-        // Fetch avgAsk and avgBid from Binance REST API
-        const { avgAskVolume, avgBidVolume } = await getOrderBookAvgOrderSize(symbol, orderBookMinimalDepth);
-
         acc[symbolInfo.symbol] = {
           pricePrecision: symbolInfo.pricePrecision,
           quantityPrecision: symbolInfo.quantityPrecision,
@@ -40,14 +39,26 @@ async function getBinanceExchangeInfo() {
           quotePrecision: symbolInfo.quotePrecision,
           tickSize,
           orderBookStepPrcnt,
-          orderBookMinimalDepth,
-          avgAskVolume,
-          avgBidVolume
+          orderBookMinimalDepth
         };
       }
 
       return acc;
     }, {});
+
+    for (const symbol in formattedData) {
+			const tokenData = formattedData[symbol];
+
+			// Fetch avgAsk and avgBid from Binance REST API
+			const { avgAskVolume, avgBidVolume } = await getOrderBookAvgOrderSize(symbol, tokenData.orderBookMinimalDepth);
+
+			// Update the token data
+			tokenData.avgAskVolume = avgAskVolume;
+			tokenData.avgBidVolume = avgBidVolume;
+
+			// Update the token data
+			formattedData[symbol] = tokenData;
+		}
 
     fs.writeFileSync('binance-exchange-info.json', JSON.stringify(formattedData, null, 2));
     logger.info('Tokens configs from Binance are updated and saved to: ./binance-exchange-info.json');
