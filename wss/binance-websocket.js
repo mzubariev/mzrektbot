@@ -98,7 +98,9 @@ class BinanceWebSocket extends WebSocketWrapper {
       const [openTime, open, high, low, close, volume, closeTime] = response.data[0];
   
       const trend = parseFloat(close) > parseFloat(open) ? 'BUY' : 'SELL';
-      logger.info(`${symbol} | ${klineInterval} Candle Trend: ${trend} | Open: ${open}, Close: ${close} | Volume: ${volume}`);
+      const candleCurrentLifeTime = this.getCandleDuration(openTime, closeTime);
+
+      logger.info(`${symbol} | ${klineInterval} Candle Trend: ${trend} | Open: ${open}, Close: ${close} | Candle current Lifetime: ${candleCurrentLifeTime} | Volume: ${volume}`);
 
       return { trend, openTime, closeTime, volume };
     } catch (error) {
@@ -387,6 +389,18 @@ class BinanceWebSocket extends WebSocketWrapper {
     const distanceToSupport = (Math.abs(supportLvl - currentPrice)/currentPrice) * 100;
   
     return { distanceToResistance, distanceToSupport };
+  }
+
+  getCandleDuration(openTime, closeTime) {
+    const durationMs = closeTime - openTime;
+
+    const totalSeconds = Math.floor(durationMs / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    // Format output as 'H:MM:SS' (avoiding leading zero in hours)
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   }
 
   generateRequestId() {
