@@ -69,7 +69,7 @@ class TradingLogic {
   async initialize(telegramBot) {
     try {
       // await enableIsolatedMarginForAll();
-      // this.binanceExchangeInfo = await getBinanceExchangeInfo();
+      this.binanceExchangeInfo = await getBinanceExchangeInfo();
 
       this.telegramBot = telegramBot;
 
@@ -224,37 +224,36 @@ class TradingLogic {
     }
   }
 
-  async processTradeDecideSellOrBuy(exchange, symbol, trend, distanceToResistance, distanceToSupport, tradeType) {
-    return;
-    // const isBuy = trend === 'BUY';
-    // const isFarFromResistance = distanceToResistance > config.current.percentageHowCloseToLevels;
-    // const isFarFromSupport = distanceToSupport > config.current.percentageHowCloseToLevels;
+  async processTradeDecideSellOrBuy(exchange, symbol, trend, distanceToResistance, distanceToSupport, tradeType) {    
+    const isBuy = trend === 'BUY';
+    const isFarFromResistance = distanceToResistance > config.current.percentageHowCloseToLevels;
+    const isFarFromSupport = distanceToSupport > config.current.percentageHowCloseToLevels;
 
-    // if (isBuy) {
-    //   if (isFarFromResistance) {
-    //     this.statisticsData[tradeType] += 1;
-    //     await this.executeTrade(exchange, symbol, 'BUY');
-    //   } else if (isFarFromSupport) {
-    //     logger.warn('Too close to the resistance level! Try the SHORT deal...');
-    //     this.statisticsData.skipLongResistanceLvlMakeShort += 1;
-    //     await this.executeTrade(exchange, symbol, 'SELL');
-    //   } else {
-    //     logger.warn('Too close to the resistance level! Skipping the LONG deal...');
-    //     this.statisticsData.skipLongResistanceLvl += 1;
-    //   }
-    // } else { // SELL case
-    //   if (isFarFromSupport) {
-    //     this.statisticsData[tradeType] += 1;
-    //     await this.executeTrade(exchange, symbol, 'SELL');
-    //   } else if (isFarFromResistance) {
-    //     logger.warn('Too close to the support level! Try the LONG deal...');
-    //     this.statisticsData.skipShortSupportLvlMakeLong += 1;
-    //     await this.executeTrade(exchange, symbol, 'BUY');
-    //   } else {
-    //     logger.warn('Too close to the support level! Skipping the SHORT deal...');
-    //     this.statisticsData.skipShortSupportLvl += 1;
-    //   }
-    // }
+    if (isBuy) {
+      if (isFarFromResistance) {
+        this.statisticsData[tradeType] += 1;
+        await this.executeTrade(exchange, symbol, 'BUY');
+      } else if (isFarFromSupport) {
+        logger.warn('Too close to the resistance level! Try the SHORT deal...');
+        this.statisticsData.skipLongResistanceLvlMakeShort += 1;
+        await this.executeTrade(exchange, symbol, 'SELL');
+      } else {
+        logger.warn('Too close to the resistance level! Skipping the LONG deal...');
+        this.statisticsData.skipLongResistanceLvl += 1;
+      }
+    } else { // SELL case
+      if (isFarFromSupport) {
+        this.statisticsData[tradeType] += 1;
+        await this.executeTrade(exchange, symbol, 'SELL');
+      } else if (isFarFromResistance) {
+        logger.warn('Too close to the support level! Try the LONG deal...');
+        this.statisticsData.skipShortSupportLvlMakeLong += 1;
+        await this.executeTrade(exchange, symbol, 'BUY');
+      } else {
+        logger.warn('Too close to the support level! Skipping the SHORT deal...');
+        this.statisticsData.skipShortSupportLvl += 1;
+      }
+    }
   }
 
   async executeTrade(exchange, symbol, tradeSide) {

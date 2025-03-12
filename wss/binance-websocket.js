@@ -98,7 +98,7 @@ class BinanceWebSocket extends WebSocketWrapper {
       const [openTime, open, high, low, close, volume, closeTime] = response.data[0];
   
       const trend = parseFloat(close) > parseFloat(open) ? 'BUY' : 'SELL';
-      const candleCurrentLifeTime = this.getCandleDuration(openTime, closeTime);
+      const candleCurrentLifeTime = this.getCandleDuration(openTime);
 
       logger.info(`${symbol} | ${klineInterval} Candle Trend: ${trend} | Open: ${open}, Close: ${close} | Candle current Lifetime: ${candleCurrentLifeTime} | Volume: ${volume}`);
 
@@ -116,6 +116,7 @@ class BinanceWebSocket extends WebSocketWrapper {
     this.keepListenKeyAlive();
     
     this.wsApi.on('open', () => {
+      this.authenticate();
       this.getHangingPositionsOnBotStart();
     });
 
@@ -442,8 +443,9 @@ class BinanceWebSocket extends WebSocketWrapper {
     return { distanceToResistance, distanceToSupport };
   }
 
-  getCandleDuration(openTime, closeTime) {
-    const durationMs = closeTime - openTime;
+  getCandleDuration(openTime) {
+    const currentTime = this.getTimestamp;
+    const durationMs = currentTime - openTime;
 
     const totalSeconds = Math.floor(durationMs / 1000);
     const hours = Math.floor(totalSeconds / 3600);
