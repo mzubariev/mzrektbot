@@ -4,7 +4,6 @@ import BybitWebSocket from '../wss/bybit-websocket.js';
 import OKXWebSocket from '../wss/okx-websocket.js';
 import MEXCWebSocket from '../wss/mexc-websocket.js';
 import logger from '../utils/logger.js';
-import getMarketCapTokenData from '../utils/coinmarketcap-token-data.js';
 import getBinanceExchangeInfo from '../utils/binance-exchange-info.js';
 import config from '../utils/configuration.js';
 import { roundDownToTwoDecimals, calculateBidAmount, getOppositeTradeSide, translatePositionSide, getTokenTrend, getBotTradeSide } from '../utils/helpers.js';
@@ -18,7 +17,6 @@ class TradingLogic {
     // this.bybitWs = new BybitWebSocket(bybitApiKey, bybitSecretKey);
     // this.okxWs = new OKXWebSocket(okxApiKey, okxSecretKey, okxPassphrase);
     // this.mexcWs = new MEXCWebSocket(mexcApiKey, mexcSecretKey);
-    this.marketCapTokenData = null;
     this.binanceExchangeInfo = null;
     this.liquidationAccumulation = {};
     this.openOrders = new Map();
@@ -68,7 +66,6 @@ class TradingLogic {
 
   async initialize(telegramBot) {
     try {
-      this.marketCapTokenData = await getMarketCapTokenData();
       this.binanceExchangeInfo = await getBinanceExchangeInfo();
 
       this.telegramBot = telegramBot;
@@ -131,8 +128,8 @@ class TradingLogic {
 
   async processLiquidation(liquidation, exchange) {
     const { s: symbol, S: liquidationSide, q: quantity, ap: price } = liquidation;
-    const tokenRanking = this.getTokenRanking(symbol);
-    const liquidationThreshold = this.getLiquidationThreshold(tokenRanking);
+    const tokenInfo = this.binanceExchangeInfo[symbol];
+    const liquidationThreshold = tokenInfo.liquidationThreshold;
     const liquidationAmount = parseFloat(quantity) * parseFloat(price);
 
     this.statisticsData.allREKTS += 1;
@@ -144,7 +141,7 @@ class TradingLogic {
     }
 
     logger.info('\n---Processing liquidation---');
-    logger.info(`${exchange.name}, ${symbol}, ${translatePositionSide(liquidationSide)} -${liquidationAmount}$ -> ${getTokenTrend(liquidationSide)} <- Price: ${price}$, Quantity: ${quantity} | Token rank: ${tokenRanking}, Liquidation threshold: ${liquidationThreshold}$`);
+    logger.info(`${exchange.name}, ${symbol}, ${translatePositionSide(liquidationSide)} -${liquidationAmount}$ -> ${getTokenTrend(liquidationSide)} <- Price: ${price}$, Quantity: ${quantity} | Liquidation threshold: ${liquidationThreshold}$`);
 
     if (liquidationAmount >= liquidationThreshold) {
       try {
@@ -169,20 +166,10 @@ class TradingLogic {
 
         // The MAIN logic to determine if we are OK to start a deal, and to choose a direction
 
-        const tokenInfo = this.binanceExchangeInfo[symbol]
         const candle4h = await exchange.getTokenCandleTrend(symbol, '4h');
         const candle15m = await exchange.getTokenCandleTrend(symbol, '15m');
         const lastPrice = await exchange.getSymbolLastPrice(symbol);
-        const {
-          averageAskSize,
-          largeAskOrders,
-          resistanceLvl,
-          distanceToResistance,
-          averageBidSize,
-          largeBidOrders,
-          supportLvl,
-          distanceToSupport
-        } = await exchange.getOrderBookSupportResistance(symbol, tokenInfo.orderBookMinimalDepth, lastPrice);
+        const { distanceToResistance, distanceToSupport } = await exchange.getOrderBookSupportResistance(symbol, tokenInfo.orderBookMinimalDepth, lastPrice);
 
         // ✅ Main Decision Logic
         const currentTimestamp = Date.now();
@@ -525,28 +512,6 @@ class TradingLogic {
     }
   }
 
-  getTokenRanking(symbol) {
-    const token = symbol.replace('USDT', '');
-    if (this.marketCapTokenData.top20.includes(token)) {
-      return 'top20';
-    } else if (this.marketCapTokenData.top50.includes(token)) {
-      return 'top50';
-    } else {
-      return 'small';
-    }
-  }
-
-  getLiquidationThreshold(tokenRanking) {
-    switch (tokenRanking) {
-      case 'top20':
-        return config.current.top20Liquidation;
-      case 'top50':
-        return config.current.top50Liquidation;
-      default:
-        return config.current.smallLiquidation;
-    }
-  }
-
   // Configurations routine
 
   handleStatusChange(status) {
@@ -558,10 +523,6 @@ class TradingLogic {
     logger.info('=== INTERMEDIATE STATISTICS ===');
     console.log(this.statisticsData);
     this.telegramBot.sendMsgToTgChat(JSON.stringify(this.statisticsData, null, 2));
-  }
-
-  updateMarketCapTokenData(tokenData) {
-    this.marketCapTokenData = tokenData;
   }
 
   updateBinanceExchangeInfo(binanceExchangeInfo) {

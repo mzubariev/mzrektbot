@@ -55,27 +55,24 @@ class TelegramBotWrapper {
   getSettingsKeyboard() {
     const settingsKeyboard = [
       [
-        { text: 'Top20 tokens Liquidation amount', callback_data: 'setting_top20Liquidation' },
-        { text: 'Top50 tokens Liquidation amount', callback_data: 'setting_top50Liquidation' },
-        { text: 'Small tokens Liquidation amount', callback_data: 'setting_smallLiquidation' }
-      ],
-      [
         { text: 'Deposit Size', callback_data: 'setting_depositSize' },
-        { text: 'Bid % for each trade', callback_data: 'setting_bidPercentage' },
-        { text: 'Profit % for each trade', callback_data: 'setting_profitPercentage' }
+        { text: 'Bid % for each trade', callback_data: 'setting_bidPercentage' }
       ],
       [
-        { text: 'Bot trade direction. Options: trend OR rebound', callback_data: 'setting_tradeDirection' },
-        { text: 'Only LONGs or only SHORTs, or BOTH directions trades. Options: "long" / "short" / "both"', callback_data: 'setting_longsOrShortsOrBoth' }
+        { text: 'Profit % for each trade (ex.: 0.2)', callback_data: 'setting_profitPercentage' },
+        { text: 'Time to signal to TG for stuck limit orders (in minutes)', callback_data: 'setting_timeoutToSignalToTG' }
       ],
       [
-        { text: 'A multiplier to detect huge limits levels (multiply to an average order amount. ex.: 3)', callback_data: 'setting_multiplierToDetectHugeOrdersVolumeFromAvg' },
-        { text: 'Percentage, how close to levels we should avoid traids (ex.: 0.3%)', callback_data: 'setting_percentageHowCloseToLevels' }
+        { text: 'Bot trade direction (trend OR rebound)', callback_data: 'setting_tradeDirection' },
+        { text: 'Only LONGs or only SHORTs, or BOTH directions trades ("long" / "short" / "both")', callback_data: 'setting_longsOrShortsOrBoth' }
+      ],
+      [
+        { text: 'A multiplier to detect huge limits levels (* avg_bid_size (ex.: 1.5)', callback_data: 'setting_multiplierToDetectHugeOrdersVolumeFromAvg' },
+        { text: '%, how close to levels we should avoid traids (ex.: 0.3)', callback_data: 'setting_percentageHowCloseToLevels' }
       ],
       [
         { text: 'Minutes to cut the bigger candle from both sides to avoid trades there (in minutes)', callback_data: 'setting_timeToCheckForCandleEdges' },
-        { text: 'How many positions of one side may be opened at the same time for the same token (ex.: 4)', callback_data: 'setting_sameSymbolOrdersLimit' },
-        { text: 'Time to signal to TG for stuck limit orders (in minutes)', callback_data: 'setting_timeoutToSignalToTG' }
+        { text: 'How many positions of one side may be opened at the same time for the same token (ex.: 4)', callback_data: 'setting_sameSymbolOrdersLimit' }
       ]
     ];
     return settingsKeyboard;
