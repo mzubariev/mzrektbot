@@ -7,7 +7,7 @@ const DISTANCE_FROM_CURR_PRICE_TO_WALL_PRCNT = 0.8;
 
 export async function updateBinanceOrderBookInfo(binanceExchangeInfo) {
 	try {
-		logger.info('Starting to parse info to: ./binance-exchange-info.json...');
+		logger.info('Starting to parse info into: ./binance-exchange-info.json. Takes ~2 minutes...');
 		const filePath = 'binance-exchange-info.json';
 
 		if (!binanceExchangeInfo) {

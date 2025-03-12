@@ -8,7 +8,7 @@ const DISTANCE_FROM_CURR_PRICE_TO_WALL_PRCNT = 0.8;
 
 async function getBinanceExchangeInfo() {
   try {
-    logger.info('Starting to parse info to: ./binance-exchange-info.json...');
+    logger.info('Starting to parse info to: ./binance-exchange-info.json. Takes ~2 minutes...');
 
     const response = await axios.get('https://fapi.binance.com/fapi/v1/exchangeInfo');
     const data = response.data;

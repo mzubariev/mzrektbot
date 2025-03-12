@@ -80,20 +80,18 @@ class WebSocketWrapper extends EventEmitter {
       const response = JSON.parse(data);
       if (response.id === 1 && response.status === 200) {
         logger.info(`${this.name} wss API Authentication successful!`);
-        // Proceed with other API calls
       } else if (response.error) {
-        // if (response.error.msg === 'Order does not exist.') {
-        //   return;
-        // } else if (response.error.msg === 'Margin is insufficient.') {
-        //   return;
-        // } else if (response.error.msg === "Order's notional must be no smaller than 5 (unless you choose reduce only).") {
-        //   return;
-        // }
+        if (response.error.msg === 'Order does not exist.') {
+          return;
+        } else if (response.error.msg === 'Margin is insufficient.') {
+          return;
+        } else if (response.error.msg === "Order's notional must be no smaller than 5 (unless you choose reduce only).") {
+          return;
+        }
         logger.error('Received an error message from %s wss API: %j', this.name, response);
         console.log(response);
-      } else {
-        return;
-        //logger.info('Received message from %s wss API: %j', this.name, response);
+      } else if (!response.result.bids) { // don't show long orderBook requests with bids/asks
+        logger.info('Received message from %s wss API: %j', this.name, response);
       }
     });
     this.wsApi.on('close', () => {
