@@ -1,6 +1,6 @@
 {
-  "depositSize": 391.03,
-  "bidPercentage": 5.182,
+  "depositSize": 391,
+  "bidPercentage": 5.12,
   "profitPercentage": 0.2,
   "tradeDirection": "trend",
   "longsOrShortsOrBoth": "both",
@@ -9,8 +9,8 @@
   "localCandleInterval": "15m",
   "distanceFromCurrPriceToWallToCountBookMinDepthPrcnt": 0.8,
   "multiplierForRektThreshold": 0.8,
-  "multiplierToDetectHugeOrdersVolumeFromAvg": 2,
-  "percentageHowCloseToLevels": 0.4,
+  "multiplierToDetectHugeOrdersVolumeFromAvg": 1.8,
+  "percentageHowCloseToLevels": 0.35,
   "timeToCheckForCandleEdges": 5,
   "sameSymbolOrdersLimit": 2,
   "timeoutToSignalToTG": 20
