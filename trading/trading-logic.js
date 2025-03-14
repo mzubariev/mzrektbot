@@ -236,7 +236,7 @@ class TradingLogic {
         this.statisticsData[tradeType] += 1;
         this.statisticsData.excuteLong += 1;
         await this.executeTrade(exchange, symbol, 'BUY');
-      } else if (isFarFromSupport) {
+      } else if (isFarFromSupport && config.current.isAllowedToTradeOpposite) {
         logger.warn('Too close to the resistance level! Try the SHORT deal...');
         this.statisticsData.executeOppositeShort += 1;
         await this.executeTrade(exchange, symbol, 'SELL');
@@ -249,7 +249,7 @@ class TradingLogic {
         this.statisticsData[tradeType] += 1;
         this.statisticsData.executeShort += 1;
         await this.executeTrade(exchange, symbol, 'SELL');
-      } else if (isFarFromResistance) {
+      } else if (isFarFromResistance && config.current.isAllowedToTradeOpposite) {
         logger.warn('Too close to the support level! Try the LONG deal...');
         this.statisticsData.executeOppositeLong += 1;
         await this.executeTrade(exchange, symbol, 'BUY');

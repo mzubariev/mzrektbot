@@ -74,7 +74,8 @@ class TelegramBotWrapper {
       ],
       [
         { text: 'Bot trade direction (trend OR rebound)', callback_data: 'setting_tradeDirection' },
-        { text: 'Only LONGs or only SHORTs, or BOTH directions trades ("long" / "short" / "both")', callback_data: 'setting_longsOrShortsOrBoth' }
+        { text: 'Only LONGs or only SHORTs, or BOTH directions trades ("long" / "short" / "both")', callback_data: 'setting_longsOrShortsOrBoth' },
+        { text: 'Is allowed to try trading the opposite side if directly is resistance/support (1 or 0)', callback_data: 'setting_isAllowedToTradeOpposite' },
       ],
       [
         { text: 'Global candle interval (ex.: 30m-1h-4h)', callback_data: 'setting_globalCandleInterval' },

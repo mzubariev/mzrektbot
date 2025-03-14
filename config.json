@@ -12,5 +12,6 @@
   "percentageHowCloseToLevels": 0.4,
   "timeToCheckForCandleEdges": 5,
   "sameSymbolOrdersLimit": 2,
-  "timeoutToSignalToTG": 20
+  "timeoutToSignalToTG": 20,
+  "isAllowedToTradeOpposite": 1
 }
