@@ -54,7 +54,6 @@ class WebSocketWrapper extends EventEmitter {
     });
     this.wsMarketStreams.on('close', () => {
       logger.info(`Disconnected from ${this.urlStreams}!`);
-      this.events.emit('statistics', {});
       if (!this.isForceDisconnectStreamsWs) {
         this.reconnect(this.urlStreams);
       }
@@ -92,7 +91,7 @@ class WebSocketWrapper extends EventEmitter {
         logger.error(`Received an error message from ${this.name} wss API: ${JSON.stringify(response, null, 2)}`);
         console.log(response);
       } else if (!response.result.bids) { // don't show long orderBook requests with bids/asks
-        logger.info(`Received message from ${this.name} wss API: ${JSON.stringify(response, null, 2)}`);
+        logger.info('Received message from %s wss API: %j', this.name, response);
       }
     });
     this.wsApi.on('close', () => {

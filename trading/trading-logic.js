@@ -62,10 +62,6 @@ class TradingLogic {
     config.on('statistics', ({}) => {
       this.handleGetStatisticsInfo();
     });
-
-    this.binanceWs.on('statistics', ({}) => {
-      this.handleGetStatisticsInfo();
-    });
   }
 
   async initialize(telegramBot) {
@@ -155,8 +151,9 @@ class TradingLogic {
   }
 
   async processLiquidation(liquidation, exchange) {
+    const { s: symbol, S: liquidationSide, q: quantity, ap: price } = liquidation;
+
     try {
-      const { s: symbol, S: liquidationSide, q: quantity, ap: price } = liquidation;
       const liquidationAmount = parseFloat(quantity) * parseFloat(price);
       // liquidationSide: BUY - go up, liquidates SHORTs; SELL - go down, liquidates LONGs
       const whichPositionsLiquidated = translatePositionSide(getOppositeTradeSide(liquidationSide));
