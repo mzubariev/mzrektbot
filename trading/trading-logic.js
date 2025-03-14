@@ -82,7 +82,6 @@ class TradingLogic {
       this.setupLiquidationListeners();
     } catch (error) {
       logger.error('Error initializing Trading Logic: %j', error);
-      console.log(error);
       throw error;
     }
   }
@@ -218,7 +217,6 @@ class TradingLogic {
       } catch (error) {
         this.statisticsData.errGeneralOnTrade += 1;
         logger.error(`Skipping trade execution for ${symbol} on ${exchange.name} due to an error: %j`, error);
-        console.log(error);
       }
     }
   }

@@ -1,13 +1,16 @@
 import winston from 'winston';
+import util from 'util';
 
 const { format } = winston;
 
 const customConsoleFormat = format.combine(
-  format.colorize(),
+  // format.colorize(),
   format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss.SSS' }),
-  format.printf(
-    (info) => `${info.timestamp} [${info.level}]: ${info.message}${info.stack ? `\nStack: ${info.stack}` : ''}`
-  )
+  format.printf(({ timestamp, level, message, ...meta }) => {
+    // Properly format objects & errors
+    const metaData = Object.keys(meta).length ? ` ${util.format(meta)}` : '';
+    return `${timestamp} ${level.toUpperCase()}: ${message}${metaData}${info.stack ? `\nStack: ${info.stack}` : ''}`;
+  })
 );
 
 const logger = winston.createLogger({
