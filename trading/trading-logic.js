@@ -139,7 +139,6 @@ class TradingLogic {
 
   async processLiquidation(liquidation, exchange) {
     const { s: symbol, S: liquidationSide, q: quantity, ap: price } = liquidation;
-    const tokenInfo = this.binanceExchangeInfo[symbol];
     const liquidationAmount = parseFloat(quantity) * parseFloat(price);
     const whichPositionsLiquidated = translatePositionSide(getOppositeTradeSide(liquidationSide)); // liquidationSide: BUY - go up, liquidates SHORTs; SELL - go down, liquidates LONGs
 
@@ -152,10 +151,10 @@ class TradingLogic {
     }
 
     logger.info('\n---Processing liquidation---');
-    logger.info(`${exchange.name}, ${symbol}, Liquidated ${whichPositionsLiquidated} (${liquidationSide}) -${liquidationAmount}$ -> ${getTokenTrend(liquidationSide)} <- Price: ${price}$, Quantity: ${quantity} | Average Ask Volume: ${tokenInfo.avgAskVolume}, Average Bid Volume: ${tokenInfo.avgBidVolume}`);
+    logger.info(`${exchange.name}, ${symbol}, Liquidated ${whichPositionsLiquidated} (${liquidationSide}) -${liquidationAmount}$ -> ${getTokenTrend(liquidationSide)} <- Price: ${price}$, Quantity: ${quantity} | Average Ask Volume: ${this.binanceExchangeInfo[symbol].avgAskVolume}, Average Bid Volume: ${this.binanceExchangeInfo[symbol].avgBidVolume}`);
 
     // if BUY/SHORT rekts - it is buys so the trend goes up and we check Asks above; if SELL/LONG rekts - it is sells and the trend goes down and we check Bids below
-    if ((liquidationSide === 'BUY' && quantity >= tokenInfo.avgAskVolume * config.current.multiplierForRektThreshold) || (liquidationSide === 'SELL' && quantity >= tokenInfo.avgBidVolume * config.current.multiplierForRektThreshold)) {
+    if ((liquidationSide === 'BUY' && quantity >= this.binanceExchangeInfo[symbol].avgAskVolume * config.current.multiplierForRektThreshold) || (liquidationSide === 'SELL' && quantity >= this.binanceExchangeInfo[symbol].avgBidVolume * config.current.multiplierForRektThreshold)) {
       try {
         this.statisticsData.allRektsInThreshold += 1;
 
@@ -178,7 +177,7 @@ class TradingLogic {
         const globalCandle = await exchange.getTokenCandleTrend(symbol, config.current.globalCandleInterval);
         const localCandle = await exchange.getTokenCandleTrend(symbol, config.current.localCandleInterval);
         const lastPrice = await exchange.getSymbolLastPrice(symbol);
-        const { distanceToResistance, distanceToSupport } = await exchange.getOrderBookSupportResistance(symbol, tokenInfo.orderBookMinimalDepth, lastPrice);
+        const { distanceToResistance, distanceToSupport } = await exchange.getOrderBookSupportResistance(symbol, this.binanceExchangeInfo[symbol].orderBookMinimalDepth, lastPrice);
 
         // ✅ Main Decision Logic
         const currentTimestamp = Date.now();
@@ -446,14 +445,12 @@ class TradingLogic {
   }
 
   getTokenPrecisions(symbol, tokenPrecisionSetting) {
-    // See tokenPrecisionSetting options in ./binance-exchange-info.json
-    const tokenInfo = this.binanceExchangeInfo[symbol]
-  
-    if (!tokenInfo) {
+    // See tokenPrecisionSetting options in ./binance-exchange-info.json  
+    if (!this.binanceExchangeInfo[symbol]) {
       throw new Error(`Token ${symbol} not found in exchangeInfo`);
     }
   
-    return tokenInfo[tokenPrecisionSetting];
+    return this.binanceExchangeInfo[symbol][tokenPrecisionSetting];
   }
 
   async sendLimitOrderToClosePosition(exchange, symbol, orderSide, positionSide, quantity, price) {

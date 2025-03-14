@@ -24,25 +24,20 @@ export async function updateBinanceOrderBookInfo(binanceExchangeInfo) {
 
 		// Iterate over each symbol and update order book data
 		for (const symbol in binanceExchangeInfo) {
-			const tokenData = binanceExchangeInfo[symbol];
-
 			// Recalculate orderBookStepPrcnt
-			tokenData.orderBookStepPrcnt = (tokenData.tickSize / lastPrices[symbol]) * 100;
+			binanceExchangeInfo[symbol].orderBookStepPrcnt = (binanceExchangeInfo[symbol].tickSize / lastPrices[symbol]) * 100;
 
 			// Find minimal depth that satisfies condition
-			tokenData.orderBookMinimalDepth = ORDERBOOK_DEPTHS.find(depth => 
-				tokenData.orderBookStepPrcnt * depth >= config.current.distanceFromCurrPriceToWallToCountBookMinDepthPrcnt
+			binanceExchangeInfo[symbol].orderBookMinimalDepth = ORDERBOOK_DEPTHS.find(depth => 
+				binanceExchangeInfo[symbol].orderBookStepPrcnt * depth >= config.current.distanceFromCurrPriceToWallToCountBookMinDepthPrcnt
 			) || 1000;
 
 			// Fetch avgAsk and avgBid from Binance REST API
-			const { avgAskVolume, avgBidVolume } = await getOrderBookAvgOrderSize(symbol, tokenData.orderBookMinimalDepth);
+			const { avgAskVolume, avgBidVolume } = await getOrderBookAvgOrderSize(symbol, binanceExchangeInfo[symbol].orderBookMinimalDepth);
 
 			// Update the token data
-			tokenData.avgAskVolume = avgAskVolume;
-			tokenData.avgBidVolume = avgBidVolume;
-
-			// Update the token data
-			binanceExchangeInfo[symbol] = tokenData;
+			binanceExchangeInfo[symbol].avgAskVolume = avgAskVolume;
+			binanceExchangeInfo[symbol].avgBidVolume = avgBidVolume;
 		}
 
 		// Save updated info back to the file
@@ -65,11 +60,11 @@ export async function getOrderBookAvgOrderSize(symbol, orderBookMinimalDepth) {
 
 		// Calculate average bid size
 		const totalBidSize = bids.reduce((sum, [_, volume]) => sum + parseFloat(volume), 0);
-		const avgBidVolume = bids.length ? Math.ceil(totalBidSize / bids.length) : 0;
+		const avgBidVolume = bids.length ? totalBidSize / bids.length : 0;
 
 		// Calculate average ask size
 		const totalAskSize = asks.reduce((sum, [_, volume]) => sum + parseFloat(volume), 0);
-		const avgAskVolume = asks.length ? Math.ceil(totalAskSize / asks.length) : 0;
+		const avgAskVolume = asks.length ? totalAskSize / asks.length : 0;
 
 		return { avgAskVolume, avgBidVolume };
 

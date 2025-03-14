@@ -47,17 +47,12 @@ async function getBinanceExchangeInfo() {
     }, {});
 
     for (const symbol in formattedData) {
-			const tokenData = formattedData[symbol];
-
 			// Fetch avgAsk and avgBid from Binance REST API
-			const { avgAskVolume, avgBidVolume } = await getOrderBookAvgOrderSize(symbol, tokenData.orderBookMinimalDepth);
+			const { avgAskVolume, avgBidVolume } = await getOrderBookAvgOrderSize(symbol, formattedData[symbol].orderBookMinimalDepth);
 
 			// Update the token data
-			tokenData.avgAskVolume = avgAskVolume;
-			tokenData.avgBidVolume = avgBidVolume;
-
-			// Update the token data
-			formattedData[symbol] = tokenData;
+			formattedData[symbol].avgAskVolume = avgAskVolume;
+			formattedData[symbol].avgBidVolume = avgBidVolume;
 		}
 
     fs.writeFileSync('binance-exchange-info.json', JSON.stringify(formattedData, null, 2));
