@@ -38,18 +38,21 @@ const logger = winston.createLogger({
 
 // Handle process-level warnings and errors
 process.on('warning', (e) => {
-  logger.warn(`Warning: ${JSON.stringify(e, null, 2)}`);
+  logger.warn(`Warning:`);
   logger.warn(e.stack);
+  console.warn(e);
 });
 
 process.on('unhandledRejection', (ex) => {
-  logger.error(`Unhandled rejection: ${JSON.stringify(ex, null, 2)}`);
+  logger.error(`Unhandled rejection:`);
   logger.error(ex.stack);
+  console.error(ex);
 });
 
 process.on('uncaughtException', (ex) => {
-  logger.error(`Uncaught exception: ${JSON.stringify(ex, null, 2)}`);
+  logger.error(`Uncaught exception:`);
   logger.error(ex.stack);
+  console.error(ex);
   process.exit(1);
 });
 

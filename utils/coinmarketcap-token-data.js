@@ -30,7 +30,8 @@ async function getMarketCapTokenData() {
 
     return { top20: top20Tokens, top50: top50Tokens };
   } catch (error) {
-    logger.error(`Error retrieving token data from CoinMarketCap: ${JSON.stringify(error, null, 2)}`);
+    logger.error(`Error retrieving token data from CoinMarketCap:`);
+    console.error(error);
     throw error;
   }
 }

@@ -26,7 +26,8 @@ class BybitWebSocket extends WebSocketWrapper {
           this.events.emit('message', { s: symbol, S: side, q: qty, ap: price });
         }
       } catch (error) {
-        logger.error(`Error parsing Binance WebSocket message: ${JSON.stringify(error, null, 2)}`);
+        logger.error(`Error parsing Binance WebSocket message:`);
+        console.error(error);
       }
     });
   }
@@ -68,7 +69,8 @@ class BybitWebSocket extends WebSocketWrapper {
             resolve(response.result); // Ensure result contains fields like 'status'
           }
         } catch (error) {
-          logger.error(`Error parsing Bybit getOrder response: ${JSON.stringify(error, null, 2)}`);
+          logger.error(`Error parsing Bybit getOrder response:`);
+          console.error(error);
           reject(error);
         }
       };

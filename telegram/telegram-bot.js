@@ -117,6 +117,7 @@ class TelegramBotWrapper {
       });
     } catch(error) {
       logger.error(error);
+      console.error(error);
     }
   }
 }

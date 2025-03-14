@@ -46,7 +46,8 @@ export async function updateBinanceOrderBookInfo(binanceExchangeInfo) {
 
 		return binanceExchangeInfo;
 	} catch (error) {
-		logger.error('Error updating Binance order book info: %s', error);
+		logger.error('Error updating Binance order book info:');
+		console.error(error);
 	}
 }
 

@@ -57,7 +57,8 @@ async function getBinanceExchangeInfo() {
 
     return formattedData;
   } catch (error) {
-    logger.error('Error fetching exchange info: %s', error);
+    logger.error('Error fetching exchange info:');
+    console.error(error);
   }
 }
 

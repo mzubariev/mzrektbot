@@ -29,17 +29,15 @@ class TradingLogic {
       skipBTC_ETH: 0,
       skipPausedNotEnoughForBid: 0,
       allRektsInThreshold: 0,
-      skipAlreadyFewOrders: 0,
-      skipRektAndGlobalTrendFalse: 0,
       yesGlobalAndLocalTrendTrue: 0,
       idealYesRektAndGlobalAndLocalTrendTrue: 0,
       yesRektAndLocalTrendTrue: 0,
-      skipByTradeDirectionsSetting: 0,
       skipBeginningOfCandle: 0,
       skipEndOfCandle: 0,
       skipLongResistanceLvl: 0,
       skipShortSupportLvl: 0,
       skipTradeSmallBid: 0,
+      skipRektAndGlobalTrendFalse: 0,
       errOnMarketExecution: 0,
       errOnLimitExecution: 0,
       errGeneralOnTrade: 0,
@@ -49,6 +47,8 @@ class TradingLogic {
       executeShort: 0,
       executeOppositeShort: 0,
       executeOppositeLong: 0,
+      skipAlreadyFewOrders: 0,
+      skipByTradeDirectionsSetting: 0,
       executedOpeningMarketOrders: 0,
       executedClosingLimitOrders: 0
     }
@@ -79,7 +79,8 @@ class TradingLogic {
       logger.info('Start liquidations listeners for all exchanges!');
       this.setupLiquidationListeners();
     } catch (error) {
-      logger.error(`Error initializing Trading Logic: ${JSON.stringify(error, null, 2)}`);
+      logger.error(`Error initializing Trading Logic:`);
+      console.error(error);
       throw error;
     }
   }
@@ -167,7 +168,7 @@ class TradingLogic {
       }
 
       logger.info('\n---Processing liquidation---');
-      logger.info(`${exchange.name}, ${symbol}, Liquidated ${whichPositionsLiquidated} (${liquidationSide}) -${liquidationAmount}$ -> ${getTokenTrend(liquidationSide)} <- Price: ${price}$, Quantity: ${quantity} | Average Ask Volume: ${this.binanceExchangeInfo[symbol].avgAskVolume}, Average Bid Volume: ${this.binanceExchangeInfo[symbol].avgBidVolume}`);
+      logger.info(`${exchange.name}, ${symbol}, Liquidated ${whichPositionsLiquidated} (${liquidationSide}) -${liquidationAmount}$ -> ${getTokenTrend(liquidationSide)} <- Price: ${price}$, Quantity: ${quantity} | avg Ask vol: ${this.binanceExchangeInfo[symbol].avgAskVolume}, avg Bid vol: ${this.binanceExchangeInfo[symbol].avgBidVolume}`);
 
       // if BUY/SHORT rekts - it is buys so the trend goes up and we check Asks above; 
       // if SELL/LONG rekts - it is sells and the trend goes down and we check Bids below
@@ -223,7 +224,8 @@ class TradingLogic {
       }
     } catch (error) {
       this.statisticsData.errGeneralOnTrade += 1;
-      logger.error(`Skipping trade execution for ${symbol} on ${exchange.name} due to an error: ${JSON.stringify(error, null, 2)}`);
+      logger.error(`Skipping trade execution for ${symbol} on ${exchange.name} due to an error:`);
+      console.error(error);
     }
   }
 
@@ -267,7 +269,7 @@ class TradingLogic {
       const amountForBid = calculateBidAmount(exchange);
       const positionSide = translatePositionSide(tradeSide);
 
-      if (isOnlyLongsOrShortsAllowed(positionSide) || isAlreadyMaximumPositionsForToken(exchange, symbol, positionSide)) {
+      if (this.isOnlyLongsOrShortsAllowed(positionSide) || this.isAlreadyMaximumPositionsForToken(exchange, symbol, positionSide)) {
         return;
       }
 
@@ -319,7 +321,8 @@ class TradingLogic {
       logger.info('Market order executed successfully on %s: %j', exchange.name, result);
       return result;
     } catch (error) {
-      logger.error(`Error executing market order on %s: ${exchange.name}. ${JSON.stringify(error, null, 2)}`);
+      logger.error(`Error executing market order on %s: ${exchange.name}.`);
+      console.error(error);
       throw error;
     }
   }
@@ -357,7 +360,8 @@ class TradingLogic {
 
       return await this.binanceWs.sendOrder(order);
     } catch (error) {
-      logger.error(`Error executing MARKET ORDER:\n${JSON.stringify(error, null, 2)}`);
+      logger.error(`Error executing MARKET ORDER.`);
+      console.error(error);
       this.statisticsData.errOnMarketExecution += 1;
 
       this.pause();
@@ -446,7 +450,8 @@ class TradingLogic {
   
       return limitOrderResult;
     } catch (error) {
-      logger.error(`Error executing LIMIT ORDER:\n${JSON.stringify(error, null, 2)}`);
+      logger.error(`Error executing LIMIT ORDER:`);
+      console.error(error);
       this.statisticsData.errOnLimitExecution += 1;
 
       throw error;
@@ -470,7 +475,8 @@ class TradingLogic {
         this.telegramBot.sendMsgToTgChat(`Limit order for <strong><a href="https://www.binance.com/en/futures/${symbol}">${symbol} on ${exchange.name}</a></strong> have some issues after ${config.current.timeoutToSignalToTG} minutes. Order status: ${order.status}`);
       }
     } catch (error) {
-      logger.error(`Error checking limit order status: ${error}`);
+      logger.error(`Error checking limit order status:`);
+      console.error(error);
     } finally {
       clearInterval(openOrders.orderId.timer);
       this.openOrders.delete(orderId);

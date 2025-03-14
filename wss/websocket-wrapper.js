@@ -39,8 +39,8 @@ class WebSocketWrapper extends EventEmitter {
       this.reconnect();
     });
     this.wsUserDataStreams.on('error', (error) => {
-      logger.error(`WebSocket error: ${JSON.stringify(error, null, 2)}`);
-      console.log(error);
+      logger.error(`WebSocket error:`);
+      console.error(error);
       this.reconnect();
     });
 
@@ -60,8 +60,8 @@ class WebSocketWrapper extends EventEmitter {
       this.isForceDisconnectStreamsWs = false;
     });
     this.wsMarketStreams.on('error', (error) => {
-      logger.error(`WebSocket error for ${this.urlStreams}: ${JSON.stringify(error, null, 2)}`);
-      console.log(error);
+      logger.error(`WebSocket error for ${this.urlStreams}:`);
+      console.error(error);
       this.reconnect(this.urlStreams);
     });
 
@@ -88,7 +88,7 @@ class WebSocketWrapper extends EventEmitter {
         } else if (response.error.msg === "Order's notional must be no smaller than 5 (unless you choose reduce only).") {
           return;
         }
-        logger.error(`Received an error message from ${this.name} wss API: ${JSON.stringify(response, null, 2)}`);
+        logger.error(`Received an error message from ${this.name} wss API:`);
         console.log(response);
       } else if (!response.result.bids) { // don't show long orderBook requests with bids/asks
         logger.info('Received message from %s wss API: %j', this.name, response);
@@ -102,8 +102,8 @@ class WebSocketWrapper extends EventEmitter {
       this.isForceDisconnectApiWs = false;
     });
     this.wsApi.on('error', (error) => {
-      logger.error(`WebSocket error for ${this.urlApi}: ${JSON.stringify(error, null, 2)}`);
-      console.log(error);
+      logger.error(`WebSocket error for ${this.urlApi}:`);
+      console.error(error);
       this.reconnect(this.urlApi);
     });
   }
