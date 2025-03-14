@@ -34,6 +34,7 @@ class TradingLogic {
       yesGlobalAndLocalTrendTrue: 0,
       idealYesRektAndGlobalAndLocalTrendTrue: 0,
       yesRektAndLocalTrendTrue: 0,
+      skipByTradeDirectionsSetting: 0,
       skipBeginningOfCandle: 0,
       skipEndOfCandle: 0,
       skipLongResistanceLvl: 0,
@@ -133,6 +134,22 @@ class TradingLogic {
     }
   }
 
+  isOnlyLongsOrShortsAllowed(positionSide) {
+    if (config.current.longsOrShortsOrBoth.toUpperCase() !== 'BOTH' && (config.current.longsOrShortsOrBoth.toUpperCase() !== positionSide.toUpperCase())) {
+      logger.warn(`Skipping the trade since it is ${positionSide} while the setting is only for ${config.current.longsOrShortsOrBoth}s!`);
+      this.statisticsData.skipByTradeDirectionsSetting += 1;
+      return;
+    }
+  }
+  
+  isAlreadyMaximumPositionsForToken(exchange, symbol, positionSide) {
+    if (exchange.positionsInfo[symbol] && exchange.positionsInfo[symbol][positionSide] && exchange.positionsInfo[symbol][positionSide].ordersAmount >= config.current.sameSymbolOrdersLimit) {
+      logger.warn(`Skipping the trade since there are already ${exchange.positionsInfo[symbol][positionSide].ordersAmount} orders opened for this token! Wait till they are closed...`);
+      this.statisticsData.skipAlreadyFewOrders += 1;
+      return;
+    }
+  }
+
   async processLiquidation(liquidation, exchange) {
     try {
       const { s: symbol, S: liquidationSide, q: quantity, ap: price } = liquidation;
@@ -158,26 +175,10 @@ class TradingLogic {
 
         this.statisticsData.allRektsInThreshold += 1;
 
-        const tradeSide = getBotTradeSide(liquidationSide);
-        const positionSide = translatePositionSide(tradeSide);
-
-        if (config.current.longsOrShortsOrBoth.toUpperCase() !== 'BOTH' && (config.current.longsOrShortsOrBoth.toUpperCase() !== positionSide.toUpperCase())) {
-          logger.warn(`Skipping the trade since it is ${positionSide} while the setting is only for ${config.current.longsOrShortsOrBoth}s!`);
-          return;
-        }
-
-        if (exchange.positionsInfo[symbol] && exchange.positionsInfo[symbol][positionSide] && exchange.positionsInfo[symbol][positionSide].ordersAmount >= config.current.sameSymbolOrdersLimit) {
-          logger.warn(`Skipping the trade since there are already ${exchange.positionsInfo[symbol][positionSide].ordersAmount} orders opened for this token! Wait till they are closed...`);
-          this.statisticsData.skipAlreadyFewOrders += 1;
-          return;
-        }
-
         // The MAIN logic to determine if we are OK to start a deal, and to choose a direction
 
         const globalCandle = await exchange.getTokenCandleTrend(symbol, config.current.globalCandleInterval);
         const localCandle = await exchange.getTokenCandleTrend(symbol, config.current.localCandleInterval);
-        const lastPrice = await exchange.getSymbolLastPrice(symbol);
-        const { distanceToResistance, distanceToSupport } = await exchange.getOrderBookSupportResistance(symbol, this.binanceExchangeInfo[symbol].orderBookMinimalDepth, lastPrice);
 
         // ✅ Main Decision Logic
         const currentTimestamp = Date.now();
@@ -188,19 +189,22 @@ class TradingLogic {
           this.statisticsData.skipBeginningOfCandle += 1;
           return;
         }
-
         if ((globalCandle.closeTime - currentTimestamp) <= config.current.timeToCheckForCandleEdges / 60000) {
           logger.warn('Skipping the trade since it is in the very end of a candle...');
           this.statisticsData.skipEndOfCandle += 1;
           return;
         }
 
+        const tradeSide = getBotTradeSide(liquidationSide);
+        const lastPrice = await exchange.getSymbolLastPrice(symbol);
+        const { distanceToResistance, distanceToSupport } = await exchange.getOrderBookSupportResistance(symbol, this.binanceExchangeInfo[symbol].orderBookMinimalDepth, lastPrice);
+
         // ✅ Case 1: When local trend matches global trend
         if (localCandle.trend === globalCandle.trend) {
           this.statisticsData.yesGlobalAndLocalTrendTrue += 1;
 
           if (globalCandle.trend === tradeSide) {
-              this.statisticsData.idealYesRektAndGlobalAndLocalTrendTrue += 1;
+            this.statisticsData.idealYesRektAndGlobalAndLocalTrendTrue += 1;
           }
 
           await this.processTradeDecideSellOrBuy(exchange, symbol, localCandle.trend, distanceToResistance, distanceToSupport, "executeYesGlobalAndLocalTrendTrue");
@@ -261,6 +265,10 @@ class TradingLogic {
       // Send Market order
       const amountForBid = calculateBidAmount(exchange);
       const positionSide = translatePositionSide(tradeSide);
+
+      if (isOnlyLongsOrShortsAllowed(positionSide) || isAlreadyMaximumPositionsForToken(exchange, symbol, positionSide)) {
+        return;
+      }
 
       const marketOrderResult = await this.executeMarketOrder(exchange, symbol, tradeSide, positionSide, amountForBid);
       if (!marketOrderResult) {
