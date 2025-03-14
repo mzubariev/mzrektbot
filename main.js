@@ -38,7 +38,7 @@ async function main() {
         enableIsolatedMarginForAll();
         logger.info('The Isolated margin mode has been set for all USDT pairs on Binance!');
       } catch (error) {
-        logger.error('Error setting Isolated margin mode to all USDT pairs on Binance. Error: %j', error);
+        logger.error(`Error setting Isolated margin mode to all USDT pairs on Binance. Error: ${JSON.stringify(error, null, 2)}`);
       }
     });
 
@@ -51,7 +51,7 @@ async function main() {
         tradingLogic.updateBinanceExchangeInfo(binanceExchangeInfo);
         logger.info('Binance Exchnage info with all tokens details updated successfully!');
       } catch (error) {
-        logger.error('Error updating data via cron task: %j', error);
+        logger.error(`Error updating data via cron task: ${JSON.stringify(error, null, 2)}`);
       }
     });
 
@@ -74,7 +74,7 @@ async function main() {
         tradingLogic.updateBinanceExchangeInfo(binanceExchangeInfo);
         logger.info('Binance Exchnage info with all tokens orderBooks updated successfully!');
       } catch (error) {
-        logger.error('Error updating data via cron task: %j', error);
+        logger.error(`Error updating data via cron task: ${JSON.stringify(error, null, 2)}`);
       }
     });
 
@@ -87,12 +87,11 @@ async function main() {
         
         logger.info('Deposit Size config updated successfully!');
       } catch (error) {
-        logger.error('Error updating deposit size config via cron task: %j', error);
+        logger.error(`Error updating deposit size config via cron task: ${JSON.stringify(error, null, 2)}`);
       }
     });
   } catch (error) {
-    logger.error('Bot initialization error: %j', error);
-    console.log(error);
+    logger.error(`Bot initialization error: ${JSON.stringify(error, null, 2)}`);
     process.exit(1);
   }
 }

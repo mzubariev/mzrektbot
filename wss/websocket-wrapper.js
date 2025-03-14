@@ -39,7 +39,7 @@ class WebSocketWrapper extends EventEmitter {
       this.reconnect();
     });
     this.wsUserDataStreams.on('error', (error) => {
-      logger.error('WebSocket error: %j', error.message);
+      logger.error(`WebSocket error: ${JSON.stringify(error, null, 2)}`);
       console.log(error);
       this.reconnect();
     });
@@ -54,13 +54,14 @@ class WebSocketWrapper extends EventEmitter {
     });
     this.wsMarketStreams.on('close', () => {
       logger.info(`Disconnected from ${this.urlStreams}!`);
+      this.events.emit('statistics', {});
       if (!this.isForceDisconnectStreamsWs) {
         this.reconnect(this.urlStreams);
       }
       this.isForceDisconnectStreamsWs = false;
     });
     this.wsMarketStreams.on('error', (error) => {
-      logger.error('WebSocket error for %s: %j', this.urlStreams, error);
+      logger.error(`WebSocket error for ${this.urlStreams}: ${JSON.stringify(error, null, 2)}`);
       console.log(error);
       this.reconnect(this.urlStreams);
     });
@@ -88,10 +89,10 @@ class WebSocketWrapper extends EventEmitter {
         } else if (response.error.msg === "Order's notional must be no smaller than 5 (unless you choose reduce only).") {
           return;
         }
-        logger.error('Received an error message from %s wss API: %j', this.name, response);
+        logger.error(`Received an error message from ${this.name} wss API: ${JSON.stringify(response, null, 2)}`);
         console.log(response);
       } else if (!response.result.bids) { // don't show long orderBook requests with bids/asks
-        logger.info('Received message from %s wss API: %j', this.name, response);
+        logger.info(`Received message from ${this.name} wss API: ${JSON.stringify(response, null, 2)}`);
       }
     });
     this.wsApi.on('close', () => {
@@ -102,7 +103,7 @@ class WebSocketWrapper extends EventEmitter {
       this.isForceDisconnectApiWs = false;
     });
     this.wsApi.on('error', (error) => {
-      logger.error('WebSocket error for %s: %j', this.urlApi, error);
+      logger.error(`WebSocket error for ${this.urlApi}: ${JSON.stringify(error, null, 2)}`);
       console.log(error);
       this.reconnect(this.urlApi);
     });

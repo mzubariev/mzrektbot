@@ -27,7 +27,7 @@ class OKXWebSocket extends WebSocketWrapper {
           this.events.emit('message', { s: instrument_id, S: side, q: size, ap: price });
         }
       } catch (error) {
-        logger.error('Error parsing Binance WebSocket message: %j', error);
+        logger.error(`Error parsing Binance WebSocket message: ${JSON.stringify(error, null, 2)}`);
       }
     });
   }
@@ -83,7 +83,7 @@ class OKXWebSocket extends WebSocketWrapper {
             resolve(response.data[0]); // Ensure data contains fields like 'status'
           }
         } catch (error) {
-          logger.error('Error parsing OKX getOrder response: %j', error);
+          logger.error(`Error parsing OKX getOrder response: ${JSON.stringify(error, null, 2)}`);
           reject(error);
         }
       };

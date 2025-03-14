@@ -4,6 +4,7 @@
   "profitPercentage": 0.2,
   "tradeDirection": "trend",
   "longsOrShortsOrBoth": "both",
+  "isAllowedToTradeOpposite": 1,
   "globalCandleInterval": "4h",
   "localCandleInterval": "15m",
   "distanceFromCurrPriceToWallToCountBookMinDepthPrcnt": 0.8,
@@ -12,6 +13,5 @@
   "percentageHowCloseToLevels": 0.4,
   "timeToCheckForCandleEdges": 5,
   "sameSymbolOrdersLimit": 2,
-  "timeoutToSignalToTG": 20,
-  "isAllowedToTradeOpposite": 1
+  "timeoutToSignalToTG": 20
 }

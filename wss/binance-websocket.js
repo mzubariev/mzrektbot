@@ -62,7 +62,7 @@ class BinanceWebSocket extends WebSocketWrapper {
       });
       return response.data.listenKey;
     } catch (error) {
-      logger.error('Error fetching listenKey: %j', error.message);
+      logger.error(`Error fetching listenKey: ${JSON.stringify(error, null, 2)}`);
       throw error;
     }
   }
@@ -75,7 +75,7 @@ class BinanceWebSocket extends WebSocketWrapper {
         });
         logger.info('ListenKey kept alive.');
       } catch (error) {
-        logger.error('Error keeping listenKey alive: %j', error.message);
+        logger.error(`Error keeping listenKey alive: ${JSON.stringify(error, null, 2)}`);
       }
     }, 30 * 60 * 1000); // Every 30 minutes
   }
@@ -132,10 +132,10 @@ class BinanceWebSocket extends WebSocketWrapper {
           // { s: symbol, S: orderSide, q: quantity, ap: price } = message.o;
           this.events.emit('message', message.o);
         } else if (message.error) {
-          throw new Error(`ERROR: %j`, message.error);
+          throw new Error(`ERROR: ${JSON.stringify(error, null, 2)}`);
         }
       } catch (error) {
-        logger.error('Error parsing Binance WebSocket message: %j', error);
+        logger.error(`Error parsing Binance WebSocket message: ${JSON.stringify(error, null, 2)}`);
       }
     });
 
@@ -211,7 +211,7 @@ class BinanceWebSocket extends WebSocketWrapper {
         await this.updateBalances();
       }
     } catch (error) {
-      logger.error('Error parsing User Data Stream message: %j', error);
+      logger.error(`Error parsing User Data Stream message: ${JSON.stringify(error, null, 2)}`);
     }
   }
 
@@ -248,7 +248,7 @@ class BinanceWebSocket extends WebSocketWrapper {
             });
           }
         } catch (error) {
-          logger.error('Error parsing Binance getOrder response: %j', error);
+          logger.error(`Error parsing Binance getOrder response: ${JSON.stringify(error, null, 2)}`);
           reject(error);
         }
       };
@@ -277,7 +277,7 @@ class BinanceWebSocket extends WebSocketWrapper {
             resolve(response.result);
           }
         } catch (error) {
-          logger.error('Error parsing Binance getOrder response: %j', error);
+          logger.error(`Error parsing Binance getOrder response: ${JSON.stringify(error, null, 2)}`);
           reject(error);
         }
       };
@@ -310,7 +310,7 @@ class BinanceWebSocket extends WebSocketWrapper {
             });
           }
         } catch (error) {
-          logger.error('Error parsing Binance getOrder response: %j', error);
+          logger.error(`Error parsing Binance getOrder response: ${JSON.stringify(error, null, 2)}`);
           reject(error);
         }
       };
@@ -356,7 +356,7 @@ class BinanceWebSocket extends WebSocketWrapper {
             resolve();
           }
         } catch (error) {
-          logger.error('Error parsing Binance getHangingPositionsOnBotStart response: %j', error);
+          logger.error(`Error parsing Binance getHangingPositionsOnBotStart response: ${JSON.stringify(error, null, 2)}`);
           reject(error);
         }
       };
@@ -390,7 +390,7 @@ class BinanceWebSocket extends WebSocketWrapper {
             resolve(lastPrice);
           }
         } catch (error) {
-          logger.error('Error parsing Binance ticker price response: %j', error);
+          logger.error(`Error parsing Binance ticker price response: ${JSON.stringify(error, null, 2)}`);
           reject(error);
         }
       };
@@ -437,7 +437,7 @@ class BinanceWebSocket extends WebSocketWrapper {
             resolve(supportResistanceLevels);
           }
         } catch (error) {
-          logger.error('Error parsing Binance order book response: %j', error);
+          logger.error(`Error parsing Binance order book response: ${JSON.stringify(error, null, 2)}`);
           reject(error);
         }
       };

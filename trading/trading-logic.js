@@ -62,6 +62,10 @@ class TradingLogic {
     config.on('statistics', ({}) => {
       this.handleGetStatisticsInfo();
     });
+
+    this.binanceWs.on('statistics', ({}) => {
+      this.handleGetStatisticsInfo();
+    });
   }
 
   async initialize(telegramBot) {
@@ -79,7 +83,7 @@ class TradingLogic {
       logger.info('Start liquidations listeners for all exchanges!');
       this.setupLiquidationListeners();
     } catch (error) {
-      logger.error('Error initializing Trading Logic: %j', error);
+      logger.error(`Error initializing Trading Logic: ${JSON.stringify(error, null, 2)}`);
       throw error;
     }
   }
@@ -222,7 +226,7 @@ class TradingLogic {
       }
     } catch (error) {
       this.statisticsData.errGeneralOnTrade += 1;
-      logger.error(`Skipping trade execution for ${symbol} on ${exchange.name} due to an error: %j`, error);
+      logger.error(`Skipping trade execution for ${symbol} on ${exchange.name} due to an error: ${JSON.stringify(error, null, 2)}`);
     }
   }
 
@@ -318,7 +322,7 @@ class TradingLogic {
       logger.info('Market order executed successfully on %s: %j', exchange.name, result);
       return result;
     } catch (error) {
-      logger.error('Error executing market order on %s: %j', exchange.name, error);
+      logger.error(`Error executing market order on %s: ${exchange.name}. ${JSON.stringify(error, null, 2)}`);
       throw error;
     }
   }
@@ -356,7 +360,7 @@ class TradingLogic {
 
       return await this.binanceWs.sendOrder(order);
     } catch (error) {
-      logger.error('Error executing MARKET ORDER:\n%j', error);
+      logger.error(`Error executing MARKET ORDER:\n${JSON.stringify(error, null, 2)}`);
       this.statisticsData.errOnMarketExecution += 1;
 
       this.pause();
@@ -445,7 +449,7 @@ class TradingLogic {
   
       return limitOrderResult;
     } catch (error) {
-      logger.error('Error executing LIMIT ORDER:\n%j', error);
+      logger.error(`Error executing LIMIT ORDER:\n${JSON.stringify(error, null, 2)}`);
       this.statisticsData.errOnLimitExecution += 1;
 
       throw error;

@@ -67,6 +67,6 @@ export async function enableIsolatedMarginForAll() {
 
     logger.info('Isolated margin mode set for all USDT pairs.');
   } catch (error) {
-    logger.error('Error enabling isolated margin for all pairs: %j', error.message);
+    logger.error(`Error enabling isolated margin for all pairs: ${JSON.stringify(error, null, 2)}`);
   }
 }
