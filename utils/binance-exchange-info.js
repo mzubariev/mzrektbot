@@ -33,10 +33,7 @@ async function getBinanceExchangeInfo() {
         const orderBookMinimalDepth = ORDERBOOK_DEPTHS.find(depth => orderBookStepPrcnt * depth >= config.current.distanceFromCurrPriceToWallToCountBookMinDepthPrcnt) || 1000;
 
         acc[symbolInfo.symbol] = {
-          pricePrecision: symbolInfo.pricePrecision,
           quantityPrecision: symbolInfo.quantityPrecision,
-          baseAssetPrecision: symbolInfo.baseAssetPrecision,
-          quotePrecision: symbolInfo.quotePrecision,
           tickSize,
           orderBookStepPrcnt,
           orderBookMinimalDepth

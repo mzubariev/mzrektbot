@@ -268,7 +268,7 @@ class TradingLogic {
       }
       this.statisticsData.executedOpeningMarketOrders += 1;
 
-      // Send Limit order to close the Position with 0,2% of 
+      // Send Limit order to close the Position with 0,2% profit 
       const avgPrice = parseFloat(marketOrderResult.avgPrice);
       const executedQuantity = parseFloat(marketOrderResult.executedQty);
       const formattedLimitPrice = this.calculateLimitOrderClosePositionPrice(symbol, positionSide, avgPrice);
@@ -329,7 +329,7 @@ class TradingLogic {
       logger.info(`Current price for ${symbol}: ${lastPrice}`);
 
       const quantity = (amountForBid / lastPrice);
-      const formatted_quantity = this.formatSpecificFloatsForToken(symbol, quantity, 'quantityPrecision');
+      const formatted_quantity = this.formatTokenQuantity(symbol, quantity);
 
       if (formatted_quantity <= 0) {
         logger.warn(`Skipping the trade - too small Bid for this token...`);
@@ -396,53 +396,25 @@ class TradingLogic {
   }
 
   calculateLimitOrderClosePositionPrice(symbol, positionSide, avgPrice) {
-    const limitPrice = positionSide === 'LONG'
-      ? avgPrice * (1 + config.current.profitPercentage / 100)
-      : avgPrice * (1 - config.current.profitPercentage / 100);
+    const tickSize = this.binanceExchangeInfo[symbol].tickSize;
+    const precision = tickSize.toString().split('.')[1]?.length || 0;
 
-    const tickSize = this.getTokenPrecisions(symbol, 'tickSize');
-
-    let preFormattedLimitPrice = 0;
+    let formattedLimitPrice;
     if (positionSide === 'LONG') {
-      preFormattedLimitPrice = Math.ceil(limitPrice / tickSize) * tickSize;
+      const limitPrice = avgPrice * (1 + config.current.profitPercentage / 100);
+      formattedLimitPrice = Math.ceil(limitPrice / tickSize) * tickSize;
     } else {
-      preFormattedLimitPrice = Math.floor(limitPrice / tickSize) * tickSize;
-
-      if ((preFormattedLimitPrice / tickSize) % 1 !== 0) {
-        const tempPrice = Math.trunc(preFormattedLimitPrice / tickSize);
-        preFormattedLimitPrice = tempPrice * tickSize;
-      }
+      const limitPrice = avgPrice * (1 - config.current.profitPercentage / 100);
+      formattedLimitPrice = Math.floor(limitPrice / tickSize) * tickSize;
     }
 
-    const formattedLimitPrice = this.formatSpecificFloatsForToken(symbol, preFormattedLimitPrice, 'pricePrecision');
-    return formattedLimitPrice;
+    return parseFloat(formattedLimitPrice.toFixed(precision));
   }
   
-  formatSpecificFloatsForToken(symbol, number, tokenPrecisionSetting) {
-    const numberString = number.toString();
-    const decimalIndex = numberString.indexOf('.');
-  
-    if (decimalIndex === -1) {
-      return number;
-    }
-  
-    const precision = this.getTokenPrecisions(symbol, tokenPrecisionSetting);
-  
-    if (precision === 0) {
-      return Math.ceil(number);
-    }
-  
-    const truncated = numberString.slice(0, decimalIndex + 1 + precision);
-    return parseFloat(truncated);
-  }
-
-  getTokenPrecisions(symbol, tokenPrecisionSetting) {
-    // See tokenPrecisionSetting options in ./binance-exchange-info.json  
-    if (!this.binanceExchangeInfo[symbol]) {
-      throw new Error(`Token ${symbol} not found in exchangeInfo`);
-    }
-  
-    return this.binanceExchangeInfo[symbol][tokenPrecisionSetting];
+  formatTokenQuantity(symbol, number) {
+    const precision = this.binanceExchangeInfo[symbol].quantityPrecision;
+    const factor = Math.pow(10, precision);
+    return Math.floor(number * factor) / factor; // Always round down
   }
 
   async sendLimitOrderToClosePosition(exchange, symbol, orderSide, positionSide, quantity, price) {
@@ -503,7 +475,7 @@ class TradingLogic {
     } catch (error) {
       logger.error(`Error checking limit order status: ${error}`);
     } finally {
-      // clearInterval(openOrders.orderId.timer);
+      clearInterval(openOrders.orderId.timer);
       this.openOrders.delete(orderId);
     }
   }
