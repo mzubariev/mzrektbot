@@ -261,20 +261,18 @@ class TradingLogic {
       // Send Market order
       const amountForBid = calculateBidAmount(exchange);
       const positionSide = translatePositionSide(tradeSide);
-      const marketOrderResult = await this.executeMarketOrder(exchange, symbol, tradeSide, positionSide, amountForBid);
 
+      const marketOrderResult = await this.executeMarketOrder(exchange, symbol, tradeSide, positionSide, amountForBid);
       if (!marketOrderResult) {
         return; 
       }
       this.statisticsData.executedOpeningMarketOrders += 1;
 
       // Send Limit order to close the Position with 0,2% profit 
-      const avgPrice = parseFloat(marketOrderResult.avgPrice);
+      const avgEnterPrice = parseFloat(marketOrderResult.avgPrice);
       const executedQuantity = parseFloat(marketOrderResult.executedQty);
-      const formattedLimitPrice = this.calculateLimitOrderClosePositionPrice(symbol, positionSide, avgPrice);
-      const limitOrderSide = getOppositeTradeSide(tradeSide); 
-      const limitOrderResult = await this.sendLimitOrderToClosePosition(exchange, symbol, limitOrderSide, positionSide, executedQuantity, formattedLimitPrice);
 
+      const limitOrderResult = await this.sendLimitOrderToClosePosition(exchange, symbol, tradeSide, positionSide, executedQuantity, avgEnterPrice);
       if (limitOrderResult) {
         this.statisticsData.executedClosingLimitOrders += 1;
       }
@@ -417,28 +415,18 @@ class TradingLogic {
     return Math.floor(number * factor) / factor; // Always round down
   }
 
-  async sendLimitOrderToClosePosition(exchange, symbol, orderSide, positionSide, quantity, price) {
+  async sendLimitOrderToClosePosition(exchange, symbol, marketOrderSide, positionSide, quantity, avgEnterPrice) {
     try {
-      let accumulatedQuantity = null;
-      let closingBreakevenPrice = null;
-      
-      // stuck old positions are untouched; we don't block the token from a new separate trades and don't mix them with old via accumulatedQuantity and breakevenPrice
-      if (exchange.positionsInfo[symbol] && exchange.positionsInfo[symbol][positionSide] && !exchange.positionsInfo[symbol][positionSide].stuckOldPosition) {
-        accumulatedQuantity = exchange.positionsInfo[symbol][positionSide].positionAmount;
-        const breakevenPrice = exchange.positionsInfo[symbol][positionSide].breakevenPrice;
-  
-        if (breakevenPrice) {
-          closingBreakevenPrice = this.calculateLimitOrderClosePositionPrice(symbol, positionSide, breakevenPrice)
-        }
-      }
+      const formattedLimitPrice = this.calculateLimitOrderClosePositionPrice(symbol, positionSide, avgEnterPrice);
+      const limitOrderSide = getOppositeTradeSide(marketOrderSide); 
   
       const limitOrder = {
         symbol: symbol,
-        side: orderSide,
+        side: limitOrderSide,
         positionSide: positionSide,
         type: 'LIMIT',
-        quantity: Math.max(Math.abs(accumulatedQuantity), quantity),
-        price: closingBreakevenPrice || price,
+        quantity: quantity,
+        price: formattedLimitPrice,
         timeInForce: 'GTC',
         newOrderRespType: 'RESULT'
       };

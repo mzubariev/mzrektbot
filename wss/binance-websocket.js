@@ -163,21 +163,46 @@ class BinanceWebSocket extends WebSocketWrapper {
 
         positions.forEach((position) => {
           const { s: symbol, ps: positionSide, pa: positionAmt, ep: entryPrice, bep: breakevenPrice } = position;
+          const amount = parseFloat(positionAmt);
 
           if (!this.positionsInfo[symbol]) {
             this.positionsInfo[symbol] = {};
           }
 
-          if (parseFloat(positionAmt) !== 0) {
-            this.positionsInfo[symbol][positionSide] = {
-              positionAmount: parseFloat(positionAmt),
-              entryPrice: parseFloat(entryPrice),
-              breakevenPrice: parseFloat(breakevenPrice),
-              lastUpdated: Date.now(),
-              ordersAmount: this.positionsInfo[symbol][positionSide] ? this.positionsInfo[symbol][positionSide].ordersAmount + 1 : 1
-            };
+          if (amount !== 0) {
+            if (!this.positionsInfo[symbol][positionSide]) {
+              this.positionsInfo[symbol][positionSide] = {
+                positionAmount: 0,
+                entryPrice: 0,
+                breakevenPrice: 0,
+                lastUpdated: Date.now(),
+                ordersAmount: 1
+              };
+            } else {
+              if (Math.abs(amount) > Math.abs(this.positionsInfo[symbol][positionSide].positionAmount)) {
+                this.positionsInfo[symbol][positionSide].ordersAmount += 1;
+              } else if (Math.abs(amount) < Math.abs(this.positionsInfo[symbol][positionSide].positionAmount)) {
+                this.positionsInfo[symbol][positionSide].ordersAmount = Math.max(
+                  1, 
+                  this.positionsInfo[symbol][positionSide].ordersAmount - 1 // Decrease, but ensure minimum 1
+                );
+              }
+            }
+
+            this.positionsInfo[symbol][positionSide].positionAmount = amount;
+            this.positionsInfo[symbol][positionSide].entryPrice = parseFloat(entryPrice);
+            this.positionsInfo[symbol][positionSide].breakevenPrice = parseFloat(breakevenPrice);
+            this.positionsInfo[symbol][positionSide].lastUpdated = Date.now();
+
           } else {
             delete this.positionsInfo[symbol][positionSide];
+          }
+
+          if (
+            (!this.positionsInfo[symbol]["LONG"] || Object.keys(this.positionsInfo[symbol]["LONG"]).length === 0) &&
+            (!this.positionsInfo[symbol]["SHORT"] || Object.keys(this.positionsInfo[symbol]["SHORT"]).length === 0)
+          ) {
+            delete this.positionsInfo[symbol];
           }
         });
 
@@ -322,7 +347,7 @@ class BinanceWebSocket extends WebSocketWrapper {
                 entryPrice: parseFloat(entryPrice),
                 breakevenPrice: parseFloat(breakEvenPrice),
                 lastUpdated: Date.now(),
-                ordersAmount: 0, // to not block other separate trades if we have a stuck position for this token
+                ordersAmount: 0, // allow to get more separate trades for this token and don't touch the old stuck ones
                 stuckOldPosition: true
               };
             });
@@ -332,7 +357,6 @@ class BinanceWebSocket extends WebSocketWrapper {
           }
         } catch (error) {
           logger.error('Error parsing Binance getHangingPositionsOnBotStart response: %j', error);
-          console.log(error);
           reject(error);
         }
       };
