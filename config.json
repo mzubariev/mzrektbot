@@ -7,10 +7,10 @@
   "globalCandleInterval": "4h",
   "localCandleInterval": "15m",
   "distanceFromCurrPriceToWallToCountBookMinDepthPrcnt": 0.8,
-  "multiplierForRektThreshold": 1,
-  "multiplierToDetectHugeOrdersVolumeFromAvg": 1.75,
-  "percentageHowCloseToLevels": 0.3,
+  "multiplierForRektThreshold": 0.8,
+  "multiplierToDetectHugeOrdersVolumeFromAvg": 2,
+  "percentageHowCloseToLevels": 0.4,
   "timeToCheckForCandleEdges": 5,
-  "sameSymbolOrdersLimit": 4,
+  "sameSymbolOrdersLimit": 2,
   "timeoutToSignalToTG": 20
 }
