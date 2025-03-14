@@ -29,30 +29,27 @@ class TradingLogic {
       skipBTC_ETH: 0,
       skipPausedNotEnoughForBid: 0,
       allRektsInThreshold: 0,
-      skipAlready4orders: 0,
-      skipExcludedHardcoded: 0,
-      skipRektAndGlobalFalse: 0,
-      yesGlobalAndLocalTrue: 0,
-      idealYesRektAndGlobalAndLocalTrue: 0,
-      yesRektAndLocalTrue: 0,
+      skipAlreadyFewOrders: 0,
+      skipRektAndGlobalTrendFalse: 0,
+      yesGlobalAndLocalTrendTrue: 0,
+      idealYesRektAndGlobalAndLocalTrendTrue: 0,
+      yesRektAndLocalTrendTrue: 0,
       skipBeginningOfCandle: 0,
       skipEndOfCandle: 0,
-      skipLongResistanceLvlMakeShort: 0,
       skipLongResistanceLvl: 0,
-      skipShortSupportLvlMakeLong: 0,
       skipShortSupportLvl: 0,
       skipTradeSmallBid: 0,
       errOnMarketExecution: 0,
       errOnLimitExecution: 0,
       errGeneralOnTrade: 0,
-      executeYesGlobalAndLocalTrue: 0,
-      executeRektAndLocalTrue: 0,
+      executeYesGlobalAndLocalTrendTrue: 0,
+      executeRektAndLocalTrendTrue: 0,
+      excuteLong: 0,
+      executeShort: 0,
+      executeOppositeShort: 0,
+      executeOppositeLong: 0,
       executedOpeningMarketOrders: 0,
-      executedClosingLimitOrders: 0,
-      accumulatedRektExecution: 0,
-      preFormatCeil: 0,
-      preFormatFloor: 0,
-      preFormatTrunc: 0
+      executedClosingLimitOrders: 0
     }
 
     logger.info('BOT Initialized with config: %j', config.current);
@@ -137,24 +134,28 @@ class TradingLogic {
   }
 
   async processLiquidation(liquidation, exchange) {
-    const { s: symbol, S: liquidationSide, q: quantity, ap: price } = liquidation;
-    const liquidationAmount = parseFloat(quantity) * parseFloat(price);
-    const whichPositionsLiquidated = translatePositionSide(getOppositeTradeSide(liquidationSide)); // liquidationSide: BUY - go up, liquidates SHORTs; SELL - go down, liquidates LONGs
+    try {
+      const { s: symbol, S: liquidationSide, q: quantity, ap: price } = liquidation;
+      const liquidationAmount = parseFloat(quantity) * parseFloat(price);
+      // liquidationSide: BUY - go up, liquidates SHORTs; SELL - go down, liquidates LONGs
+      const whichPositionsLiquidated = translatePositionSide(getOppositeTradeSide(liquidationSide));
 
-    this.statisticsData.allREKTS += 1;
+      this.statisticsData.allREKTS += 1;
 
-    if (symbol.includes('BTCUSDT') || symbol.includes('ETHUSDT')) {
-      logger.warn(`Skipping BTCUSDT and ETHUSDT for now...`);
-      this.statisticsData.skipBTC_ETH += 1;
-      return;
-    }
+      if (symbol.includes('BTCUSDT') || symbol.includes('ETHUSDT')) {
+        logger.warn(`Skipping BTCUSDT and ETHUSDT for now...`);
+        this.statisticsData.skipBTC_ETH += 1;
+        return;
+      }
 
-    logger.info('\n---Processing liquidation---');
-    logger.info(`${exchange.name}, ${symbol}, Liquidated ${whichPositionsLiquidated} (${liquidationSide}) -${liquidationAmount}$ -> ${getTokenTrend(liquidationSide)} <- Price: ${price}$, Quantity: ${quantity} | Average Ask Volume: ${this.binanceExchangeInfo[symbol].avgAskVolume}, Average Bid Volume: ${this.binanceExchangeInfo[symbol].avgBidVolume}`);
+      logger.info('\n---Processing liquidation---');
+      logger.info(`${exchange.name}, ${symbol}, Liquidated ${whichPositionsLiquidated} (${liquidationSide}) -${liquidationAmount}$ -> ${getTokenTrend(liquidationSide)} <- Price: ${price}$, Quantity: ${quantity} | Average Ask Volume: ${this.binanceExchangeInfo[symbol].avgAskVolume}, Average Bid Volume: ${this.binanceExchangeInfo[symbol].avgBidVolume}`);
 
-    // if BUY/SHORT rekts - it is buys so the trend goes up and we check Asks above; if SELL/LONG rekts - it is sells and the trend goes down and we check Bids below
-    if ((liquidationSide === 'BUY' && quantity >= this.binanceExchangeInfo[symbol].avgAskVolume * config.current.multiplierForRektThreshold) || (liquidationSide === 'SELL' && quantity >= this.binanceExchangeInfo[symbol].avgBidVolume * config.current.multiplierForRektThreshold)) {
-      try {
+      // if BUY/SHORT rekts - it is buys so the trend goes up and we check Asks above; 
+      // if SELL/LONG rekts - it is sells and the trend goes down and we check Bids below
+      if ((liquidationSide === 'BUY' && quantity >= this.binanceExchangeInfo[symbol].avgAskVolume * config.current.multiplierForRektThreshold) 
+        || (liquidationSide === 'SELL' && quantity >= this.binanceExchangeInfo[symbol].avgBidVolume * config.current.multiplierForRektThreshold)) {
+
         this.statisticsData.allRektsInThreshold += 1;
 
         const tradeSide = getBotTradeSide(liquidationSide);
@@ -167,7 +168,7 @@ class TradingLogic {
 
         if (exchange.positionsInfo[symbol] && exchange.positionsInfo[symbol][positionSide] && exchange.positionsInfo[symbol][positionSide].ordersAmount >= config.current.sameSymbolOrdersLimit) {
           logger.warn(`Skipping the trade since there are already ${exchange.positionsInfo[symbol][positionSide].ordersAmount} orders opened for this token! Wait till they are closed...`);
-          this.statisticsData.skipAlready4orders += 1;
+          this.statisticsData.skipAlreadyFewOrders += 1;
           return;
         }
 
@@ -196,28 +197,28 @@ class TradingLogic {
 
         // ✅ Case 1: When local trend matches global trend
         if (localCandle.trend === globalCandle.trend) {
-          this.statisticsData.yesGlobalAndLocalTrue += 1;
+          this.statisticsData.yesGlobalAndLocalTrendTrue += 1;
 
           if (globalCandle.trend === tradeSide) {
-              this.statisticsData.idealYesRektAndGlobalAndLocalTrue += 1;
+              this.statisticsData.idealYesRektAndGlobalAndLocalTrendTrue += 1;
           }
 
-          await this.processTradeDecideSellOrBuy(exchange, symbol, localCandle.trend, distanceToResistance, distanceToSupport, "executeYesGlobalAndLocalTrue");
+          await this.processTradeDecideSellOrBuy(exchange, symbol, localCandle.trend, distanceToResistance, distanceToSupport, "executeYesGlobalAndLocalTrendTrue");
         } 
         // ✅ Case 2: When liquidation (tradeSide) matches local trend
         else if (tradeSide === localCandle.trend) {
-          this.statisticsData.yesRektAndLocalTrue += 1;
-          await this.processTradeDecideSellOrBuy(exchange, symbol, localCandle.trend, distanceToResistance, distanceToSupport, "executeRektAndLocalTrue");
+          this.statisticsData.yesRektAndLocalTrendTrue += 1;
+          await this.processTradeDecideSellOrBuy(exchange, symbol, localCandle.trend, distanceToResistance, distanceToSupport, "executeRektAndLocalTrendTrue");
         } 
         // ✅ Case 3: Trends do not align → Skip the trade
         else {
-          this.statisticsData.skipRektAndGlobalFalse += 1;
+          this.statisticsData.skipRektAndGlobalTrendFalse += 1;
           logger.warn('The REKT and Global Candle directions are different! Skipping the deal...');
         }
-      } catch (error) {
-        this.statisticsData.errGeneralOnTrade += 1;
-        logger.error(`Skipping trade execution for ${symbol} on ${exchange.name} due to an error: %j`, error);
       }
+    } catch (error) {
+      this.statisticsData.errGeneralOnTrade += 1;
+      logger.error(`Skipping trade execution for ${symbol} on ${exchange.name} due to an error: %j`, error);
     }
   }
 
@@ -229,10 +230,11 @@ class TradingLogic {
     if (isBuy) {
       if (isFarFromResistance) {
         this.statisticsData[tradeType] += 1;
+        this.statisticsData.excuteLong += 1;
         await this.executeTrade(exchange, symbol, 'BUY');
       } else if (isFarFromSupport) {
         logger.warn('Too close to the resistance level! Try the SHORT deal...');
-        this.statisticsData.skipLongResistanceLvlMakeShort += 1;
+        this.statisticsData.executeOppositeShort += 1;
         await this.executeTrade(exchange, symbol, 'SELL');
       } else {
         logger.warn('Too close to the resistance level! Skipping the LONG deal...');
@@ -241,10 +243,11 @@ class TradingLogic {
     } else { // SELL case
       if (isFarFromSupport) {
         this.statisticsData[tradeType] += 1;
+        this.statisticsData.executeShort += 1;
         await this.executeTrade(exchange, symbol, 'SELL');
       } else if (isFarFromResistance) {
         logger.warn('Too close to the support level! Try the LONG deal...');
-        this.statisticsData.skipShortSupportLvlMakeLong += 1;
+        this.statisticsData.executeOppositeLong += 1;
         await this.executeTrade(exchange, symbol, 'BUY');
       } else {
         logger.warn('Too close to the support level! Skipping the SHORT deal...');
@@ -279,6 +282,7 @@ class TradingLogic {
       // Set a 20-minute timer for the limit order to report in Telegram if the order is still Opened
       // this.setLimitOrderTimer(exchange, symbol, limitOrderResult.orderId);
     } catch (error) {
+      this.statisticsData.errGeneralOnTrade += 1;
       throw new Error(`Trade execution failed for ${symbol} on ${exchange.name}: ${error.message}`);
     }
   }
@@ -398,25 +402,15 @@ class TradingLogic {
 
     const tickSize = this.getTokenPrecisions(symbol, 'tickSize');
 
-    console.log(`preFormattedLimitPrice avgPrice: ${avgPrice} / limitPrice: ${limitPrice}`);
-    console.log(`preFormattedLimitPrice tickSize: ${tickSize}`);
-
     let preFormattedLimitPrice = 0;
     if (positionSide === 'LONG') {
       preFormattedLimitPrice = Math.ceil(limitPrice / tickSize) * tickSize;
-      console.log(`preFormattedLimitPrice CEIL: ${preFormattedLimitPrice}`);
-      this.statisticsData.preFormatCeil += 1;
     } else {
       preFormattedLimitPrice = Math.floor(limitPrice / tickSize) * tickSize;
-      console.log(`preFormattedLimitPrice FLOOR: ${preFormattedLimitPrice}`);
-      this.statisticsData.preFormatFloor += 1;
 
       if ((preFormattedLimitPrice / tickSize) % 1 !== 0) {
         const tempPrice = Math.trunc(preFormattedLimitPrice / tickSize);
         preFormattedLimitPrice = tempPrice * tickSize;
-        console.log(`preFormattedLimitPrice TRUNC: ${preFormattedLimitPrice}`);
-
-        this.statisticsData.preFormatTrunc += 1;
       }
     }
 
