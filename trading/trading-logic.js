@@ -408,7 +408,7 @@ class TradingLogic {
 
   calculateLimitOrderClosePositionPrice(symbol, positionSide, avgPrice) {
     const tickSize = this.binanceExchangeInfo[symbol].tickSize;
-    const precision = tickSize.toString().split('.')[1]?.length || 0;
+    const precision = tickSize.toFixed(10).replace(/0+$/, "").split(".")[1]?.length || 0;
 
     let formattedLimitPrice;
     if (positionSide === 'LONG') {

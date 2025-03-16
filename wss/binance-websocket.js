@@ -220,7 +220,7 @@ class BinanceWebSocket extends WebSocketWrapper {
   }
 
   async updateBalances() {
-    logger.warn('Updating Wallet Balance and Available Balance...');
+    logger.info('Updating Wallet Balance and Available Balance...');
     const { walletBalance, availableBalance } = await this.getAccountBalance();
     this.accountInfo.walletBalance = roundDownToTwoDecimals(walletBalance);
     this.accountInfo.availableBalance = roundDownToTwoDecimals(availableBalance);
