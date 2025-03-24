@@ -179,7 +179,8 @@ class BinanceWebSocket extends WebSocketWrapper {
                 entryPrice: 0,
                 breakevenPrice: 0,
                 lastUpdated: Date.now(),
-                ordersAmount: 1
+                ordersAmount: 1,
+                lastClosingLimitOrderId: null
               };
             } else {
               if (Math.abs(amount) > Math.abs(this.positionsInfo[symbol][positionSide].positionAmount)) {
@@ -293,6 +294,36 @@ class BinanceWebSocket extends WebSocketWrapper {
     });
   }
 
+  async cancelOrder(orderId, symbol) {
+    const timestamp = this.getTimestamp();
+    const requestId = this.generateRequestId();
+
+    const message = {
+      id: requestId,
+      method: 'order.cancel',
+      params: { orderId, symbol, timestamp }
+    };
+  
+    return new Promise((resolve, reject) => {
+      const handleResponse = (data) => {
+        try {
+          const response = JSON.parse(data);
+          if (response.id === requestId && response.result) {
+            this.wsApi.removeListener('message', handleResponse);
+            resolve(response.result);
+          }
+        } catch (error) {
+          logger.error(`Error parsing Binance getOrder response:`);
+          console.error(error);
+          reject(error);
+        }
+      };
+  
+      this.wsApi.on('message', handleResponse);
+      this.wsApi.send(JSON.stringify(message));
+    });
+  }
+
   async getAccountBalance() {
     const timestamp = this.getTimestamp();
     const requestId = this.generateRequestId();
@@ -354,7 +385,7 @@ class BinanceWebSocket extends WebSocketWrapper {
                 entryPrice: parseFloat(entryPrice),
                 breakevenPrice: parseFloat(breakEvenPrice),
                 lastUpdated: Date.now(),
-                ordersAmount: 0, // allow to get more separate trades for this token and don't touch the old stuck ones
+                ordersAmount: config.current.sameSymbolOrdersLimit, // do not allow new trades for the token while we have stuck old position here
                 stuckOldPosition: true
               };
             });

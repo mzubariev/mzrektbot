@@ -430,15 +430,26 @@ class TradingLogic {
 
   async sendLimitOrderToClosePosition(exchange, symbol, marketOrderSide, positionSide, quantity, avgEnterPrice) {
     try {
-      const formattedLimitPrice = this.calculateLimitOrderClosePositionPrice(symbol, positionSide, avgEnterPrice);
-      const limitOrderSide = getOppositeTradeSide(marketOrderSide); 
+      const limitOrderSide = getOppositeTradeSide(marketOrderSide);
+
+      let accumulatedQuantity = null;
+      let breakevenPrice = null;
+      if (exchange.positionsInfo[symbol] && exchange.positionsInfo[symbol][positionSide]) {
+        accumulatedQuantity = exchange.positionsInfo[symbol][positionSide].positionAmount;
+        breakevenPrice = exchange.positionsInfo[symbol][positionSide].breakevenPrice;
+
+        const orderId = exchange.positionsInfo[symbol][positionSide].lastClosingLimitOrderId;
+        await exchange.cancelOrder(orderId, symbol);
+      }
+
+      const formattedLimitPrice = this.calculateLimitOrderClosePositionPrice(symbol, positionSide, breakevenPrice || avgEnterPrice);
   
       const limitOrder = {
         symbol: symbol,
         side: limitOrderSide,
         positionSide: positionSide,
         type: 'LIMIT',
-        quantity: quantity,
+        quantity: accumulatedQuantity || quantity,
         price: formattedLimitPrice,
         timeInForce: 'GTC',
         newOrderRespType: 'RESULT'
@@ -448,6 +459,8 @@ class TradingLogic {
       const limitOrderResult = await exchange.sendOrder(limitOrder);
       logger.info('Limit order result:\n%j', limitOrderResult);
   
+      exchange.positionsInfo[symbol][positionSide].lastClosingLimitOrderId = limitOrderResult.orderId;
+
       return limitOrderResult;
     } catch (error) {
       logger.error(`Error executing LIMIT ORDER:`);
