@@ -123,7 +123,7 @@ class BinanceWebSocket extends WebSocketWrapper {
     });
 
     this.wsMarketStreams.on('open', () => {
-      this.subscribeToLiquidations();
+      // this.subscribeToLiquidations();
     });
 
     this.wsMarketStreams.on('message', (data) => {

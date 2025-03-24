@@ -1,8 +1,5 @@
 // trading-logic.js
 import BinanceWebSocket from '../wss/binance-websocket.js';
-import BybitWebSocket from '../wss/bybit-websocket.js';
-import OKXWebSocket from '../wss/okx-websocket.js';
-import MEXCWebSocket from '../wss/mexc-websocket.js';
 import logger from '../utils/logger.js';
 import getBinanceExchangeInfo from '../utils/binance-exchange-info.js';
 import { enableIsolatedMarginForAll } from '../utils/setIsolatedMarginModeBinance.js';
@@ -12,12 +9,9 @@ import { calculateBidAmount, getOppositeTradeSide, translatePositionSide, getTok
 const STUCK_ORDER_STATUSES_TO_ALERT = ['NEW', 'PARTIALLY_FILLED', 'CANCELED', 'REJECTED'];
 
 class TradingLogic {
-  constructor({ binanceApiKey, binanceSecretKey, bybitApiKey, bybitSecretKey, okxApiKey, okxSecretKey, okxPassphrase, mexcApiKey, mexcSecretKey }) {
+  constructor({ binanceApiKey, binanceSecretKey }) {
     this.telegramBot = null;
     this.binanceWs = new BinanceWebSocket(binanceApiKey, binanceSecretKey);
-    // this.bybitWs = new BybitWebSocket(bybitApiKey, bybitSecretKey);
-    // this.okxWs = new OKXWebSocket(okxApiKey, okxSecretKey, okxPassphrase);
-    // this.mexcWs = new MEXCWebSocket(mexcApiKey, mexcSecretKey);
     this.binanceExchangeInfo = null;
     this.liquidationAccumulation = {};
     this.openOrders = new Map();
@@ -25,28 +19,17 @@ class TradingLogic {
     this.isStopped = false;
 
     this.statisticsData = {
-      allREKTS: 0,
+      allPossibleTrades: 0,
       skipBTC_ETH: 0,
       skipPausedNotEnoughForBid: 0,
-      allRektsInThreshold: 0,
-      yesGlobalAndLocalTrendTrue: 0,
-      idealYesRektAndGlobalAndLocalTrendTrue: 0,
-      yesRektAndLocalTrendTrue: 0,
-      skipBeginningOfCandle: 0,
-      skipEndOfCandle: 0,
       skipLongResistanceLvl: 0,
       skipShortSupportLvl: 0,
       skipTradeSmallBid: 0,
-      skipRektAndGlobalTrendFalse: 0,
       errOnMarketExecution: 0,
       errOnLimitExecution: 0,
       errGeneralOnTrade: 0,
-      executeYesGlobalAndLocalTrendTrue: 0,
-      executeRektAndLocalTrendTrue: 0,
       excuteLong: 0,
       executeShort: 0,
-      executeOppositeShort: 0,
-      executeOppositeLong: 0,
       skipAlreadyFewOrders: 0,
       skipByTradeDirectionsSetting: 0,
       executedOpeningMarketOrders: 0,
@@ -72,12 +55,9 @@ class TradingLogic {
       this.telegramBot = telegramBot;
 
       await this.binanceWs.connect();
-      // this.bybitWs.connect();
-      // this.okxWs.connect();
-      // this.mexcWs.connect();
 
       logger.info('Start liquidations listeners for all exchanges!');
-      this.setupLiquidationListeners();
+      this.startExchangeDataListeners();
     } catch (error) {
       logger.error(`Error initializing Trading Logic:`);
       console.error(error);
@@ -87,7 +67,7 @@ class TradingLogic {
 
   /* Trading */
 
-  setupLiquidationListeners() {
+  startExchangeDataListeners() {
     // Binance
     this.binanceWs.events.on('message', async (liquidation) => {
 
@@ -103,23 +83,14 @@ class TradingLogic {
         return;
       }
 
-      await this.processLiquidation(liquidation, this.binanceWs);
+      // if (symbol.includes('BTCUSDT') || symbol.includes('ETHUSDT')) {
+      //   logger.warn(`Skipping BTCUSDT and ETHUSDT for now...`);
+      //   this.statisticsData.skipBTC_ETH += 1;
+      //   return;
+      // }
+
+      await this.processTradeDecision(liquidation, this.binanceWs);
     });
-
-    // Bybit
-    // this.bybitWs.events.on('message', async (liquidation) => {
-    //   await this.processLiquidation(liquidation, 'Bybit');
-    // });
-
-    // OKX
-    // this.okxWs.events.on('message', async (liquidation) => {
-    //   await this.processLiquidation(liquidation, 'OKX');
-    // });
-
-    // MEXC
-    // this.mexcWs.events.on('message', async (liquidation) => {
-    //   await this.processLiquidation(liquidation, 'MEXC');
-    // });
   }
 
   async checkIfEnoughBalanceForBid(exchange) {
@@ -151,116 +122,8 @@ class TradingLogic {
     }
   }
 
-  async processLiquidation(liquidation, exchange) {
-    const { s: symbol, S: liquidationSide, q: quantity, ap: price } = liquidation;
-
-    try {
-      const liquidationAmount = parseFloat(quantity) * parseFloat(price);
-      // liquidationSide: BUY - go up, liquidates SHORTs; SELL - go down, liquidates LONGs
-      const whichPositionsLiquidated = translatePositionSide(getOppositeTradeSide(liquidationSide));
-
-      this.statisticsData.allREKTS += 1;
-
-      if (symbol.includes('BTCUSDT') || symbol.includes('ETHUSDT')) {
-        logger.warn(`Skipping BTCUSDT and ETHUSDT for now...`);
-        this.statisticsData.skipBTC_ETH += 1;
-        return;
-      }
-
-      logger.info('\n---Processing liquidation---');
-      logger.info(`${exchange.name}, ${symbol}, Liquidated ${whichPositionsLiquidated} (${liquidationSide}) -${liquidationAmount}$ -> ${getTokenTrend(liquidationSide)} <- Price: ${price}$, Quantity: ${quantity} | avg Ask vol: ${this.binanceExchangeInfo[symbol].avgAskVolume}, avg Bid vol: ${this.binanceExchangeInfo[symbol].avgBidVolume}`);
-
-      // if BUY/SHORT rekts - it is buys so the trend goes up and we check Asks above; 
-      // if SELL/LONG rekts - it is sells and the trend goes down and we check Bids below
-      if ((liquidationSide === 'BUY' && quantity >= this.binanceExchangeInfo[symbol].avgAskVolume * config.current.multiplierForRektThreshold) 
-        || (liquidationSide === 'SELL' && quantity >= this.binanceExchangeInfo[symbol].avgBidVolume * config.current.multiplierForRektThreshold)) {
-
-        this.statisticsData.allRektsInThreshold += 1;
-
-        // The MAIN logic to determine if we are OK to start a deal, and to choose a direction
-
-        const globalCandle = await exchange.getTokenCandleTrend(symbol, config.current.globalCandleInterval);
-        const localCandle = await exchange.getTokenCandleTrend(symbol, config.current.localCandleInterval);
-
-        // ✅ Main Decision Logic
-        const currentTimestamp = Date.now();
-
-        // ✅ Skip if the trade is too close to the start or end of the candle
-        if ((currentTimestamp - globalCandle.openTime) <= config.current.timeToCheckForCandleEdges / 60000) {
-          logger.warn('Skipping the trade since it is in the very beginning of a candle...');
-          this.statisticsData.skipBeginningOfCandle += 1;
-          return;
-        }
-        if ((globalCandle.closeTime - currentTimestamp) <= config.current.timeToCheckForCandleEdges / 60000) {
-          logger.warn('Skipping the trade since it is in the very end of a candle...');
-          this.statisticsData.skipEndOfCandle += 1;
-          return;
-        }
-
-        const tradeSide = getBotTradeSide(liquidationSide);
-        const lastPrice = await exchange.getSymbolLastPrice(symbol);
-        const { distanceToResistance, distanceToSupport } = await exchange.getOrderBookSupportResistance(symbol, this.binanceExchangeInfo[symbol].orderBookMinimalDepth, lastPrice);
-
-        // ✅ Case 1: When local trend matches global trend
-        if (localCandle.trend === globalCandle.trend) {
-          this.statisticsData.yesGlobalAndLocalTrendTrue += 1;
-
-          if (globalCandle.trend === tradeSide) {
-            this.statisticsData.idealYesRektAndGlobalAndLocalTrendTrue += 1;
-          }
-
-          await this.processTradeDecideSellOrBuy(exchange, symbol, localCandle.trend, distanceToResistance, distanceToSupport, "executeYesGlobalAndLocalTrendTrue");
-        } 
-        // ✅ Case 2: When liquidation (tradeSide) matches local trend
-        else if (tradeSide === localCandle.trend) {
-          this.statisticsData.yesRektAndLocalTrendTrue += 1;
-          await this.processTradeDecideSellOrBuy(exchange, symbol, localCandle.trend, distanceToResistance, distanceToSupport, "executeRektAndLocalTrendTrue");
-        } 
-        // ✅ Case 3: Trends do not align → Skip the trade
-        else {
-          this.statisticsData.skipRektAndGlobalTrendFalse += 1;
-          logger.warn('The REKT and Global Candle directions are different! Skipping the deal...');
-        }
-      }
-    } catch (error) {
-      this.statisticsData.errGeneralOnTrade += 1;
-      logger.error(`Skipping trade execution for ${symbol} on ${exchange.name} due to an error:`);
-      console.error(error);
-    }
-  }
-
-  async processTradeDecideSellOrBuy(exchange, symbol, trend, distanceToResistance, distanceToSupport, tradeType) {    
-    const isBuy = trend === 'BUY';
-    const isFarFromResistance = distanceToResistance > config.current.percentageHowCloseToLevels;
-    const isFarFromSupport = distanceToSupport > config.current.percentageHowCloseToLevels;
-
-    if (isBuy) {
-      if (isFarFromResistance) {
-        this.statisticsData[tradeType] += 1;
-        this.statisticsData.excuteLong += 1;
-        await this.executeTrade(exchange, symbol, 'BUY');
-      } else if (isFarFromSupport && config.current.isAllowedToTradeOpposite) {
-        logger.warn('Too close to the resistance level! Try the SHORT deal...');
-        this.statisticsData.executeOppositeShort += 1;
-        await this.executeTrade(exchange, symbol, 'SELL');
-      } else {
-        logger.warn('Too close to the resistance level! Skipping the LONG deal...');
-        this.statisticsData.skipLongResistanceLvl += 1;
-      }
-    } else { // SELL case
-      if (isFarFromSupport) {
-        this.statisticsData[tradeType] += 1;
-        this.statisticsData.executeShort += 1;
-        await this.executeTrade(exchange, symbol, 'SELL');
-      } else if (isFarFromResistance && config.current.isAllowedToTradeOpposite) {
-        logger.warn('Too close to the support level! Try the LONG deal...');
-        this.statisticsData.executeOppositeLong += 1;
-        await this.executeTrade(exchange, symbol, 'BUY');
-      } else {
-        logger.warn('Too close to the support level! Skipping the SHORT deal...');
-        this.statisticsData.skipShortSupportLvl += 1;
-      }
-    }
+  async processTradeDecision() {
+    
   }
 
   async executeTrade(exchange, symbol, tradeSide) {
@@ -287,9 +150,6 @@ class TradingLogic {
       if (limitOrderResult) {
         this.statisticsData.executedClosingLimitOrders += 1;
       }
-
-      // Set a 20-minute timer for the limit order to report in Telegram if the order is still Opened
-      // this.setLimitOrderTimer(exchange, symbol, limitOrderResult.orderId);
     } catch (error) {
       this.statisticsData.errGeneralOnTrade += 1;
       throw new Error(`Trade execution failed for ${symbol} on ${exchange.name}: ${error.message}`);
@@ -304,15 +164,6 @@ class TradingLogic {
       switch (exchange.name) {
         case 'Binance':
           result = await this.executeBinanceMarketOrder(exchange, symbol, tradeSide, positionSide, amountForBid);
-          break;
-        case 'Bybit':
-          result = await this.executeBybitMarketOrder(symbol, tradeSide, amountForBid);
-          break;
-        case 'OKX':
-          result = await this.executeOKXMarketOrder(symbol, tradeSide, amountForBid);
-          break;
-        case 'MEXC':
-          result = await this.executeMEXCMarketOrder(symbol, tradeSide, amountForBid);
           break;
         default:
           throw new Error(`Unsupported exchange: ${exchange.name}`);
@@ -368,42 +219,6 @@ class TradingLogic {
 
       throw error;
     }
-  }
-
-  // Bybit
-  async executeBybitMarketOrder(symbol, tradeSide, amountForBid) {
-    const order = {
-      symbol: symbol,
-      side: tradeSide,
-      orderType: 'Market',
-      orderQty: amountForBid,
-      orderFilter: 'Order'
-    };
-    return await this.bybitWs.sendOrder(order);
-  }
-
-  // OKX
-  async executeOKXMarketOrder(symbol, tradeSide, amountForBid) {
-    const order = {
-      instId: symbol,
-      tdMode: 'cash',
-      side: tradeSide,
-      ordType: 'market',
-      tgtCcy: 'quote_ccy',
-      sz: amountForBid
-    };
-    return await this.okxWs.sendOrder(order);
-  }
-
-  // MEXC
-  async executeMEXCMarketOrder(symbol, tradeSide, amountForBid) {
-    const order = {
-      symbol: symbol,
-      side: tradeSide,
-      type: 'MARKET',
-      quoteOrderQty: amountForBid
-    };
-    return await this.mexcWs.sendOrder(order);
   }
 
   calculateLimitOrderClosePositionPrice(symbol, positionSide, avgPrice) {
@@ -471,31 +286,6 @@ class TradingLogic {
     }
   }
 
-  setLimitOrderTimer(exchange, symbol, orderId) {
-    const timer = setTimeout(() => {
-      this.alertHangingLimitOrder(exchange, symbol, orderId);
-    }, config.current.timeoutToSignalToTG * 60 * 1000);
-
-    const exchangeName = exchange.name;
-    this.openOrders.set(orderId, { exchangeName, symbol, timer });
-  }
-
-  async alertHangingLimitOrder(exchange, symbol, orderId) {
-    try {
-      const order = await exchange.getOrder(orderId, symbol);
-      if (STUCK_ORDER_STATUSES_TO_ALERT.includes(order.status)) {
-        // Notify via Telegram
-        this.telegramBot.sendMsgToTgChat(`Limit order for <strong><a href="https://www.binance.com/en/futures/${symbol}">${symbol} on ${exchange.name}</a></strong> have some issues after ${config.current.timeoutToSignalToTG} minutes. Order status: ${order.status}`);
-      }
-    } catch (error) {
-      logger.error(`Error checking limit order status:`);
-      console.error(error);
-    } finally {
-      clearInterval(openOrders.orderId.timer);
-      this.openOrders.delete(orderId);
-    }
-  }
-
   // Configurations routine
 
   handleStatusChange(status) {
@@ -533,8 +323,6 @@ class TradingLogic {
     logger.info('Updating Deposit Size config...');
     const walletBalance = this.binanceWs.accountInfo.walletBalance;
     config.setConfig({ "depositSize": walletBalance });
-
-    // TODO: Add for other exchanges too
   }
 
   pause() {
