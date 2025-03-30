@@ -9,6 +9,8 @@ const WINDOW_SIZE = 30; // 30 minutes (1-minute intervals)
 const buffers = {};
 const cvdTrackers = {};
 const signalLog = [];
+const pendingTrades = [];
+const tradeResults = [];
 
 SYMBOLS.forEach(symbol => {
   buffers[symbol] = {
@@ -78,16 +80,30 @@ function passesMomentumFilter(symbol, direction, options = {}) {
 
 function logSignal(symbol, direction, reason) {
   const url = `https://www.coinglass.com/tv/Binance_${symbol.toUpperCase()}`;
-  const log = {
-    timestamp: new Date().toISOString(),
+  const timestamp = getCurrentTimestamp();
+  const latest = getDataWindow(symbol, 1)[0];
+  const entryPrice = latest?.price;
+
+  const trade = {
+    timestamp,
     symbol,
     direction,
     reason,
-    coinglass: url
+    entryPrice,
+    takeProfit: direction === 'LONG'
+      ? entryPrice * 1.002
+      : entryPrice * 0.998,
+    history: [],
+    closed: false
   };
-  signalLog.push(log);
+
+  signalLog.push({ ...trade, coinglass: url });
+  pendingTrades.push(trade);
+
   console.log(`[${symbol}] ${direction} – ${reason}`);
-  console.log(`🔗 ${url}\n`);
+  console.log(`🔗 ${url}
+`);
+}
 }
 
 function buildVolumeProfile(symbol) {
@@ -300,6 +316,31 @@ async function fetchOpenInterest() {
 
 setInterval(() => {
   SYMBOLS.forEach(strategyEngine);
+
+  const now = getCurrentTimestamp();
+  pendingTrades.forEach(trade => {
+    if (trade.closed) return;
+
+    const current = getDataWindow(trade.symbol, 1)[0];
+    if (!current) return;
+
+    trade.history.push(current.price);
+
+    const hit = trade.direction === 'LONG'
+      ? current.price >= trade.takeProfit
+      : current.price <= trade.takeProfit;
+
+    if (hit || trade.history.length >= 30) {
+      trade.closed = true;
+      tradeResults.push({
+        ...trade,
+        TP_hit: hit,
+        hitAtMinute: hit ? trade.history.length : null,
+        finalPrice: current.price,
+        percentChange: getPercentChange(trade.entryPrice, current.price).toFixed(2) + '%'
+      });
+    }
+  });
 }, 60000);
 
 setInterval(fetchFundingRates, 3 * 60 * 1000);
