@@ -24,3 +24,7 @@ Example: when the market goes UP then SELL (SHORT) liquidations get trigerred an
 * Close position:
     * Close long position: positionSide=LONG, side=SELL
     * Close short position: positionSide=SHORT, side=BUY
+
+# Testing
+* To analyze test results:
+    * node analyze-results.js
