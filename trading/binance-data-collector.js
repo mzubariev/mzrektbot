@@ -76,6 +76,9 @@ function passesMomentumFilter(symbol, direction, options = {}) {
   if (direction === 'LONG' && rsi > rsiThresholds.LONG) return false;
   if (direction === 'SHORT' && rsi < rsiThresholds.SHORT) return false;
   return true;
+  if (direction === 'LONG' && rsi > 75) return false;
+  if (direction === 'SHORT' && rsi < 25) return false;
+  return true;
 }
 
 function logSignal(symbol, direction, reason) {
@@ -347,3 +350,14 @@ setInterval(fetchFundingRates, 3 * 60 * 1000);
 setInterval(fetchOpenInterest, 60 * 1000);
 
 console.log('📊 Bot running with updated Phase 1 logic...');
+
+// Export trade results and signal log every 5 minutes
+setInterval(() => {
+  try {
+    fs.writeFileSync('signal-log.json', JSON.stringify(signalLog, null, 2));
+    fs.writeFileSync('trade-results.json', JSON.stringify(tradeResults, null, 2));
+    console.log('💾 Exported signal log and trade results');
+  } catch (err) {
+    console.error('Error exporting data:', err.message);
+  }
+}, 5 * 60 * 1000);
