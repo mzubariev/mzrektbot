@@ -358,12 +358,24 @@ setInterval(() => {
 
     if (hit || trade.history.length >= 30) {
       trade.closed = true;
-      tradeResults.push({
-        ...trade,
-        TP_hit: hit,
-        hitAtMinute: hit ? trade.history.length : null,
-        finalPrice: current.price,
-        percentChange: getPercentChange(trade.entryPrice, current.price).toFixed(2) + '%'
+      const maxGain = trade.direction === 'LONG'
+				? Math.max(...trade.history)
+				: Math.min(...trade.history);
+
+			const maxGainPct = getPercentChange(trade.entryPrice, maxGain);
+			const couldHit1pct = trade.direction === 'LONG'
+				? maxGainPct >= 1
+				: maxGainPct <= -1;
+
+			tradeResults.push({
+				...trade,
+				TP_hit: hit,
+				hitAtMinute: hit ? trade.history.length : null,
+				finalPrice: current.price,
+				percentChange: getPercentChange(trade.entryPrice, current.price).toFixed(2) + '%',
+				maxGain: maxGain.toFixed(2),
+				maxGainPct: maxGainPct.toFixed(2),
+				couldHit1pct
       });
     }
   });
