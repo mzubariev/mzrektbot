@@ -81,11 +81,36 @@ function passesMomentumFilter(symbol, direction, options = {}) {
   return true;
 }
 
+function getTPMultiplier(reason) {
+  if (reason.includes('Liquidation')) return 0.0015;
+  if (reason.includes('Volume spike')) return 0.003;
+  return 0.002;
+}
+
+function getTickSize(symbol, price) {
+  // Approximate tickSize for major pairs. You can enhance this later.
+  const tickSizePercent = symbol.includes('btc') ? 0.01 : 0.05; // Example fallback
+  return price * (tickSizePercent / 100);
+}
+
 function logSignal(symbol, direction, reason) {
   const url = `https://www.coinglass.com/tv/Binance_${symbol.toUpperCase()}`;
   const timestamp = getCurrentTimestamp();
   const latest = getDataWindow(symbol, 1)[0];
   const entryPrice = latest?.price;
+
+  const rawTP = direction === 'LONG'
+    ? entryPrice * (1 + getTPMultiplier(reason))
+    : entryPrice * (1 - getTPMultiplier(reason));
+
+  const tickSize = getTickSize(symbol, entryPrice);
+  const minTP = direction === 'LONG'
+    ? entryPrice + tickSize
+    : entryPrice - tickSize;
+
+  const takeProfit = direction === 'LONG'
+    ? Math.max(rawTP, minTP)
+    : Math.min(rawTP, minTP);
 
   const trade = {
     timestamp,
@@ -93,9 +118,7 @@ function logSignal(symbol, direction, reason) {
     direction,
     reason,
     entryPrice,
-    takeProfit: direction === 'LONG'
-      ? entryPrice * 1.002
-      : entryPrice * 0.998,
+    takeProfit,
     history: [],
     closed: false
   };
