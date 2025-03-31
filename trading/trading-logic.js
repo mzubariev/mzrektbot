@@ -18,24 +18,6 @@ class TradingLogic {
     this.isPaused = false;
     this.isStopped = false;
 
-    this.statisticsData = {
-      allPossibleTrades: 0,
-      skipBTC_ETH: 0,
-      skipPausedNotEnoughForBid: 0,
-      skipLongResistanceLvl: 0,
-      skipShortSupportLvl: 0,
-      skipTradeSmallBid: 0,
-      errOnMarketExecution: 0,
-      errOnLimitExecution: 0,
-      errGeneralOnTrade: 0,
-      excuteLong: 0,
-      executeShort: 0,
-      skipAlreadyFewOrders: 0,
-      skipByTradeDirectionsSetting: 0,
-      executedOpeningMarketOrders: 0,
-      executedClosingLimitOrders: 0
-    }
-
     logger.info('BOT Initialized with config: %j', config.current);
 
     config.on('statusChanged', ({ status }) => {
@@ -85,7 +67,6 @@ class TradingLogic {
 
       // if (symbol.includes('BTCUSDT') || symbol.includes('ETHUSDT')) {
       //   logger.warn(`Skipping BTCUSDT and ETHUSDT for now...`);
-      //   this.statisticsData.skipBTC_ETH += 1;
       //   return;
       // }
 
@@ -100,7 +81,6 @@ class TradingLogic {
     if (availableBalance < amountForBid && !this.isPaused) {
       this.pause();
       logger.warn('Skip execution since the Bot is paused because there is not enough money for a bid!');
-      this.statisticsData.skipPausedNotEnoughForBid += 1;
     } else if (availableBalance >= amountForBid && this.isPaused) {
       this.resume();
     }
@@ -109,7 +89,6 @@ class TradingLogic {
   isOnlyLongsOrShortsAllowed(positionSide) {
     if (config.current.longsOrShortsOrBoth.toUpperCase() !== 'BOTH' && (config.current.longsOrShortsOrBoth.toUpperCase() !== positionSide.toUpperCase())) {
       logger.warn(`Skipping the trade since it is ${positionSide} while the setting is only for ${config.current.longsOrShortsOrBoth}s!`);
-      this.statisticsData.skipByTradeDirectionsSetting += 1;
       return;
     }
   }
@@ -117,7 +96,6 @@ class TradingLogic {
   isAlreadyMaximumPositionsForToken(exchange, symbol, positionSide) {
     if (exchange.positionsInfo[symbol] && exchange.positionsInfo[symbol][positionSide] && exchange.positionsInfo[symbol][positionSide].ordersAmount >= config.current.sameSymbolOrdersLimit) {
       logger.warn(`Skipping the trade since there are already ${exchange.positionsInfo[symbol][positionSide].ordersAmount} orders opened for this token! Wait till they are closed...`);
-      this.statisticsData.skipAlreadyFewOrders += 1;
       return;
     }
   }
@@ -140,18 +118,14 @@ class TradingLogic {
       if (!marketOrderResult) {
         return; 
       }
-      this.statisticsData.executedOpeningMarketOrders += 1;
 
       // Send Limit order to close the Position with 0,2% profit 
       const avgEnterPrice = parseFloat(marketOrderResult.avgPrice);
       const executedQuantity = parseFloat(marketOrderResult.executedQty);
 
-      const limitOrderResult = await this.sendLimitOrderToClosePosition(exchange, symbol, tradeSide, positionSide, executedQuantity, avgEnterPrice);
-      if (limitOrderResult) {
-        this.statisticsData.executedClosingLimitOrders += 1;
-      }
+      await this.sendLimitOrderToClosePosition(exchange, symbol, tradeSide, positionSide, executedQuantity, avgEnterPrice);
+
     } catch (error) {
-      this.statisticsData.errGeneralOnTrade += 1;
       throw new Error(`Trade execution failed for ${symbol} on ${exchange.name}: ${error.message}`);
     }
   }
@@ -194,7 +168,6 @@ class TradingLogic {
 
       if (formatted_quantity <= 0) {
         logger.warn(`Skipping the trade - too small Bid for this token...`);
-        this.statisticsData.skipTradeSmallBid += 1;
         return;
       }
 
@@ -213,7 +186,6 @@ class TradingLogic {
     } catch (error) {
       logger.error(`Error executing MARKET ORDER.`);
       console.error(error);
-      this.statisticsData.errOnMarketExecution += 1;
 
       this.pause();
 
@@ -280,7 +252,6 @@ class TradingLogic {
     } catch (error) {
       logger.error(`Error executing LIMIT ORDER:`);
       console.error(error);
-      this.statisticsData.errOnLimitExecution += 1;
 
       throw error;
     }
@@ -311,8 +282,7 @@ class TradingLogic {
 
   handleGetStatisticsInfo() {
     logger.info('=== INTERMEDIATE STATISTICS ===');
-    console.log(this.statisticsData);
-    this.telegramBot.sendMsgToTgChat(JSON.stringify(this.statisticsData, null, 2));
+    console.log('INSERT new data');
   }
 
   updateBinanceExchangeInfo(binanceExchangeInfo) {

@@ -27,4 +27,4 @@ Example: when the market goes UP then SELL (SHORT) liquidations get trigerred an
 
 # Testing
 * To analyze test results:
-    * node analyze-results.js
+    * node testing/analyze-results.js
