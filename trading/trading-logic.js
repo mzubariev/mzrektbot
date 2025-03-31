@@ -2,9 +2,9 @@
 import BinanceWssRestApi from '../binance/binance-wss-rest-api.js';
 import logger from '../utils/logger.js';
 import getBinanceExchangeInfo from '../utils/binance-exchange-info.js';
-import { enableIsolatedMarginForAll } from '../utils/setIsolatedMarginModeBinance.js';
 import config from '../utils/configuration.js';
 import { calculateBidAmount, getOppositeTradeSide, translatePositionSide, getTokenTrend, getBotTradeSide } from '../utils/helpers.js';
+import { enableIsolatedMarginForAll } from '../utils/setIsolatedMarginModeBinance.js';
 
 const STUCK_ORDER_STATUSES_TO_ALERT = ['NEW', 'PARTIALLY_FILLED', 'CANCELED', 'REJECTED'];
 
@@ -40,7 +40,7 @@ class TradingLogic {
       await this.binanceWs.connect();
 
       logger.info('Start liquidations listeners for all exchanges!');
-      this.startExchangeDataListeners();
+      this.startBinanceDataListeners();
     } catch (error) {
       logger.error(`Error initializing Trading Logic:`);
       console.error(error);
@@ -50,34 +50,9 @@ class TradingLogic {
 
   /* Trading */
 
-  startExchangeDataListeners() {
-    // Binance
-    this.binanceWs.events.on('message', async (liquidation) => {
-
-      // this means stopped manualy and may be unstopped only manually via tg command (important - to average/close trades manually on Binance UI)
-      if (this.isStopped) {
-        return;
-      }
-
-      await this.checkIfEnoughBalanceForBid(this.binanceWs);
-
-      // paused by Bot; will be unpaused once it is enough available money for a bid
-      if (this.isPaused) {
-        return;
-      }
-
-      // if (symbol.includes('BTCUSDT') || symbol.includes('ETHUSDT')) {
-      //   logger.warn(`Skipping BTCUSDT and ETHUSDT for now...`);
-      //   return;
-      // }
-
-      await this.processTradeDecision(liquidation, this.binanceWs);
-    });
-  }
-
-  async checkIfEnoughBalanceForBid(exchange) {
-    const amountForBid = calculateBidAmount(exchange);
-    const availableBalance = exchange.accountInfo.availableBalance;
+  async checkIfEnoughBalanceForBid() {
+    const amountForBid = calculateBidAmount(this.binanceWs);
+    const availableBalance = this.binanceWs.accountInfo.availableBalance;
 
     if (availableBalance < amountForBid && !this.isPaused) {
       this.pause();
@@ -94,28 +69,47 @@ class TradingLogic {
     }
   }
   
-  isAlreadyMaximumPositionsForToken(exchange, symbol, positionSide) {
-    if (exchange.positionsInfo[symbol] && exchange.positionsInfo[symbol][positionSide] && exchange.positionsInfo[symbol][positionSide].ordersAmount >= config.current.sameSymbolOrdersLimit) {
-      logger.warn(`Skipping the trade since there are already ${exchange.positionsInfo[symbol][positionSide].ordersAmount} orders opened for this token! Wait till they are closed...`);
+  isAlreadyMaximumPositionsForToken(symbol, positionSide) {
+    if (this.binanceWs.positionsInfo[symbol] && this.binanceWs.positionsInfo[symbol][positionSide] && this.binanceWs.positionsInfo[symbol][positionSide].ordersAmount >= config.current.sameSymbolOrdersLimit) {
+      logger.warn(`Skipping the trade since there are already ${this.binanceWs.positionsInfo[symbol][positionSide].ordersAmount} orders opened for this token! Wait till they are closed...`);
       return;
     }
   }
 
-  async processTradeDecision() {
-    
-  }
+  startBinanceDataListeners() {
+    // Binance
+    this.binanceWs.events.on('message', async (liquidation) => {
 
-  async executeTrade(exchange, symbol, tradeSide) {
-    try {
-      // Send Market order
-      const amountForBid = calculateBidAmount(exchange);
-      const positionSide = translatePositionSide(tradeSide);
-
-      if (this.isOnlyLongsOrShortsAllowed(positionSide) || this.isAlreadyMaximumPositionsForToken(exchange, symbol, positionSide)) {
+      await this.checkIfEnoughBalanceForBid(this.binanceWs);
+      if (this.isStopped || this.isPaused) {
         return;
       }
 
-      const marketOrderResult = await this.executeMarketOrder(exchange, symbol, tradeSide, positionSide, amountForBid);
+      
+
+      await this.processTradeDecision(liquidation, this.binanceWs);
+    });
+  }
+
+  async processTradeDecision() {
+    // if (symbol.includes('BTCUSDT') || symbol.includes('ETHUSDT')) {
+      //   logger.warn(`Skipping BTCUSDT and ETHUSDT for now...`);
+      //   return;
+      // }
+
+  }
+
+  async executeTrade(symbol, tradeSide) {
+    try {
+      // Send Market order
+      const amountForBid = calculateBidAmount(this.binanceWs);
+      const positionSide = translatePositionSide(tradeSide);
+
+      if (this.isOnlyLongsOrShortsAllowed(positionSide) || this.isAlreadyMaximumPositionsForToken(symbol, positionSide)) {
+        return;
+      }
+
+      const marketOrderResult = await this.executeMarketOrder(symbol, tradeSide, positionSide, amountForBid);
       if (!marketOrderResult) {
         return; 
       }
@@ -123,33 +117,31 @@ class TradingLogic {
       // Send Limit order to close the Position with 0,2% profit 
       const avgEnterPrice = parseFloat(marketOrderResult.avgPrice);
       const executedQuantity = parseFloat(marketOrderResult.executedQty);
-
-      await this.sendLimitOrderToClosePosition(exchange, symbol, tradeSide, positionSide, executedQuantity, avgEnterPrice);
+      await this.sendLimitOrderToClosePosition(symbol, tradeSide, positionSide, executedQuantity, avgEnterPrice);
 
     } catch (error) {
-      throw new Error(`Trade execution failed for ${symbol} on ${exchange.name}: ${error.message}`);
+      throw new Error(`Trade execution failed for ${symbol}: ${error.message}`);
     }
   }
 
-  async executeMarketOrder(exchange, symbol, tradeSide, positionSide, amountForBid) {
-    logger.info(`Executing trade - Exchange: ${exchange.name}, Token: ${symbol}, TradeSide: ${tradeSide} to ${positionSide}, Amount: ${amountForBid}`);
+  async executeMarketOrder(symbol, tradeSide, positionSide, amountForBid) {
+    logger.info(`Executing trade -> Token: ${symbol}, TradeSide: ${tradeSide} to ${positionSide}, Amount: ${amountForBid}`);
     
     try {
-      const result = await this.executeBinanceMarketOrder(exchange, symbol, tradeSide, positionSide, amountForBid);
+      const result = await this.executeBinanceMarketOrder(symbol, tradeSide, positionSide, amountForBid);
    
-      logger.info('Market order executed successfully on %s: %j', exchange.name, result);
+      logger.info('Market order executed successfully: %j', result);
       return result;
     } catch (error) {
-      logger.error(`Error executing market order on %s: ${exchange.name}.`);
+      logger.error(`Error executing market order.`);
       console.error(error);
       throw error;
     }
   }
 
-  // Binance
-  async executeBinanceMarketOrder(exchange, symbol, tradeSide, positionSide, amountForBid) {
+  async executeBinanceMarketOrder(symbol, tradeSide, positionSide, amountForBid) {
     try {      
-      const lastPrice = await exchange.getSymbolLastPrice(symbol);
+      const lastPrice = await this.binanceWs.getSymbolLastPrice(symbol);
     
       if (!lastPrice) {
         throw new Error(`Price for ${symbol} is not available. Ensure the ticker subscription is active.`);
@@ -209,18 +201,18 @@ class TradingLogic {
     return Math.floor(number * factor) / factor; // Always round down
   }
 
-  async sendLimitOrderToClosePosition(exchange, symbol, marketOrderSide, positionSide, quantity, avgEnterPrice) {
+  async sendLimitOrderToClosePosition(symbol, marketOrderSide, positionSide, quantity, avgEnterPrice) {
     try {
       const limitOrderSide = getOppositeTradeSide(marketOrderSide);
 
       let accumulatedQuantity = null;
       let breakevenPrice = null;
-      if (exchange.positionsInfo[symbol] && exchange.positionsInfo[symbol][positionSide]) {
-        accumulatedQuantity = exchange.positionsInfo[symbol][positionSide].positionAmount;
-        breakevenPrice = exchange.positionsInfo[symbol][positionSide].breakevenPrice;
+      if (this.binanceWs.positionsInfo[symbol] && this.binanceWs.positionsInfo[symbol][positionSide]) {
+        accumulatedQuantity = this.binanceWs.positionsInfo[symbol][positionSide].positionAmount;
+        breakevenPrice = this.binanceWs.positionsInfo[symbol][positionSide].breakevenPrice;
 
-        const orderId = exchange.positionsInfo[symbol][positionSide].lastClosingLimitOrderId;
-        await exchange.cancelOrder(orderId, symbol);
+        const orderId = this.binanceWs.positionsInfo[symbol][positionSide].lastClosingLimitOrderId;
+        await this.binanceWs.cancelOrder(orderId, symbol);
       }
 
       const formattedLimitPrice = this.calculateLimitOrderClosePositionPrice(symbol, positionSide, breakevenPrice || avgEnterPrice);
@@ -237,10 +229,10 @@ class TradingLogic {
       };
   
       logger.info('Sending LIMIT ORDER to close the position:\n%j', limitOrder);
-      const limitOrderResult = await exchange.sendOrder(limitOrder);
+      const limitOrderResult = await this.binanceWs.sendOrder(limitOrder);
       logger.info('Limit order result:\n%j', limitOrderResult);
   
-      exchange.positionsInfo[symbol][positionSide].lastClosingLimitOrderId = limitOrderResult.orderId;
+      this.binanceWs.positionsInfo[symbol][positionSide].lastClosingLimitOrderId = limitOrderResult.orderId;
 
       return limitOrderResult;
     } catch (error) {
