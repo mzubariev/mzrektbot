@@ -1,12 +1,14 @@
 // trading-logic.js
 import BinanceWssRestApi from '../binance/binance-wss-rest-api.js';
 import logger from '../utils/logger.js';
+import fs from 'fs';
 import getBinanceExchangeInfo from '../utils/binance-exchange-info.js';
 import config from '../utils/configuration.js';
-import { calculateBidAmount, getOppositeTradeSide, translatePositionSide, getTokenTrend, getBotTradeSide } from '../utils/helpers.js';
+import { calculateBidAmount, getOppositeTradeSide, translatePositionSide, getTokenTrend, getBotTradeSide, getPercentChange, getCurrentTimestamp } from '../utils/helpers.js';
 import { enableIsolatedMarginForAll } from '../utils/setIsolatedMarginModeBinance.js';
 
 const STUCK_ORDER_STATUSES_TO_ALERT = ['NEW', 'PARTIALLY_FILLED', 'CANCELED', 'REJECTED'];
+const WINDOW_SIZE = 30; // 30 minutes (1-minute intervals)
 
 class TradingLogic {
   constructor({ binanceApiKey, binanceSecretKey }) {
@@ -14,6 +16,12 @@ class TradingLogic {
     this.binanceWs = new BinanceWssRestApi(binanceApiKey, binanceSecretKey);
     this.binanceExchangeInfo = null;
     this.allTokensList = null;
+    this.buffers = {};
+    this.cvdTrackers = {};
+    this.pendingTrades = [];
+    this.signalLog = [];
+    this.tradeResults = [];
+    this.liquidationTimers = {};
     this.isPaused = false;
     this.isStopped = false;
 
@@ -35,12 +43,22 @@ class TradingLogic {
       this.binanceExchangeInfo = binanceExchangeInfo;
       this.allTokensList = allTokensList;
 
+      this.allTokensList.forEach(symbol => {
+        this.buffers[symbol] = {
+          index: 0,
+          data: new Array(WINDOW_SIZE).fill(null)
+        };
+        this.cvdTrackers[symbol] = 0;
+      });
+
       this.telegramBot = telegramBot;
 
       await this.binanceWs.connect();
 
       logger.info('Start liquidations listeners for all exchanges!');
-      this.startBinanceDataListeners();
+      this.startLiquidationsListeners();
+      this.setAllIntervalTradeChecks();
+
     } catch (error) {
       logger.error(`Error initializing Trading Logic:`);
       console.error(error);
@@ -49,6 +67,169 @@ class TradingLogic {
   }
 
   /* Trading */
+
+  getDataWindow(symbol, minutes) {
+    const buffer = this.buffers[symbol];
+    const result = [];
+    for (let i = 0; i < minutes; i++) {
+      const index = (buffer.index - 1 - i + WINDOW_SIZE) % WINDOW_SIZE;
+      const data = buffer.data[index];
+      if (data) result.unshift(data);
+    }
+    return result;
+  }
+
+  updateBuffer(symbol, newData) {
+    const buffer = this.buffers[symbol];
+    buffer.data[buffer.index] = newData;
+    buffer.index = (buffer.index + 1) % WINDOW_SIZE;
+  }
+  
+  startLiquidationsListeners() {
+    // Binance
+    this.binanceWs.events.on('message', async (liquidation) => {
+      this.handleLiquidation(liquidation);
+    });
+  }
+
+  handleLiquidation(liquidation) {
+    const { s: symbol, S: side } = liquidation;
+
+    if (['BTCUSDT', 'ETHUSDT'].includes(symbol)) {
+      logger.warn(`Skipping BTCUSDT and ETHUSDT for now...`);
+      return;
+    }
+
+    if (!this.liquidationTimers[symbol]) this.liquidationTimers[symbol] = [];
+  
+    const timer = setTimeout(async () => {
+
+      await this.checkIfEnoughBalanceForBid(this.binanceWs);
+      if (this.isStopped || this.isPaused) {
+        return;
+      }
+      
+      const m1 = this.getDataWindow(symbol, 1);
+      const latest = m1[m1.length - 1];
+      if (!latest) return;
+  
+      const priceChange = getPercentChange(m1[0]?.price, latest.price);
+      const oiChange = getPercentChange(m1[0]?.openInterest, latest.openInterest);
+  
+      const direction = side === 'LONG' ? 'LONG' : 'SHORT';
+      const valid = side === 'LONG'
+        ? priceChange > 0 && oiChange > 0
+        : priceChange < 0 && oiChange < 0;
+  
+      if (valid && this.filterLiquidationTrade(symbol, direction) && this.passesMomentumFilter(symbol, direction)) {
+        this.logSignal(symbol, direction, `Liquidation of ${side}s + Price/OI ${side === 'LONG' ? 'rebound' : 'drop'} (post-30s)`);
+      }
+    }, 30000);
+  
+    this.liquidationTimers[symbol].push(timer);
+  }
+
+  getTakeProfitMultiplier(reason) {
+    if (reason.includes('Liquidation')) return 0.0015;
+    if (reason.includes('Volume spike')) return 0.003;
+    return 0.002;
+  }
+
+  strategyEngine(symbol) {
+    const m1 = this.getDataWindow(symbol, 1);
+    const m5 = this.getDataWindow(symbol, 5);
+    const m12 = this.getDataWindow(symbol, 12);
+    const m15 = this.getDataWindow(symbol, 15);
+    const m20 = this.getDataWindow(symbol, 20);
+    const m30 = this.getDataWindow(symbol, 30);
+  
+    const current = m1[m1.length - 1];
+    if (!current) return; 
+  
+    const priceChange1m = getPercentChange(m1[0]?.price, current.price);
+    const cvdChange1m = getPercentChange(m1[0]?.cvd, current.cvd);
+    const oiChange1m = getPercentChange(m1[0]?.openInterest, current.openInterest);
+  
+    const priceChange5m = getPercentChange(m5[0]?.price, m5[m5.length - 1]?.price);
+    const oiChange12m = getPercentChange(m12[0]?.openInterest, m12[m12.length - 1]?.openInterest);
+    const volume12m = m12.reduce((acc, d) => acc + (d.volume || 0), 0);
+  
+    const priceChange15m = getPercentChange(m15[0]?.price, m15[m15.length - 1]?.price);
+    const priceChange20m = getPercentChange(m20[0]?.price, m20[m20.length - 1]?.price);
+    const oiChange30m = getPercentChange(m30[0]?.openInterest, m30[m30.length - 1]?.openInterest);
+  
+    const funding = current.funding;
+  
+    // Open Interest Triggers
+    if (oiChange1m <= -1 && priceChange1m < 0 && cvdChange1m < 0) {
+      if (this.filterTrade(symbol, 'SHORT') && this.passesMomentumFilter(symbol, 'SHORT', { rsiLow: 30 })) this.logSignal(symbol, 'SHORT', 'OI -1%+ down + Price down + CVD down (1m)');
+    }
+  
+    if (oiChange12m >= 2 && priceChange1m > 0 && cvdChange1m > 0 && volume12m > 2 * (m12[0]?.volume || 1)) {
+      if (this.filterTrade(symbol, 'LONG') && this.passesMomentumFilter(symbol, 'LONG', { rsiHigh: 70 })) this.logSignal(symbol, 'LONG', 'OI +2% (12m) + Price/CVD up + Volume spike');
+    }
+  
+    if (oiChange30m >= 15 && priceChange1m < 0 && cvdChange1m < 0) {
+      if (this.filterTrade(symbol, 'SHORT') && this.passesMomentumFilter(symbol, 'SHORT')) this.logSignal(symbol, 'SHORT', 'OI +15% (30m) + Price/CVD down (1m)');
+    }
+  
+    // Price Triggers
+    if (priceChange5m >= 3 && oiChange1m > 0 && cvdChange1m > 0) {
+      if (this.filterTrade(symbol, 'LONG') && this.passesMomentumFilter(symbol, 'LONG')) this.logSignal(symbol, 'LONG', 'Price +3% (5m) + OI/CVD up (1m)');
+    }
+  
+    if (priceChange15m <= -10 && oiChange1m > 0 && cvdChange1m > 0) {
+      if (this.filterTrade(symbol, 'LONG') && this.passesMomentumFilter(symbol, 'LONG')) this.logSignal(symbol, 'LONG', 'Price -10% (15m) + OI/CVD up (1m)');
+    }
+  
+    if (priceChange20m >= 10 && oiChange1m < 0 && cvdChange1m < 0) {
+      if (this.filterTrade(symbol, 'SHORT') && this.passesMomentumFilter(symbol, 'SHORT')) this.logSignal(symbol, 'SHORT', 'Price +10% (20m) + OI/CVD down (1m)');
+    }
+  
+    // Funding Trigger
+    if (funding <= -0.1 && priceChange1m > 0 && oiChange1m > 0) {
+      if (this.filterTrade(symbol, 'LONG') && this.passesMomentumFilter(symbol, 'LONG')) this.logSignal(symbol, 'LONG', 'Funding -0.1% or less + OI/Price up');
+    }
+  }
+
+  logSignal(symbol, direction, reason) {
+    const url = `https://www.coinglass.com/tv/Binance_${symbol.toUpperCase()}`;
+    const timestamp = getCurrentTimestamp();
+    const latest = this.getDataWindow(symbol, 1)[0];
+    const entryPrice = latest?.price;
+  
+    const rawTP = direction === 'LONG'
+      ? entryPrice * (1 + this.getTakeProfitMultiplier(reason))
+      : entryPrice * (1 - this.getTakeProfitMultiplier(reason));
+  
+    // const tickSize = getTickSize(symbol, entryPrice); // take from my config!!!
+    const minTP = direction === 'LONG'
+      ? entryPrice + tickSize
+      : entryPrice - tickSize;
+  
+    const takeProfit = direction === 'LONG'
+      ? Math.max(rawTP, minTP)
+      : Math.min(rawTP, minTP);
+  
+    const trade = {
+      timestamp,
+      symbol,
+      direction,
+      reason,
+      entryPrice,
+      takeProfit,
+      history: [],
+      closed: false
+    };
+  
+    this.signalLog.push({ ...trade, coinglass: url });
+    this.pendingTrades.push(trade);
+  
+    console.log(`[${symbol}] ${direction} – ${reason}`);
+    console.log(`🔗 ${url}\n`);
+  }
+
+  // FILTERS
 
   async checkIfEnoughBalanceForBid() {
     const amountForBid = calculateBidAmount(this.binanceWs);
@@ -75,29 +256,88 @@ class TradingLogic {
       return;
     }
   }
+  
+  calculateRSI(symbol, period = 14) {
+    const data = this.getDataWindow(symbol, period + 1);
+    if (data.length <= period) return null;
+  
+    let gains = 0, losses = 0;
+    for (let i = 1; i < data.length; i++) {
+      const diff = data[i].price - data[i - 1].price;
+      if (diff > 0) gains += diff;
+      else losses -= diff;
+    }
+  
+    if (gains + losses === 0) return 50;
+    const rs = gains / (losses || 1e-9);
+    return 100 - (100 / (1 + rs));
+  }
+  
+  passesMomentumFilter(symbol, direction, options = {}) {
+    const rsi = this.calculateRSI(symbol);
+    if (rsi === null) return true;
+  
+    const rsiThresholds = {
+      LONG: options.rsiHigh ?? 75,
+      SHORT: options.rsiLow ?? 25
+    };
+  
+    if (direction === 'LONG' && rsi > rsiThresholds.LONG) return false;
+    if (direction === 'SHORT' && rsi < rsiThresholds.SHORT) return false;
+    return true;
+  }
 
-  startBinanceDataListeners() {
-    // Binance
-    this.binanceWs.events.on('message', async (liquidation) => {
-
-      await this.checkIfEnoughBalanceForBid(this.binanceWs);
-      if (this.isStopped || this.isPaused) {
-        return;
-      }
-
-      
-
-      await this.processTradeDecision(liquidation, this.binanceWs);
+  buildVolumeProfile(symbol) {
+    const m15 = this.getDataWindow(symbol, 15);
+    const tickSize = this.binanceExchangeInfo[symbol].tickSize;
+    const volumeBins = {};
+    const current = m15[m15.length - 1];
+    if (!current) return [];
+  
+    m15.forEach(({ price, volume }) => {
+      if (!price || !volume) return;
+      const step = Math.max(price * 0.001, tickSize * 5); // 0.1% range
+      const bucket = Math.round(price / step) * step;
+      volumeBins[bucket] = (volumeBins[bucket] || 0) + volume;
     });
+  
+    return Object.entries(volumeBins)
+      .map(([level, vol]) => ({ level: parseFloat(level), volume: vol }))
+      .sort((a, b) => b.volume - a.volume)
+      .slice(0, 6);
+  }
+  
+  filterTrade(symbol, direction) {
+    const profile = this.buildVolumeProfile(symbol);
+    const latest = this.getDataWindow(symbol, 1)[0];
+    if (!latest) return true;
+    const { price } = latest;
+  
+    for (const { level } of profile) {
+      const distance = Math.abs((level - price) / price) * 100;
+      if (direction === 'LONG' && level > price && distance <= 0.2) return false;
+      if (direction === 'SHORT' && level < price && distance <= 0.2) return false;
+    }
+  
+    return true;
   }
 
-  async processTradeDecision() {
-    // if (symbol.includes('BTCUSDT') || symbol.includes('ETHUSDT')) {
-      //   logger.warn(`Skipping BTCUSDT and ETHUSDT for now...`);
-      //   return;
-      // }
-
+  filterLiquidationTrade(symbol, direction) {
+    const profile = this.buildVolumeProfile(symbol);
+    const latest = this.getDataWindow(symbol, 1)[0];
+    if (!latest) return false;
+    const { price } = latest;
+  
+    for (const { level } of profile) {
+      const distance = Math.abs((level - price) / price) * 100;
+      if (direction === 'LONG' && level < price && distance <= 0.2) return true;
+      if (direction === 'SHORT' && level > price && distance <= 0.2) return true;
+    }
+  
+    return false;
   }
+
+  //
 
   async executeTrade(symbol, tradeSide) {
     try {
@@ -268,7 +508,12 @@ class TradingLogic {
 
   handleGetStatisticsInfo() {
     logger.info('=== INTERMEDIATE STATISTICS ===');
-    console.log('INSERT new data');
+    console.log(`buffers:\n${this.buffers}`);
+    console.log(`cvdTrackers:\n${this.cvdTrackers}`);
+    console.log(`pendingTrades:\n${this.pendingTrades}`);
+    console.log(`liquidationTimers:\n${this.liquidationTimers}`);
+    console.log(`signalLog:\n${this.signalLog}`);
+    console.log(`liquidationTimers:\n${this.liquidationTimers}`);
   }
 
   updateBinanceExchangeInfo({ binanceExchangeInfo, allTokensList }) {
@@ -300,6 +545,64 @@ class TradingLogic {
   unstop() {
     this.isStopped = false;
     logger.info('Trading logic unstopped manually!');
+  }
+
+  // All timers and intervals
+
+  setAllIntervalTradeChecks() {
+    setInterval(() => {
+      this.allTokensList.forEach(this.strategyEngine);
+    
+      this.pendingTrades.forEach(trade => {
+        if (trade.closed) return;
+    
+        const current = this.getDataWindow(trade.symbol, 1)[0];
+        if (!current) return;
+    
+        trade.history.push(current.price);
+    
+        const hit = trade.direction === 'LONG'
+          ? current.price >= trade.takeProfit
+          : current.price <= trade.takeProfit;
+    
+        if (hit || trade.history.length >= 30) {
+          trade.closed = true;
+          const maxGain = trade.direction === 'LONG'
+            ? Math.max(...trade.history)
+            : Math.min(...trade.history);
+    
+          const maxGainPct = getPercentChange(trade.entryPrice, maxGain);
+          const couldHit1pct = trade.direction === 'LONG'
+            ? maxGainPct >= 1
+            : maxGainPct <= -1;
+    
+          this.tradeResults.push({
+            ...trade,
+            TP_hit: hit,
+            hitAtMinute: hit ? trade.history.length : null,
+            finalPrice: current.price,
+            percentChange: getPercentChange(trade.entryPrice, current.price).toFixed(2) + '%',
+            maxGain: maxGain.toFixed(2),
+            maxGainPct: maxGainPct.toFixed(2),
+            couldHit1pct
+          });
+        }
+      });
+    }, 60000);
+    
+    setInterval(this.fetchFundingRates, 3 * 60 * 1000);
+    setInterval(this.fetchOpenInterest, 60 * 1000);
+    
+    // Export trade results and signal log every 5 minutes
+    setInterval(() => {
+      try {
+        fs.writeFileSync('signal-log.json', JSON.stringify(this.signalLog, null, 2));
+        fs.writeFileSync('trade-results.json', JSON.stringify(this.tradeResults, null, 2));
+        console.log('💾 Exported signal log and trade results');
+      } catch (err) {
+        console.error('Error exporting data:', err.message);
+      }
+    }, 5 * 60 * 1000);
   }
 }
 

@@ -30,11 +30,22 @@ export function getBotTradeSide(liquidationSide) {
   }
 }
 
+export function getPercentChange(start, end) {
+  if (!start || !end || start === 0) return 0;
+  return ((end - start) / start) * 100;
+}
+
+export function getCurrentTimestamp() {
+  return Math.floor(Date.now() / 1000);
+}
+
 export default {
   roundDownToTwoDecimals,
   calculateBidAmount,
   getOppositeTradeSide,
   translatePositionSide,
   getTokenTrend,
-  getBotTradeSide
+  getBotTradeSide,
+  getPercentChange,
+  getCurrentTimestamp
 };
