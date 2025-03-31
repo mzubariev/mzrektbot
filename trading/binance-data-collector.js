@@ -130,7 +130,6 @@ function logSignal(symbol, direction, reason) {
   console.log(`🔗 ${url}
 `);
 }
-}
 
 function buildVolumeProfile(symbol) {
   const m15 = getDataWindow(symbol, 15);
