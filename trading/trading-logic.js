@@ -13,8 +13,6 @@ class TradingLogic {
     this.telegramBot = null;
     this.binanceWs = new BinanceWssRestApi(binanceApiKey, binanceSecretKey);
     this.binanceExchangeInfo = null;
-    this.liquidationAccumulation = {};
-    this.openOrders = new Map();
     this.isPaused = false;
     this.isStopped = false;
 
