@@ -1,5 +1,6 @@
 // binance-websocket.js
-import WebSocketWrapper from './websocket-wrapper.js';
+import EventEmitter from 'events';
+import WebSocket from 'ws';
 import logger from '../utils/logger.js';
 import nacl from 'tweetnacl';
 import base64 from 'base64-js';
@@ -7,22 +8,36 @@ import axios from 'axios';
 import config from '../utils/configuration.js';
 import { roundDownToTwoDecimals } from '../utils/helpers.js';
 
-const REST_API_URL = 'https://fapi.binance.com/fapi/v1';
+EventEmitter.defaultMaxListeners = 30;
 
-class BinanceWebSocket extends WebSocketWrapper {
+const REST_API_URL = 'https://fapi.binance.com/fapi/v1';
+const WSS_URL_STREAMS = 'wss://fstream.binance.com/ws';
+const WSS_URL_API = 'wss://ws-fapi.binance.com/ws-fapi/v1';
+
+class BinanceWssRestApi extends EventEmitter {
   constructor(apiKey, secretKeyRaw) {
-    super({ 
-      urlStreams: 'wss://fstream.binance.com/ws',
-      urlApi: 'wss://ws-fapi.binance.com/ws-fapi/v1'
-     });
+    super();
     this.name = 'Binance';
     this.apiKey = apiKey;
     this.secretKeyRaw = secretKeyRaw;
+    this.wsMarketStreams = null;
+    this.wsApi = null;
+    this.wsUserDataStreams = null;
+
+    this.reconnectTimerStreamsWs = null;
+    this.reconnectTimerApiWs = null;
+    this.isForceDisconnectStreamsWs = false;
+    this.isForceDisconnectApiWs = false;
+    this.isForceDisconnectUserDataStreamsWs = false;
+    this.reconnectInterval = 5000;
+    
     this.accountInfo = {
       walletBalance: config.current.depositSize,
       availableBalance: config.current.depositSize
     };
     this.positionsInfo = {};
+
+    this.events = new EventEmitter();
   }
 
   // Authentication and ListenKey
@@ -112,20 +127,86 @@ class BinanceWebSocket extends WebSocketWrapper {
 
   // Listeners and subscriptions to WSS Streams
 
-  async connect() {
-    this.listenKey = await this.getListenKey();
-    super.connect();
-    this.keepListenKeyAlive();
+  async connect(url = null) {
+    // 1) TODO: refactor to not reconnect to ALL at the same time if only one connection failed,
+    // and to not repeat methods
+    // 2) TODO: add pong() method on ping event and send back the same payload we got from ping
     
+    // WSS API
+
+    this.wsApi = new WebSocket(WSS_URL_API);
+
     this.wsApi.on('open', () => {
+      logger.info(`Connected to ${WSS_URL_API} WSS API!`);
+      clearTimeout(this.reconnectTimer);
       this.authenticate();
       this.getHangingPositionsOnBotStart();
     });
-
-    this.wsMarketStreams.on('open', () => {
-      // this.subscribeToLiquidations();
+    this.wsApi.on('message', (data) => {
+      const response = JSON.parse(data);
+      if (response.id === 1 && response.status === 200) {
+        logger.info(`${this.name} wss API Authentication successful!`);
+      } else if (response.error) {
+        if (response.error.msg === 'Order does not exist.') {
+          return;
+        } else if (response.error.msg === 'Margin is insufficient.') {
+          return;
+        } else if (response.error.msg === "Order's notional must be no smaller than 5 (unless you choose reduce only).") {
+          return;
+        }
+        logger.error(`Received an error message from ${this.name} wss API:`);
+        console.log(response);
+      } else if (!response.result.bids) { // don't show long orderBook requests with bids/asks
+        logger.info('Received message from %s wss API: %j', this.name, response);
+      }
+    });
+    this.wsApi.on('close', () => {
+      logger.info(`Disconnected from ${WSS_URL_API}!`);
+      if (!this.isForceDisconnectApiWs) {
+        this.reconnect(WSS_URL_API);
+      }
+      this.isForceDisconnectApiWs = false;
+    });
+    this.wsApi.on('error', (error) => {
+      logger.error(`WebSocket error for ${WSS_URL_API}:`);
+      console.error(error);
+      this.reconnect(WSS_URL_API);
     });
 
+    // WSS User Data Stream
+
+    let listenKey = await this.getListenKey();
+    this.wsUserDataStreams = new WebSocket(`${WSS_URL_STREAMS}/${listenKey}`);
+    this.keepListenKeyAlive();
+
+    this.wsUserDataStreams.on('open', () => {
+      logger.info(`Connected to ${WSS_URL_STREAMS}/listenKey User Data Stream!`);
+    });
+    this.wsUserDataStreams.on('message', (data) => {
+      this.handleUserDataMessages(data);
+    }); 
+    this.wsUserDataStreams.on('close', () => {
+      logger.error('WebSocket connection closed. Reconnecting...');
+      if (!this.isForceDisconnectUserDataStreamsWs) {
+        this.reconnect(`${WSS_URL_STREAMS}/${listenKey}`);
+      }
+      this.isForceDisconnectUserDataStreamsWs = false;
+    });
+    this.wsUserDataStreams.on('error', (error) => {
+      logger.error(`WebSocket error:`);
+      console.error(error);
+      this.reconnect(`${WSS_URL_STREAMS}/${listenKey}`);
+    });  
+    
+    // WSS Market Streams
+
+    this.wsMarketStreams = new WebSocket(WSS_URL_STREAMS);
+
+    this.wsMarketStreams.on('open', () => {
+      logger.info(`Connected to ${WSS_URL_STREAMS} Market Streams!`);
+      clearTimeout(this.reconnectTimer);
+      this.subscribeToLiquidations();
+    });
     this.wsMarketStreams.on('message', (data) => {
       try {
         const message = JSON.parse(data);
@@ -141,9 +222,17 @@ class BinanceWebSocket extends WebSocketWrapper {
         console.error(error);
       }
     });
-
-    this.wsUserDataStreams.on('message', (data) => {
-      this.handleUserDataMessages(data);
+    this.wsMarketStreams.on('close', () => {
+      logger.info(`Disconnected from ${WSS_URL_STREAMS}!`);
+      if (!this.isForceDisconnectStreamsWs) {
+        this.reconnect(WSS_URL_STREAMS);
+      }
+      this.isForceDisconnectStreamsWs = false;
+    });
+    this.wsMarketStreams.on('error', (error) => {
+      logger.error(`WebSocket error for ${WSS_URL_STREAMS}:`);
+      console.error(error);
+      this.reconnect(WSS_URL_STREAMS);
     });
   }
 
@@ -528,6 +617,31 @@ class BinanceWebSocket extends WebSocketWrapper {
   getTimestamp() {
     return Date.now();
   }
+
+  reconnect(url) {
+    logger.info(`Attempting to reconnect to ${url} in ${this.reconnectInterval}ms`);
+    this.reconnectTimer = setTimeout(() => {
+      this.connect(url);
+    }, this.reconnectInterval);
+  }
+
+  disconnect() {
+    logger.info(`Disconnecting WebSocket for ${WSS_URL_STREAMS}:`);
+    if (this.wsMarketStreams) {
+      this.isForceDisconnectStreamsWs = true;
+      this.wsMarketStreams.close();
+    }
+    logger.info(`Disconnecting WebSocket for ${WSS_URL_API}:`);
+    if (this.wsApi) {
+      this.isForceDisconnectApiWs = true;
+      this.wsApi.close();
+    }
+    logger.info(`Disconnecting WebSocket for User Data Streams ${WSS_URL_STREAMS}/listenKey:`);
+    if (this.wsUserDataStreams) {
+      this.this.isForceDisconnectUserDataStreamsWs = true;
+      this.wsUserDataStreams.close();
+    }
+  }
 }
 
-export default BinanceWebSocket;
+export default BinanceWssRestApi;

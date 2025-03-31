@@ -1,5 +1,5 @@
 // trading-logic.js
-import BinanceWebSocket from '../wss/binance-websocket.js';
+import BinanceWssRestApi from '../binance/binance-wss-rest-api.js';
 import logger from '../utils/logger.js';
 import getBinanceExchangeInfo from '../utils/binance-exchange-info.js';
 import { enableIsolatedMarginForAll } from '../utils/setIsolatedMarginModeBinance.js';
@@ -11,7 +11,7 @@ const STUCK_ORDER_STATUSES_TO_ALERT = ['NEW', 'PARTIALLY_FILLED', 'CANCELED', 'R
 class TradingLogic {
   constructor({ binanceApiKey, binanceSecretKey }) {
     this.telegramBot = null;
-    this.binanceWs = new BinanceWebSocket(binanceApiKey, binanceSecretKey);
+    this.binanceWs = new BinanceWssRestApi(binanceApiKey, binanceSecretKey);
     this.binanceExchangeInfo = null;
     this.liquidationAccumulation = {};
     this.openOrders = new Map();
@@ -134,15 +134,8 @@ class TradingLogic {
     logger.info(`Executing trade - Exchange: ${exchange.name}, Token: ${symbol}, TradeSide: ${tradeSide} to ${positionSide}, Amount: ${amountForBid}`);
     
     try {
-      let result;
-      switch (exchange.name) {
-        case 'Binance':
-          result = await this.executeBinanceMarketOrder(exchange, symbol, tradeSide, positionSide, amountForBid);
-          break;
-        default:
-          throw new Error(`Unsupported exchange: ${exchange.name}`);
-      }
-
+      const result = await this.executeBinanceMarketOrder(exchange, symbol, tradeSide, positionSide, amountForBid);
+   
       logger.info('Market order executed successfully on %s: %j', exchange.name, result);
       return result;
     } catch (error) {
