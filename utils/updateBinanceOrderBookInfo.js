@@ -24,12 +24,12 @@ export async function updateBinanceOrderBookInfo(binanceExchangeInfo) {
 
 		// Iterate over each symbol and update order book data
 		for (const symbol in binanceExchangeInfo) {
-			// Recalculate orderBookStepPrcnt
-			binanceExchangeInfo[symbol].orderBookStepPrcnt = (binanceExchangeInfo[symbol].tickSize / lastPrices[symbol]) * 100;
+			// Recalculate currentTickSizeInPrcnt
+			binanceExchangeInfo[symbol].currentTickSizeInPrcnt = (binanceExchangeInfo[symbol].tickSize / lastPrices[symbol]) * 100;
 
 			// Find minimal depth that satisfies condition
 			binanceExchangeInfo[symbol].orderBookMinimalDepth = ORDERBOOK_DEPTHS.find(depth => 
-				binanceExchangeInfo[symbol].orderBookStepPrcnt * depth >= config.current.distanceFromCurrPriceToWallToCountBookMinDepthPrcnt
+				binanceExchangeInfo[symbol].currentTickSizeInPrcnt * depth >= config.current.distanceFromCurrPriceToWallToCountBookMinDepthPrcnt
 			) || 1000;
 
 			// Fetch avgAsk and avgBid from Binance REST API

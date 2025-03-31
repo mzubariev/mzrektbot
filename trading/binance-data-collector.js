@@ -76,9 +76,6 @@ function passesMomentumFilter(symbol, direction, options = {}) {
   if (direction === 'LONG' && rsi > rsiThresholds.LONG) return false;
   if (direction === 'SHORT' && rsi < rsiThresholds.SHORT) return false;
   return true;
-  if (direction === 'LONG' && rsi > 75) return false;
-  if (direction === 'SHORT' && rsi < 25) return false;
-  return true;
 }
 
 function getTPMultiplier(reason) {

@@ -27,15 +27,15 @@ async function getBinanceExchangeInfo() {
       const currentPrice = prices[symbolInfo.symbol] || null;
 
       if (!symbolInfo.symbol.includes('USDC') && tickSize && currentPrice) {
-        const orderBookStepPrcnt = (tickSize / currentPrice) * 100;
+        const currentTickSizeInPrcnt = (tickSize / currentPrice) * 100;
 
         // Find the smallest multiplier that satisfies the condition
-        const orderBookMinimalDepth = ORDERBOOK_DEPTHS.find(depth => orderBookStepPrcnt * depth >= config.current.distanceFromCurrPriceToWallToCountBookMinDepthPrcnt) || 1000;
+        const orderBookMinimalDepth = ORDERBOOK_DEPTHS.find(depth => currentTickSizeInPrcnt * depth >= config.current.distanceFromCurrPriceToWallToCountBookMinDepthPrcnt) || 1000;
 
         acc[symbolInfo.symbol] = {
           quantityPrecision: symbolInfo.quantityPrecision,
           tickSize,
-          orderBookStepPrcnt,
+          currentTickSizeInPrcnt,
           orderBookMinimalDepth
         };
       }
