@@ -8,8 +8,8 @@ const SYMBOLS = ['btcusdt', 'ethusdt'];
 const WINDOW_SIZE = 30; // 30 minutes (1-minute intervals)
 const buffers = {};
 const cvdTrackers = {};
-const signalLog = [];
 const pendingTrades = [];
+const signalLog = [];
 const tradeResults = [];
 
 SYMBOLS.forEach(symbol => {

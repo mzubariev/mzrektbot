@@ -40,8 +40,8 @@ async function main() {
       try {
         logger.info('CRON: Running Binance info updates!');
 
-        const binanceExchangeInfo = await getBinanceExchangeInfo();
-        tradingLogic.updateBinanceExchangeInfo(binanceExchangeInfo);
+        const { binanceExchangeInfo, allTokensList } = await getBinanceExchangeInfo();
+        tradingLogic.updateBinanceExchangeInfo({ binanceExchangeInfo, allTokensList });
         logger.info('Binance Exchnage info with all tokens details updated successfully!');
       } catch (error) {
         logger.error(`Error updating data via cron task:`);

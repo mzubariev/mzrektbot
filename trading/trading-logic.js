@@ -13,6 +13,7 @@ class TradingLogic {
     this.telegramBot = null;
     this.binanceWs = new BinanceWssRestApi(binanceApiKey, binanceSecretKey);
     this.binanceExchangeInfo = null;
+    this.allTokensList = null;
     this.isPaused = false;
     this.isStopped = false;
 
@@ -30,7 +31,9 @@ class TradingLogic {
   async initialize(telegramBot) {
     try {
       // await enableIsolatedMarginForAll();
-      this.binanceExchangeInfo = await getBinanceExchangeInfo();
+      const { binanceExchangeInfo, allTokensList } = await getBinanceExchangeInfo();
+      this.binanceExchangeInfo = binanceExchangeInfo;
+      this.allTokensList = allTokensList;
 
       this.telegramBot = telegramBot;
 
@@ -276,8 +279,9 @@ class TradingLogic {
     console.log('INSERT new data');
   }
 
-  updateBinanceExchangeInfo(binanceExchangeInfo) {
+  updateBinanceExchangeInfo({ binanceExchangeInfo, allTokensList }) {
     this.binanceExchangeInfo = binanceExchangeInfo;
+    this.allTokensList = allTokensList;
   }
 
   async updateDepositSizeConfig() {

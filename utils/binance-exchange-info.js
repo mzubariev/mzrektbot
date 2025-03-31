@@ -11,8 +11,14 @@ async function getBinanceExchangeInfo() {
     const response = await axios.get('https://fapi.binance.com/fapi/v1/exchangeInfo');
     const data = response.data;
 
-    // Process the data to include relevant fields
+    const allTokensList = [];
     const formattedData = data.symbols.reduce((acc, symbolInfo) => {
+      // Only keep USDT-margined perpetual contracts
+      if (
+        symbolInfo.contractType !== 'PERPETUAL' ||
+        symbolInfo.quoteAsset !== 'USDT'
+      ) return acc;
+
       const priceFilter = symbolInfo.filters.find(filter => filter.filterType === 'PRICE_FILTER');
       const tickSize = priceFilter ? parseFloat(priceFilter.tickSize) : null;
 
@@ -21,13 +27,14 @@ async function getBinanceExchangeInfo() {
         tickSize
       };
 
+      allTokensList.push(symbolInfo.symbol);
       return acc;
     }, {});
 
     fs.writeFileSync('binance-exchange-info.json', JSON.stringify(formattedData, null, 2));
     logger.info('Tokens configs from Binance are updated and saved to: ./binance-exchange-info.json');
 
-    return formattedData;
+    return { formattedData, allTokensList };
   } catch (error) {
     logger.error('Error fetching exchange info:');
     console.error(error);
