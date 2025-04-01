@@ -6,11 +6,13 @@ import nacl from 'tweetnacl';
 import base64 from 'base64-js';
 import axios from 'axios';
 import config from '../utils/configuration.js';
-import { roundDownToTwoDecimals } from '../utils/helpers.js';
+import { roundDownToTwoDecimals, getCurrentTimestamp } from '../utils/helpers.js';
 
 EventEmitter.defaultMaxListeners = 30;
+//process.setMaxListeners(100);
 
 const REST_API_URL = 'https://fapi.binance.com/fapi/v1';
+const REST_API_URL2 = 'https://fapi.binance.com/futures/data';
 const WSS_URL_STREAMS = 'wss://fstream.binance.com/ws';
 const WSS_URL_API = 'wss://ws-fapi.binance.com/ws-fapi/v1';
 
@@ -31,6 +33,11 @@ class BinanceWssRestApi extends EventEmitter {
     this.isForceDisconnectUserDataStreamsWs = false;
     this.reconnectInterval = 5000;
     
+    this.allTokensList = [];
+    this.priceVolumeCache = {};
+    this.cvdMinuteDelta = {};
+    this.latestFundingRates = {};
+    this.latestOpenInterest = {};
     this.accountInfo = {
       walletBalance: config.current.depositSize,
       availableBalance: config.current.depositSize
@@ -38,6 +45,44 @@ class BinanceWssRestApi extends EventEmitter {
     this.positionsInfo = {};
 
     this.events = new EventEmitter();
+  }
+
+  initialize() {
+    this.fetchOpenInterest();
+    this.fetchFundingRates();
+
+    // === Aligned 1-Minute Timer ===
+    const now = Date.now();
+    const msToNextMinute = 60000 - (now % 60000);
+
+    setTimeout(() => {
+      setInterval(() => {
+        const timestamp = getCurrentTimestamp();
+    
+        for (const symbol in this.priceVolumeCache) {
+          const { price, volume } = this.priceVolumeCache[symbol];
+          const cvd = this.cvdMinuteDelta[symbol] || 0;
+          const funding = this.latestFundingRates[symbol] ?? null;
+          const openInterest = this.latestOpenInterest[symbol] ?? null;
+    
+          this.events.emit('message:minuteTick', {
+            symbol,
+            timestamp,
+            price,
+            volume,
+            cvd,
+            funding,
+            openInterest,
+          });
+    
+          this.cvdMinuteDelta[symbol] = 0;
+        }
+      }, 60 * 1000);
+
+      setInterval(this.fetchOpenInterest, 60 * 1000);
+      setInterval(this.fetchFundingRates, 60 * 1000); // maybe * 3 ?
+
+    }, msToNextMinute);
   }
 
   // Authentication and ListenKey
@@ -123,6 +168,38 @@ class BinanceWssRestApi extends EventEmitter {
     } catch (error) {
       logger.error(`Error fetching ${klineInterval} Kline for ${symbol}: %j`, error.response?.data || error.message);
     }
+  }
+
+  async fetchFundingRates() {
+    try {
+      const response = await axios.get(`${REST_API_URL}/fundingRate`);
+      response.data.forEach((item) => {
+        const symbol = item.symbol.toUpperCase();
+        this.latestFundingRates[symbol] = parseFloat(item.fundingRate);
+      });
+    } catch (err) {
+      logger.error(`Funding fetch error: %j`, err.response?.data || err.message);
+    }
+  }
+
+  async fetchOpenInterest() {
+    await Promise.all(this.allTokensList.map(async (symbol) => {
+      try {
+        const res = await axios.get(`${REST_API_URL2}/openInterestHist`, {
+          params: {
+            symbol: symbol.toUpperCase(),
+            period: '1m',
+            limit: 1,
+          },
+        });
+  
+        if (res.data.length > 0) {
+          this.latestOpenInterest[symbol] = parseFloat(res.data[0].sumOpenInterest);
+        }
+      } catch (err) {
+        logger.error(`OI fetch error for ${symbol}: %j`, err.response?.data || err.message);
+      }
+    }));
   }
 
   // Listeners and subscriptions to WSS Streams
@@ -211,14 +288,40 @@ class BinanceWssRestApi extends EventEmitter {
       try {
         const message = JSON.parse(data);
 
+        // === Liquidations ===
         if (message.e === 'forceOrder' && !message.o.s.includes('USDC')) {
-          // { s: symbol, S: orderSide, q: quantity, ap: price } = message.o;
-          this.events.emit('message', message.o);
-        } else if (message.error) {
+          this.events.emit('message:liquidation', message.o);
+        }
+
+        // === Futures Ticker Updates ===
+        else if (Array.isArray(message)) {
+          message.forEach((ticker) => {
+            if (ticker.e === '24hrTicker') {
+              const symbol = ticker.s.toUpperCase();
+              const price = parseFloat(ticker.c);
+              const volume = parseFloat(ticker.v);
+              this.priceVolumeCache[symbol] = { price, volume };
+            }
+          });
+        }
+
+        // === Spot CVD via AggTrade ===
+        else if (message.e === 'aggTrade') {
+          const symbol = message.s.toUpperCase();
+          const volume = parseFloat(message.q);
+          const maker = message.m;
+
+          const delta = maker ? -volume : volume;
+          if (!this.cvdMinuteDelta[symbol]) this.cvdMinuteDelta[symbol] = 0;
+          this.cvdMinuteDelta[symbol] += delta;
+        }
+
+        // === Error Handler ===
+        else if (message.error) {
           throw new Error(`ERROR: ${message.error}`);
         }
       } catch (error) {
-        logger.error(`Error parsing Binance WebSocket message:`);
+        logger.error('Error parsing Binance WebSocket message:');
         console.error(error);
       }
     });
@@ -241,6 +344,26 @@ class BinanceWssRestApi extends EventEmitter {
       JSON.stringify({
         method: 'SUBSCRIBE',
         params: ['!forceOrder@arr'],
+        id: this.generateRequestId(),
+      })
+    );
+  }
+
+  subscribeToFuturesPriceVolume() {
+    this.wsMarketStreams.send(
+      JSON.stringify({
+        method: 'SUBSCRIBE',
+        params: ['!ticker@arr'],
+        id: this.generateRequestId(),
+      })
+    );
+  }
+  
+  subscribeToSpotCVD() {
+    this.wsMarketStreams.send(
+      JSON.stringify({
+        method: 'SUBSCRIBE',
+        params: ['!aggTrade@arr'],
         id: this.generateRequestId(),
       })
     );
@@ -641,6 +764,10 @@ class BinanceWssRestApi extends EventEmitter {
       this.this.isForceDisconnectUserDataStreamsWs = true;
       this.wsUserDataStreams.close();
     }
+  }
+
+  updateAllTokensList(allTokensList) {
+    this.allTokensList = allTokensList;
   }
 }
 

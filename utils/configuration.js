@@ -3,7 +3,7 @@ import fs from 'fs';
 import { EventEmitter } from 'events';
 import logger from '../utils/logger.js';
 
-EventEmitter.defaultMaxListeners = 100;
+EventEmitter.defaultMaxListeners = 30;
 //process.setMaxListeners(100);
 
 class Configuration extends EventEmitter {

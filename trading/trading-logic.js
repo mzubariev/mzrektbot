@@ -43,6 +43,9 @@ class TradingLogic {
       this.binanceExchangeInfo = binanceExchangeInfo;
       this.allTokensList = allTokensList;
 
+      this.binanceWs.updateAllTokensList(this.allTokensList);
+      this.binanceWs.initialize();
+
       this.allTokensList.forEach(symbol => {
         this.buffers[symbol] = {
           index: 0,
@@ -56,8 +59,10 @@ class TradingLogic {
       await this.binanceWs.connect();
 
       logger.info('Start liquidations listeners for all exchanges!');
-      this.startLiquidationsListeners();
+      this.startMinuteTickListener();
       this.setAllIntervalTradeChecks();
+
+      this.startLiquidationsListener();
 
     } catch (error) {
       logger.error(`Error initializing Trading Logic:`);
@@ -84,10 +89,15 @@ class TradingLogic {
     buffer.data[buffer.index] = newData;
     buffer.index = (buffer.index + 1) % WINDOW_SIZE;
   }
+
+  startMinuteTickListener() {
+    this.binanceWs.events.on('message:minuteTick', (data) => {
+      this.updateBuffer(data.symbol, data);
+    });
+  }
   
-  startLiquidationsListeners() {
-    // Binance
-    this.binanceWs.events.on('message', async (liquidation) => {
+  startLiquidationsListener() {
+    this.binanceWs.events.on('message:liquidation', async (liquidation) => {
       this.handleLiquidation(liquidation);
     });
   }
@@ -124,7 +134,9 @@ class TradingLogic {
       if (valid && this.filterLiquidationTrade(symbol, direction) && this.passesMomentumFilter(symbol, direction)) {
         this.logSignal(symbol, direction, `Liquidation of ${side}s + Price/OI ${side === 'LONG' ? 'rebound' : 'drop'} (post-30s)`);
       }
-    }, 30000);
+
+      this.liquidationTimers[symbol] = this.liquidationTimers[symbol].filter(t => t !== timer); // cleanup the executed timer
+    }, 10000);
   
     this.liquidationTimers[symbol].push(timer);
   }
@@ -553,59 +565,60 @@ class TradingLogic {
   // All timers and intervals
 
   setAllIntervalTradeChecks() {
-    setInterval(() => {
-      this.allTokensList.forEach(this.strategyEngine);
+    const now = Date.now();
+    const msToNextMinute = 60000 - (now % 60000);
+    setTimeout(() => {
+      setInterval(() => {
+        this.allTokensList.forEach(this.strategyEngine);
+      
+        this.pendingTrades.forEach(trade => {
+          if (trade.closed) return;
+      
+          const current = this.getDataWindow(trade.symbol, 1)[0];
+          if (!current) return;
+      
+          trade.history.push(current.price);
+      
+          const hit = trade.direction === 'LONG'
+            ? current.price >= trade.takeProfit
+            : current.price <= trade.takeProfit;
+      
+          if (hit || trade.history.length >= 30) {
+            trade.closed = true;
+            const maxGain = trade.direction === 'LONG'
+              ? Math.max(...trade.history)
+              : Math.min(...trade.history);
+      
+            const maxGainPct = getPercentChange(trade.entryPrice, maxGain);
+            const couldHit1pct = trade.direction === 'LONG'
+              ? maxGainPct >= 1
+              : maxGainPct <= -1;
+      
+            this.tradeResults.push({
+              ...trade,
+              TP_hit: hit,
+              hitAtMinute: hit ? trade.history.length : null,
+              finalPrice: current.price,
+              percentChange: getPercentChange(trade.entryPrice, current.price).toFixed(2) + '%',
+              maxGain: maxGain.toFixed(2),
+              maxGainPct: maxGainPct.toFixed(2),
+              couldHit1pct
+            });
+          }
+        });
+      }, 60000);
     
-      this.pendingTrades.forEach(trade => {
-        if (trade.closed) return;
-    
-        const current = this.getDataWindow(trade.symbol, 1)[0];
-        if (!current) return;
-    
-        trade.history.push(current.price);
-    
-        const hit = trade.direction === 'LONG'
-          ? current.price >= trade.takeProfit
-          : current.price <= trade.takeProfit;
-    
-        if (hit || trade.history.length >= 30) {
-          trade.closed = true;
-          const maxGain = trade.direction === 'LONG'
-            ? Math.max(...trade.history)
-            : Math.min(...trade.history);
-    
-          const maxGainPct = getPercentChange(trade.entryPrice, maxGain);
-          const couldHit1pct = trade.direction === 'LONG'
-            ? maxGainPct >= 1
-            : maxGainPct <= -1;
-    
-          this.tradeResults.push({
-            ...trade,
-            TP_hit: hit,
-            hitAtMinute: hit ? trade.history.length : null,
-            finalPrice: current.price,
-            percentChange: getPercentChange(trade.entryPrice, current.price).toFixed(2) + '%',
-            maxGain: maxGain.toFixed(2),
-            maxGainPct: maxGainPct.toFixed(2),
-            couldHit1pct
-          });
+      // Export trade results and signal log every 5 minutes
+      setInterval(() => {
+        try {
+          fs.writeFileSync('signal-log.json', JSON.stringify(this.signalLog, null, 2));
+          fs.writeFileSync('trade-results.json', JSON.stringify(this.tradeResults, null, 2));
+          console.log('💾 Exported signal log and trade results');
+        } catch (err) {
+          console.error('Error exporting data:', err.message);
         }
-      });
-    }, 60000);
-    
-    setInterval(this.fetchFundingRates, 3 * 60 * 1000);
-    setInterval(this.fetchOpenInterest, 60 * 1000);
-    
-    // Export trade results and signal log every 5 minutes
-    setInterval(() => {
-      try {
-        fs.writeFileSync('signal-log.json', JSON.stringify(this.signalLog, null, 2));
-        fs.writeFileSync('trade-results.json', JSON.stringify(this.tradeResults, null, 2));
-        console.log('💾 Exported signal log and trade results');
-      } catch (err) {
-        console.error('Error exporting data:', err.message);
-      }
-    }, 5 * 60 * 1000);
+      }, 5 * 60 * 1000);
+    }, msToNextMinute);
   }
 }
 
