@@ -136,27 +136,28 @@ class TradingLogic {
   }
 
   strategyEngine(symbol) {
-    const m1 = this.getDataWindow(symbol, 1);
-    const m5 = this.getDataWindow(symbol, 5);
-    const m12 = this.getDataWindow(symbol, 12);
-    const m15 = this.getDataWindow(symbol, 15);
-    const m20 = this.getDataWindow(symbol, 20);
-    const m30 = this.getDataWindow(symbol, 30);
+    const m30 = getDataWindow(symbol, 30);
+    if (m30.length < 2) return; // not enough even for 1m trades
   
-    const current = m1[m1.length - 1];
-    if (!current) return; 
+    const current = m30[m30.length - 1];
+    if (!current) return;
   
-    const priceChange1m = getPercentChange(m1[0]?.price, current.price);
-    const cvdChange1m = getPercentChange(m1[0]?.cvd, current.cvd);
-    const oiChange1m = getPercentChange(m1[0]?.openInterest, current.openInterest);
+    const last = (offset) => m30[m30.length - 1 - offset];
+
+    const priceChange1m = m30.length >= 2 ? getPercentChange(last(1)?.price, current.price) : null;
+    const cvdChange1m = m30.length >= 2 ? getPercentChange(last(1)?.cvd, current.cvd) : null;
+    const oiChange1m = m30.length >= 2 ? getPercentChange(last(1)?.openInterest, current.openInterest) : null;
   
-    const priceChange5m = getPercentChange(m5[0]?.price, m5[m5.length - 1]?.price);
-    const oiChange12m = getPercentChange(m12[0]?.openInterest, m12[m12.length - 1]?.openInterest);
-    const volume12m = m12.reduce((acc, d) => acc + (d.volume || 0), 0);
+    const priceChange5m = m30.length >= 6 ? getPercentChange(last(5)?.price, current.price) : null;
+    const priceChange15m = m30.length >= 16 ? getPercentChange(last(15)?.price, current.price) : null;
+    const priceChange20m = m30.length >= 21 ? getPercentChange(last(20)?.price, current.price) : null;
   
-    const priceChange15m = getPercentChange(m15[0]?.price, m15[m15.length - 1]?.price);
-    const priceChange20m = getPercentChange(m20[0]?.price, m20[m20.length - 1]?.price);
-    const oiChange30m = getPercentChange(m30[0]?.openInterest, m30[m30.length - 1]?.openInterest);
+    const oiChange12m = m30.length >= 13 ? getPercentChange(last(12)?.openInterest, current.openInterest) : null;
+    const oiChange30m = m30.length === 30 ? getPercentChange(last(29)?.openInterest, current.openInterest) : null;
+  
+    const volume12m = m30.length >= 13
+      ? m30.slice(m30.length - 12).reduce((acc, d) => acc + (d.volume || 0), 0)
+      : null;
   
     const funding = current.funding;
   
@@ -274,27 +275,29 @@ class TradingLogic {
   }
   
   passesMomentumFilter(symbol, direction, options = {}) {
-    const rsi = this.calculateRSI(symbol);
-    if (rsi === null) return true;
+    const rsi14 = this.calculateRSI(symbol, 14);
+    const rsi7 = this.calculateRSI(symbol, 7);
+    if (rsi14 === null || rsi7 === null) return true;
   
     const rsiThresholds = {
       LONG: options.rsiHigh ?? 75,
       SHORT: options.rsiLow ?? 25
     };
   
-    if (direction === 'LONG' && rsi > rsiThresholds.LONG) return false;
-    if (direction === 'SHORT' && rsi < rsiThresholds.SHORT) return false;
+    if (direction === 'LONG' && (rsi14 > rsiThresholds.LONG || rsi7 > rsiThresholds.LONG)) return false;
+    if (direction === 'SHORT' && (rsi14 < rsiThresholds.SHORT || rsi7 < rsiThresholds.SHORT)) return false;
     return true;
   }
 
-  buildVolumeProfile(symbol) {
-    const m15 = this.getDataWindow(symbol, 15);
-    const tickSize = this.binanceExchangeInfo[symbol].tickSize;
+  buildVolumeProfile(symbol, windowSize = 15) {
+    const m = this.getDataWindow(symbol, windowSize);
     const volumeBins = {};
-    const current = m15[m15.length - 1];
+    const current = m[m.length - 1];
     if (!current) return [];
   
-    m15.forEach(({ price, volume }) => {
+    const tickSize = this.binanceExchangeInfo[symbol].tickSize;
+  
+    m.forEach(({ price, volume }) => {
       if (!price || !volume) return;
       const step = Math.max(price * 0.001, tickSize * 5); // 0.1% range
       const bucket = Math.round(price / step) * step;
@@ -323,7 +326,7 @@ class TradingLogic {
   }
 
   filterLiquidationTrade(symbol, direction) {
-    const profile = this.buildVolumeProfile(symbol);
+    const profile = this.buildVolumeProfile(symbol, 5);
     const latest = this.getDataWindow(symbol, 1)[0];
     if (!latest) return false;
     const { price } = latest;
