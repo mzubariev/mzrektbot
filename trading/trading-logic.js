@@ -17,7 +17,6 @@ class TradingLogic {
     this.binanceExchangeInfo = null;
     this.allTokensList = null;
     this.buffers = {};
-    this.cvdTrackers = {};
     this.pendingTrades = [];
     this.signalLog = [];
     this.tradeResults = [];
@@ -43,22 +42,20 @@ class TradingLogic {
       this.binanceExchangeInfo = binanceExchangeInfo;
       this.allTokensList = allTokensList;
 
-      this.binanceWs.updateAllTokensList(this.allTokensList);
-      this.binanceWs.initialize();
+      this.binanceWs.initialize(this.allTokensList);
 
       this.allTokensList.forEach(symbol => {
         this.buffers[symbol] = {
           index: 0,
           data: new Array(WINDOW_SIZE).fill(null)
         };
-        this.cvdTrackers[symbol] = 0;
       });
 
       this.telegramBot = telegramBot;
 
       await this.binanceWs.connect();
 
-      logger.info('Start liquidations listeners for all exchanges!');
+      logger.info('Start listeners for all data from Binance!');
       this.startMinuteTickListener();
       this.setAllIntervalTradeChecks();
 
@@ -148,7 +145,7 @@ class TradingLogic {
   }
 
   strategyEngine(symbol) {
-    const m30 = getDataWindow(symbol, 30);
+    const m30 = this.getDataWindow(symbol, 30);
     if (m30.length < 2) return; // not enough even for 1m trades
   
     const current = m30[m30.length - 1];
@@ -523,17 +520,17 @@ class TradingLogic {
 
   handleGetStatisticsInfo() {
     logger.info('=== INTERMEDIATE STATISTICS ===');
-    console.log(`buffers:\n${this.buffers}`);
-    console.log(`cvdTrackers:\n${this.cvdTrackers}`);
-    console.log(`pendingTrades:\n${this.pendingTrades}`);
-    console.log(`liquidationTimers:\n${this.liquidationTimers}`);
-    console.log(`signalLog:\n${this.signalLog}`);
-    console.log(`liquidationTimers:\n${this.liquidationTimers}`);
+    console.log(`buffers:\n${JSON.stringify(this.buffers, null, 2)}`);
+    console.log(`pendingTrades:\n${JSON.stringify(this.pendingTrades, null, 2)}`);
+    console.log(`liquidationTimers:\n${JSON.stringify(this.liquidationTimers, null, 2)}`);
+    console.log(`signalLog:\n${JSON.stringify(this.signalLog, null, 2)}`);
+    console.log(`liquidationTimers:\n${JSON.stringify(this.liquidationTimers, null, 2)}`);
   }
 
   updateBinanceExchangeInfo({ binanceExchangeInfo, allTokensList }) {
     this.binanceExchangeInfo = binanceExchangeInfo;
     this.allTokensList = allTokensList;
+    this.binanceWs.updateAllTokensList(this.allTokensList);
   }
 
   async updateDepositSizeConfig() {
@@ -569,7 +566,7 @@ class TradingLogic {
     const msToNextMinute = 60000 - (now % 60000);
     setTimeout(() => {
       setInterval(() => {
-        this.allTokensList.forEach(this.strategyEngine);
+        this.allTokensList.forEach(symbol => this.strategyEngine(symbol));
       
         this.pendingTrades.forEach(trade => {
           if (trade.closed) return;

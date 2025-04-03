@@ -47,9 +47,10 @@ class BinanceWssRestApi extends EventEmitter {
     this.events = new EventEmitter();
   }
 
-  initialize() {
-    this.fetchOpenInterest();
-    this.fetchFundingRates();
+  initialize(allTokensList) {
+    this.allTokensList = allTokensList;
+    // this.fetchOpenInterest();
+    // this.fetchFundingRates();
 
     // === Aligned 1-Minute Timer ===
     const now = Date.now();
@@ -102,6 +103,8 @@ class BinanceWssRestApi extends EventEmitter {
     };
 
     this.wsApi.send(JSON.stringify(authMessage));
+
+    logger.info(`Authenticated to WSS API!`);
   }
 
   generateSignature(timestamp) {
@@ -183,6 +186,7 @@ class BinanceWssRestApi extends EventEmitter {
   }
 
   async fetchOpenInterest() {
+    console.log(this.allTokensList);
     await Promise.all(this.allTokensList.map(async (symbol) => {
       try {
         const res = await axios.get(`${REST_API_URL2}/openInterestHist`, {
