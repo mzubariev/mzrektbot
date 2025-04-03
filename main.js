@@ -4,7 +4,6 @@ import TradingLogic from './trading/trading-logic.js';
 import TelegramBotWrapper from './telegram/telegram-bot.js';
 import logger from './utils/logger.js';
 import cron from 'node-cron';
-import getBinanceExchangeInfo from './utils/binance-exchange-info.js';
 import { enableIsolatedMarginForAll } from './utils/setIsolatedMarginModeBinance.js';
 
 dotenv.config();
@@ -24,7 +23,7 @@ async function main() {
     await tradingLogic.initialize(telegramBot);
 
     // Schedule isolated margin mode update for all tokens on Binance - every Sunday at 00:00
-    cron.schedule('0 0 * * 0', async () => {
+    cron.schedule('0 0 * * 0', () => {
       try {
         logger.info('CRON: Set Isolated margin mode to all USDT pairs on Binance!');
         enableIsolatedMarginForAll();
@@ -40,8 +39,7 @@ async function main() {
       try {
         logger.info('CRON: Running Binance info updates!');
 
-        const { binanceExchangeInfo, allTokensList } = await getBinanceExchangeInfo();
-        tradingLogic.updateBinanceExchangeInfo({ binanceExchangeInfo, allTokensList });
+        await tradingLogic.updateBinanceExchangeInfo();
         logger.info('Binance Exchnage info with all tokens details updated successfully!');
       } catch (error) {
         logger.error(`Error updating data via cron task:`);
@@ -50,7 +48,7 @@ async function main() {
     });
 
     // Schedule Wallet Amount (deposit size) auto-update in config - at the start of every hour
-    cron.schedule('0 * * * *', async () => {
+    cron.schedule('0 * * * *', () => {
       try {
         logger.info('CRON: Running Deposit Size update!');
 

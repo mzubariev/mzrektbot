@@ -38,11 +38,8 @@ class TradingLogic {
   async initialize(telegramBot) {
     try {
       // await enableIsolatedMarginForAll();
-      const { binanceExchangeInfo, allTokensList } = await getBinanceExchangeInfo();
-      this.binanceExchangeInfo = binanceExchangeInfo;
-      this.allTokensList = allTokensList;
 
-      this.binanceWs.initialize(this.allTokensList);
+      await this.updateBinanceExchangeInfo();
 
       this.allTokensList.forEach(symbol => {
         this.buffers[symbol] = {
@@ -54,6 +51,7 @@ class TradingLogic {
       this.telegramBot = telegramBot;
 
       await this.binanceWs.connect();
+      // await this.binanceWs.waitUntilAllTokensReady();
 
       logger.info('Start listeners for all data from Binance!');
       this.startMinuteTickListener();
@@ -520,20 +518,20 @@ class TradingLogic {
 
   handleGetStatisticsInfo() {
     logger.info('=== INTERMEDIATE STATISTICS ===');
-    console.log(`buffers:\n${JSON.stringify(this.buffers, null, 2)}`);
+    console.log(`buffers:\n${JSON.stringify(this.buffers["THEUSDT"].data[0], null, 2)}`);
     console.log(`pendingTrades:\n${JSON.stringify(this.pendingTrades, null, 2)}`);
-    console.log(`liquidationTimers:\n${JSON.stringify(this.liquidationTimers, null, 2)}`);
     console.log(`signalLog:\n${JSON.stringify(this.signalLog, null, 2)}`);
-    console.log(`liquidationTimers:\n${JSON.stringify(this.liquidationTimers, null, 2)}`);
+    console.log(`tradeResults:\n${JSON.stringify(this.tradeResults, null, 2)}`);
   }
 
-  updateBinanceExchangeInfo({ binanceExchangeInfo, allTokensList }) {
-    this.binanceExchangeInfo = binanceExchangeInfo;
+  async updateBinanceExchangeInfo() {
+    const { formattedData, allTokensList } = await getBinanceExchangeInfo();
+    this.binanceExchangeInfo = formattedData;
     this.allTokensList = allTokensList;
-    this.binanceWs.updateAllTokensList(this.allTokensList);
+    this.binanceWs.updateAllTokensList(allTokensList);
   }
 
-  async updateDepositSizeConfig() {
+  updateDepositSizeConfig() {
     logger.info('Updating Deposit Size config...');
     const walletBalance = this.binanceWs.accountInfo.walletBalance;
     config.setConfig({ "depositSize": walletBalance });

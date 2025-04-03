@@ -15,6 +15,7 @@ async function getBinanceExchangeInfo() {
     const formattedData = data.symbols.reduce((acc, symbolInfo) => {
       // Only keep USDT-margined perpetual contracts
       if (
+        symbolInfo.status !== 'TRADING' ||
         symbolInfo.contractType !== 'PERPETUAL' ||
         symbolInfo.quoteAsset !== 'USDT'
       ) return acc;
