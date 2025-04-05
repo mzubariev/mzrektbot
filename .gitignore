@@ -8,3 +8,5 @@ node_modules/
 output**.log
 token-data.json
 binance-exchange-info.json
+signal-log.json
+trade-results.json

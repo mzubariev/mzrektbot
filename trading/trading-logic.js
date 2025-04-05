@@ -123,8 +123,8 @@ class TradingLogic {
   
       const direction = side === 'LONG' ? 'LONG' : 'SHORT';
       const valid = side === 'LONG'
-        ? priceChange > 0 && oiChange > 0
-        : priceChange < 0 && oiChange < 0;
+        ? priceChange > 0
+        : priceChange < 0;
   
       if (valid && this.filterLiquidationTrade(symbol, direction) && this.passesMomentumFilter(symbol, direction)) {
         this.logSignal(symbol, direction, `Liquidation of ${side}s + Price/OI ${side === 'LONG' ? 'rebound' : 'drop'} (post-30s)`);
@@ -140,6 +140,13 @@ class TradingLogic {
     if (reason.includes('Liquidation')) return 0.0015;
     if (reason.includes('Volume spike')) return 0.003;
     return 0.002;
+  }
+
+  sumLastMinutes(m30, field, count, offset = 0) {
+    return Array.from({ length: count }, (_, i) => {
+      const dataPoint = m30[m30.length - 1 - offset - i];
+      return dataPoint?.[field] || 0;
+    }).reduce((acc, v) => acc + v, 0);
   }
 
   strategyEngine(symbol) {
@@ -169,12 +176,22 @@ class TradingLogic {
     const funding = current.funding;
   
     // Open Interest Triggers
-    if (oiChange1m <= -1 && priceChange1m < 0 && cvdChange1m < 0) {
+    if (oiChange1m <= -1 && priceChange1m < 0) {
       if (this.filterTrade(symbol, 'SHORT') && this.passesMomentumFilter(symbol, 'SHORT', { rsiLow: 30 })) this.logSignal(symbol, 'SHORT', 'OI -1%+ down + Price down + CVD down (1m)');
     }
-  
-    if (oiChange12m >= 2 && priceChange1m > 0 && cvdChange1m > 0 && volume12m > 2 * (m12[0]?.volume || 1)) {
-      if (this.filterTrade(symbol, 'LONG') && this.passesMomentumFilter(symbol, 'LONG', { rsiHigh: 70 })) this.logSignal(symbol, 'LONG', 'OI +2% (12m) + Price/CVD up + Volume spike');
+
+    // Include Volume exploasion
+    if (m30.length >= 24) {
+      const recentVolume12 = this.sumLastMinutes(m30, 'volume', 12);
+      const previousVolume12 = this.sumLastMinutes(m30, 'volume', 12, 12);
+    
+      const volumeExploded = recentVolume12 >= 2 * previousVolume12;
+    
+      if (oiChange12m >= 2 && priceChange1m > 0 && volumeExploded) {
+        if (this.filterTrade(symbol, 'LONG') && this.passesMomentumFilter(symbol, 'LONG', { rsiHigh: 70 })) {
+          this.logSignal(symbol, 'LONG', 'OI +2% (12m) + Price up + Volume spike');
+        }
+      }
     }
   
     if (oiChange30m >= 15 && priceChange1m < 0 && cvdChange1m < 0) {
@@ -182,20 +199,20 @@ class TradingLogic {
     }
   
     // Price Triggers
-    if (priceChange5m >= 3 && oiChange1m > 0 && cvdChange1m > 0) {
+    if (priceChange5m >= 3 && oiChange1m > 0) {
       if (this.filterTrade(symbol, 'LONG') && this.passesMomentumFilter(symbol, 'LONG')) this.logSignal(symbol, 'LONG', 'Price +3% (5m) + OI/CVD up (1m)');
     }
   
-    if (priceChange15m <= -10 && oiChange1m > 0 && cvdChange1m > 0) {
+    if (priceChange15m <= -10 && oiChange1m > 0) {
       if (this.filterTrade(symbol, 'LONG') && this.passesMomentumFilter(symbol, 'LONG')) this.logSignal(symbol, 'LONG', 'Price -10% (15m) + OI/CVD up (1m)');
     }
   
-    if (priceChange20m >= 10 && oiChange1m < 0 && cvdChange1m < 0) {
+    if (priceChange20m >= 10 && oiChange1m < 0) {
       if (this.filterTrade(symbol, 'SHORT') && this.passesMomentumFilter(symbol, 'SHORT')) this.logSignal(symbol, 'SHORT', 'Price +10% (20m) + OI/CVD down (1m)');
     }
   
     // Funding Trigger
-    if (funding <= -0.1 && priceChange1m > 0 && oiChange1m > 0) {
+    if (funding <= -0.1 && priceChange1m > 0) {
       if (this.filterTrade(symbol, 'LONG') && this.passesMomentumFilter(symbol, 'LONG')) this.logSignal(symbol, 'LONG', 'Funding -0.1% or less + OI/Price up');
     }
   }
@@ -205,6 +222,8 @@ class TradingLogic {
     const timestamp = getCurrentTimestamp();
     const latest = this.getDataWindow(symbol, 1)[0];
     const entryPrice = latest?.price;
+
+    const tickSize = this.binanceExchangeInfo[symbol].tickSize;
   
     const rawTP = direction === 'LONG'
       ? entryPrice * (1 + this.getTakeProfitMultiplier(reason))
