@@ -317,7 +317,7 @@ class TradingLogic {
     return true;
   }
 
-  buildVolumeProfile(symbol, windowSize = 15) {
+  buildVolumeProfile(symbol, windowSize = 30) {
     const m = this.getDataWindow(symbol, windowSize);
     const volumeBins = {};
     const current = m[m.length - 1];
