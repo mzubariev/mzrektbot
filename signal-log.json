@@ -1,1 +1,282 @@
-[]
+[
+  {
+    "timestamp": 1744119120,
+    "symbol": "BADGERUSDT",
+    "direction": "LONG",
+    "reason": "Funding -0.1% or less + OI/Price up",
+    "entryPrice": 0.8331,
+    "takeProfit": 0.8347661999999999,
+    "history": [
+      0.8331,
+      0.8298,
+      0.8312,
+      0.8326,
+      0.8296,
+      0.8281,
+      0.8239,
+      0.8246,
+      0.8273,
+      0.8298,
+      0.8289,
+      0.8316,
+      0.8307,
+      0.8319,
+      0.8312,
+      0.8312,
+      0.8337,
+      0.8368
+    ],
+    "closed": false,
+    "coinglass": "https://www.coinglass.com/tv/Binance_BADGERUSDT"
+  },
+  {
+    "timestamp": 1744119240,
+    "symbol": "ARKUSDT",
+    "direction": "LONG",
+    "reason": "Funding -0.1% or less + OI/Price up",
+    "entryPrice": 0.3422,
+    "takeProfit": 0.3428844,
+    "history": [
+      0.3422,
+      0.3422,
+      0.3425,
+      0.3431
+    ],
+    "closed": false,
+    "coinglass": "https://www.coinglass.com/tv/Binance_ARKUSDT"
+  },
+  {
+    "timestamp": 1744119240,
+    "symbol": "BADGERUSDT",
+    "direction": "LONG",
+    "reason": "Funding -0.1% or less + OI/Price up",
+    "entryPrice": 0.8312,
+    "takeProfit": 0.8328624,
+    "history": [
+      0.8312,
+      0.8326,
+      0.8296,
+      0.8281,
+      0.8239,
+      0.8246,
+      0.8273,
+      0.8298,
+      0.8289,
+      0.8316,
+      0.8307,
+      0.8319,
+      0.8312,
+      0.8312,
+      0.8337
+    ],
+    "closed": false,
+    "coinglass": "https://www.coinglass.com/tv/Binance_BADGERUSDT"
+  },
+  {
+    "timestamp": 1744119240,
+    "symbol": "MELANIAUSDT",
+    "direction": "LONG",
+    "reason": "Funding -0.1% or less + OI/Price up",
+    "entryPrice": 0.543,
+    "takeProfit": 0.5440860000000001,
+    "history": [
+      0.543,
+      0.542,
+      0.542,
+      0.542,
+      0.538,
+      0.536,
+      0.537,
+      0.537,
+      0.536,
+      0.538,
+      0.537,
+      0.538,
+      0.538,
+      0.54,
+      0.541,
+      0.54,
+      0.54
+    ],
+    "closed": false,
+    "coinglass": "https://www.coinglass.com/tv/Binance_MELANIAUSDT"
+  },
+  {
+    "timestamp": 1744119480,
+    "symbol": "JASMYUSDT",
+    "direction": "SHORT",
+    "reason": "OI -1%+ down + Price down + CVD down (1m)",
+    "entryPrice": 0.011243,
+    "takeProfit": 0.011220514,
+    "history": [
+      0.011243,
+      0.011254,
+      0.011286,
+      0.011321,
+      0.011279,
+      0.011253,
+      0.011257,
+      0.011281,
+      0.011246,
+      0.011291,
+      0.011372,
+      0.011356,
+      0.011272
+    ],
+    "closed": false,
+    "coinglass": "https://www.coinglass.com/tv/Binance_JASMYUSDT"
+  },
+  {
+    "timestamp": 1744119540,
+    "symbol": "NULSUSDT",
+    "direction": "LONG",
+    "reason": "Price +3% (5m) + OI/CVD up (1m)",
+    "entryPrice": 0.0473,
+    "takeProfit": 0.047400000000000005,
+    "history": [
+      0.0473,
+      0.0472,
+      0.047,
+      0.047,
+      0.0465,
+      0.0462,
+      0.0462,
+      0.0462,
+      0.046,
+      0.0461,
+      0.0464,
+      0.0469
+    ],
+    "closed": false,
+    "coinglass": "https://www.coinglass.com/tv/Binance_NULSUSDT"
+  },
+  {
+    "timestamp": 1744119600,
+    "symbol": "MELANIAUSDT",
+    "direction": "LONG",
+    "reason": "Funding -0.1% or less + OI/Price up",
+    "entryPrice": 0.537,
+    "takeProfit": 0.538074,
+    "history": [
+      0.537,
+      0.537,
+      0.536,
+      0.538,
+      0.537,
+      0.538,
+      0.538,
+      0.54
+    ],
+    "closed": false,
+    "coinglass": "https://www.coinglass.com/tv/Binance_MELANIAUSDT"
+  },
+  {
+    "timestamp": 1744119660,
+    "symbol": "BADGERUSDT",
+    "direction": "LONG",
+    "reason": "Funding -0.1% or less + OI/Price up",
+    "entryPrice": 0.8298,
+    "takeProfit": 0.8314596,
+    "history": [
+      0.8298,
+      0.8289,
+      0.8316
+    ],
+    "closed": false,
+    "coinglass": "https://www.coinglass.com/tv/Binance_BADGERUSDT"
+  },
+  {
+    "timestamp": 1744119780,
+    "symbol": "MELANIAUSDT",
+    "direction": "LONG",
+    "reason": "Funding -0.1% or less + OI/Price up",
+    "entryPrice": 0.538,
+    "takeProfit": 0.539076,
+    "history": [
+      0.538,
+      0.537,
+      0.538,
+      0.538,
+      0.54
+    ],
+    "closed": false,
+    "coinglass": "https://www.coinglass.com/tv/Binance_MELANIAUSDT"
+  },
+  {
+    "timestamp": 1744119900,
+    "symbol": "EDUUSDT",
+    "direction": "SHORT",
+    "reason": "OI -1%+ down + Price down + CVD down (1m)",
+    "entryPrice": 0.1353,
+    "takeProfit": 0.1350294,
+    "history": [
+      0.1353,
+      0.1357,
+      0.1362,
+      0.1365,
+      0.1363,
+      0.136
+    ],
+    "closed": false,
+    "coinglass": "https://www.coinglass.com/tv/Binance_EDUUSDT"
+  },
+  {
+    "timestamp": 1744120020,
+    "symbol": "TUSDT",
+    "direction": "LONG",
+    "reason": "Funding -0.1% or less + OI/Price up",
+    "entryPrice": 0.01327,
+    "takeProfit": 0.01329654,
+    "history": [
+      0.01327,
+      0.01331
+    ],
+    "closed": false,
+    "coinglass": "https://www.coinglass.com/tv/Binance_TUSDT"
+  },
+  {
+    "timestamp": 1744120020,
+    "symbol": "MELANIAUSDT",
+    "direction": "LONG",
+    "reason": "Funding -0.1% or less + OI/Price up",
+    "entryPrice": 0.54,
+    "takeProfit": 0.54108,
+    "history": [
+      0.54,
+      0.541,
+      0.54,
+      0.54
+    ],
+    "closed": false,
+    "coinglass": "https://www.coinglass.com/tv/Binance_MELANIAUSDT"
+  },
+  {
+    "timestamp": 1744120080,
+    "symbol": "NULSUSDT",
+    "direction": "LONG",
+    "reason": "Funding -0.1% or less + OI/Price up",
+    "entryPrice": 0.0461,
+    "takeProfit": 0.046200000000000005,
+    "history": [
+      0.0461,
+      0.0464
+    ],
+    "closed": false,
+    "coinglass": "https://www.coinglass.com/tv/Binance_NULSUSDT"
+  },
+  {
+    "timestamp": 1744120080,
+    "symbol": "MELANIAUSDT",
+    "direction": "LONG",
+    "reason": "Funding -0.1% or less + OI/Price up",
+    "entryPrice": 0.541,
+    "takeProfit": 0.5420820000000001,
+    "history": [
+      0.541,
+      0.54,
+      0.54
+    ],
+    "closed": false,
+    "coinglass": "https://www.coinglass.com/tv/Binance_MELANIAUSDT"
+  }
+]

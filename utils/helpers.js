@@ -31,7 +31,7 @@ export function getBotTradeSide(liquidationSide) {
 }
 
 export function getPercentChange(start, end) {
-  if (!start || !end || start === 0) return 0;
+  if (typeof start !== 'number' || typeof end !== 'number' || start === 0) return 0;
   return ((end - start) / start) * 100;
 }
 
