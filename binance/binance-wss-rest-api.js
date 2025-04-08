@@ -344,7 +344,7 @@ class BinanceWssRestApi extends EventEmitter {
       logger.info(`Connected to ${WSS_URL_STREAMS} Market Streams!`);
       clearTimeout(this.reconnectTimer);
       this.subscribeToFuturesPriceVolume();
-      this.subscribeToCVD();
+      // this.subscribeToCVD();
       this.subscribeToLiquidations();
     });
     this.wsMarketStreams.on('message', (data) => {

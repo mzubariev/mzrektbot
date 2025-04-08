@@ -161,7 +161,7 @@ class TradingLogic {
     const last = (offset) => m30[m30.length - 1 - offset];
 
     const priceChange1m = m30.length >= 2 ? getPercentChange(last(1)?.price, current.price) : null;
-    const cvdChange1m = m30.length >= 2 ? getPercentChange(last(1)?.cvd, current.cvd) : null;
+    // const cvdChange1m = m30.length >= 2 ? getPercentChange(last(1)?.cvd, current.cvd) : null;
     const oiChange1m = m30.length >= 2 ? getPercentChange(last(1)?.openInterest, current.openInterest) : null;
   
     const priceChange5m = m30.length >= 6 ? getPercentChange(last(5)?.price, current.price) : null;
@@ -174,7 +174,7 @@ class TradingLogic {
     const funding = current.funding;
   
     // Open Interest Triggers
-    if (oiChange1m <= -1 && priceChange1m < 0.1 && cvdChange1m < 0.3) {
+    if (oiChange1m <= -1 && priceChange1m < 0.1) {
       if (this.filterTrade(symbol, 'SHORT') && this.passesMomentumFilter(symbol, 'SHORT', { rsiLow: 30 })) this.logSignal(symbol, 'SHORT', 'OI -1%+ down + Price down + CVD down (1m)');
     }
 
@@ -185,27 +185,27 @@ class TradingLogic {
     
       const volumeExploded = recentVolume12 >= 2 * previousVolume12;
     
-      if (oiChange12m >= 2 && priceChange1m > 0.1 && cvdChange1m > 0.3 && volumeExploded) {
+      if (oiChange12m >= 2 && priceChange1m > 0.1 && volumeExploded) {
         if (this.filterTrade(symbol, 'LONG') && this.passesMomentumFilter(symbol, 'LONG', { rsiHigh: 70 })) {
           this.logSignal(symbol, 'LONG', 'OI +2% (12m) + Price up + Volume spike');
         }
       }
     }
   
-    if (oiChange30m >= 15 && priceChange1m < 0.1 && cvdChange1m < 0.3) {
+    if (oiChange30m >= 15 && priceChange1m < 0.1) {
       if (this.filterTrade(symbol, 'SHORT') && this.passesMomentumFilter(symbol, 'SHORT')) this.logSignal(symbol, 'SHORT', 'OI +15% (30m) + Price/CVD down (1m)');
     }
   
     // Price Triggers
-    if (priceChange5m >= 3 && oiChange1m > 0.2 && cvdChange1m > 0.3) {
+    if (priceChange5m >= 3 && oiChange1m > 0.2) {
       if (this.filterTrade(symbol, 'LONG') && this.passesMomentumFilter(symbol, 'LONG')) this.logSignal(symbol, 'LONG', 'Price +3% (5m) + OI/CVD up (1m)');
     }
   
-    if (priceChange15m <= -10 && oiChange1m > 0.2 && cvdChange1m > 0.3) {
+    if (priceChange15m <= -10 && oiChange1m > 0.2) {
       if (this.filterTrade(symbol, 'LONG') && this.passesMomentumFilter(symbol, 'LONG')) this.logSignal(symbol, 'LONG', 'Price -10% (15m) + OI/CVD up (1m)');
     }
   
-    if (priceChange20m >= 10 && oiChange1m < 0.2 && cvdChange1m < 0.3) {
+    if (priceChange20m >= 10 && oiChange1m < 0.2) {
       if (this.filterTrade(symbol, 'SHORT') && this.passesMomentumFilter(symbol, 'SHORT')) this.logSignal(symbol, 'SHORT', 'Price +10% (20m) + OI/CVD down (1m)');
     }
   
