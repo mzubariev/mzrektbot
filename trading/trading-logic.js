@@ -81,12 +81,9 @@ class TradingLogic {
     const buffer = this.buffers[symbol];
     buffer.data[buffer.index] = newData;
     buffer.index = (buffer.index + 1) % WINDOW_SIZE;
-    console.log(`UpdateBuffer:\n${JSON.stringify(buffer, null, 2)}\n`);
   }
 
   startMinuteTickListener() {
-    console.log(this.allTokensList.length);
-    console.log(this.buffers.length);
     this.binanceWs.events.on('message:minuteTick', (data) => {
       this.updateBuffer(data.symbol, data);
     });
@@ -169,9 +166,16 @@ class TradingLogic {
     const priceChange20m = m30.length >= 21 ? getPercentChange(last(20)?.price, current.price) : null;
   
     const oiChange12m = m30.length >= 13 ? getPercentChange(last(12)?.openInterest, current.openInterest) : null;
-    const oiChange30m = m30.length === 30 ? getPercentChange(last(29)?.openInterest, current.openInterest) : null;
+    const oiChange30m = m30.length >= 30 ? getPercentChange(last(29)?.openInterest, current.openInterest) : null;
   
     const funding = current.funding;
+
+    console.log(`CURRENT: ${JSON.stringify(current, null, 2)}\n`);
+    console.log(`1mago: ${JSON.stringify(last(1), null, 2)}\n`);
+    console.log(`5mago: ${JSON.stringify(last(5), null, 2)}\n`);
+    console.log(`12mago: ${JSON.stringify(last(12), null, 2)}\n`);
+    console.log(`15mago: ${JSON.stringify(last(15), null, 2)}\n`);
+    console.log(`20mago: ${JSON.stringify(last(20), null, 2)}\n\n`);
   
     // Open Interest Triggers
     if (oiChange1m <= -1 && priceChange1m < 0.1) {
