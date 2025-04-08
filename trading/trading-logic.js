@@ -9,6 +9,7 @@ import { enableIsolatedMarginForAll } from '../utils/setIsolatedMarginModeBinanc
 
 const STUCK_ORDER_STATUSES_TO_ALERT = ['NEW', 'PARTIALLY_FILLED', 'CANCELED', 'REJECTED'];
 const WINDOW_SIZE = 30; // 30 minutes (1-minute intervals)
+const SKIP_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'ETHBTC'];
 
 class TradingLogic {
   constructor({ binanceApiKey, binanceSecretKey }) {
@@ -51,11 +52,9 @@ class TradingLogic {
       this.telegramBot = telegramBot;
 
       await this.binanceWs.connect();
-
-      logger.info('Start listeners for all data from Binance!');
+      logger.info('Starting listeners for all data from Binance...');
       this.startMinuteTickListener();
       this.setAllIntervalTradeChecks();
-
       this.startLiquidationsListener();
 
     } catch (error) {
@@ -82,9 +81,12 @@ class TradingLogic {
     const buffer = this.buffers[symbol];
     buffer.data[buffer.index] = newData;
     buffer.index = (buffer.index + 1) % WINDOW_SIZE;
+    console.log(`UpdateBuffer:\n${JSON.stringify(buffer, null, 2)}\n`);
   }
 
   startMinuteTickListener() {
+    console.log(this.allTokensList.length);
+    console.log(this.buffers.length);
     this.binanceWs.events.on('message:minuteTick', (data) => {
       this.updateBuffer(data.symbol, data);
     });
@@ -99,8 +101,8 @@ class TradingLogic {
   handleLiquidation(liquidation) {
     const { s: symbol, S: side } = liquidation;
 
-    if (['BTCUSDT', 'ETHUSDT'].includes(symbol)) {
-      logger.warn(`Skipping BTCUSDT and ETHUSDT for now...`);
+    if (this.shouldSkipSymbol(symbol)) {
+      logger.warn(`Skipping unused tokens for now...`);
       return;
     }
 
@@ -114,6 +116,7 @@ class TradingLogic {
       }
       
       const m1 = this.getDataWindow(symbol, 1);
+      if (!m1) return;
       const latest = m1[m1.length - 1];
       if (!latest) return;
   
@@ -277,6 +280,14 @@ class TradingLogic {
       logger.warn(`Skipping the trade since there are already ${this.binanceWs.positionsInfo[symbol][positionSide].ordersAmount} orders opened for this token! Wait till they are closed...`);
       return;
     }
+  }
+
+  shouldSkipSymbol(symbol) {
+    return (
+      symbol.includes('USDC') ||
+      symbol.includes('_') ||
+      SKIP_SYMBOLS.includes(symbol)
+    );
   }
   
   calculateRSI(symbol, period = 14) {
@@ -531,11 +542,8 @@ class TradingLogic {
   }
 
   handleGetStatisticsInfo() {
-    logger.info('=== INTERMEDIATE STATISTICS ===');
-    console.log(`buffers:\n${JSON.stringify(this.buffers["THEUSDT"].data[0], null, 2)}`);
-    console.log(`pendingTrades:\n${JSON.stringify(this.pendingTrades, null, 2)}`);
-    console.log(`signalLog:\n${JSON.stringify(this.signalLog, null, 2)}`);
-    console.log(`tradeResults:\n${JSON.stringify(this.tradeResults, null, 2)}`);
+    logger.info('=== INTERMEDIATE STATISTICS for BTC ===');
+    console.log(`buffers:\n${JSON.stringify(this.buffers["BTCUSDT"], null, 2)}`);
   }
 
   async updateBinanceExchangeInfo() {
@@ -620,8 +628,8 @@ class TradingLogic {
       // Export trade results and signal log every 5 minutes
       setInterval(() => {
         try {
-          fs.writeFileSync('signal-log.json', JSON.stringify(this.signalLog, null, 2));
-          fs.writeFileSync('trade-results.json', JSON.stringify(this.tradeResults, null, 2));
+          fs.writeFileSync('testing/signal-log.json', JSON.stringify(this.signalLog, null, 2));
+          fs.writeFileSync('testing/trade-results.json', JSON.stringify(this.tradeResults, null, 2));
           console.log('💾 Exported signal log and trade results');
         } catch (err) {
           console.error('Error exporting data:', err.message);

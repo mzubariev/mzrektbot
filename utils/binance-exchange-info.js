@@ -6,7 +6,7 @@ const ORDERBOOK_DEPTHS = [10, 20, 50, 100, 500, 1000];
 
 async function getBinanceExchangeInfo() {
   try {
-    logger.info('Starting to parse info to: ./binance-exchange-info.json. Takes ~2 minutes...');
+    logger.info('Starting to parse info to: ./binance-exchange-info.json...');
 
     const response = await axios.get('https://fapi.binance.com/fapi/v1/exchangeInfo');
     const data = response.data;

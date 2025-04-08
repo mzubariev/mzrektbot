@@ -14,7 +14,6 @@ EventEmitter.defaultMaxListeners = 30;
 const REST_API_URL = 'https://fapi.binance.com/fapi/v1';
 const WSS_URL_API = 'wss://ws-fapi.binance.com/ws-fapi/v1';
 const WSS_URL_STREAMS = 'wss://fstream.binance.com/ws';
-const WSS_URL_STREAMS_SPOT = 'wss://stream.binance.com:9443/ws';
 
 class BinanceWssRestApi extends EventEmitter {
   constructor(apiKey, secretKeyRaw) {
@@ -25,7 +24,6 @@ class BinanceWssRestApi extends EventEmitter {
     this.wsMarketStreams = null;
     this.wsApi = null;
     this.wsUserDataStreams = null;
-    this.wsMarketStreamsSpot = null;
 
     this.reconnectTimerStreamsWs = null;
     this.reconnectTimerApiWs = null;
@@ -140,23 +138,6 @@ class BinanceWssRestApi extends EventEmitter {
     }
   }
 
-  async fetchInitialFuturesPriceVolume() {
-    try {
-      const response = await axios.get(`${REST_API_URL}/ticker/24hr`);
-      response.data.forEach(ticker => {
-        const symbol = ticker.symbol.toUpperCase();
-        if (!symbol.includes('USDC') && !symbol.includes('_') && !symbol.includes('ETHBTC')) {
-          const price = parseFloat(ticker.lastPrice);
-          const volume = parseFloat(ticker.volume);
-          this.priceVolumeCache[symbol] = { price, volume };
-        }
-      });
-      logger.info('[Startup] Loaded price/volume snapshot for all futures tokens');
-    } catch (err) {
-      logger.error('Error fetching futures ticker snapshot:', err.message);
-    }
-  }
-
   async startIntervalsToCollectBinanceData() {
     // ✅ Fetch all prices + volumes once at startup (REST snapshot)
     await this.fetchInitialFuturesPriceVolume();
@@ -220,6 +201,23 @@ class BinanceWssRestApi extends EventEmitter {
       setInterval(() => this.fetchOpenInterestLive(), 60000);
       setInterval(() => this.fetchFundingRates(), 180000);
     }, msToNextMinute);
+  }
+
+  async fetchInitialFuturesPriceVolume() {
+    try {
+      const response = await axios.get(`${REST_API_URL}/ticker/24hr`);
+      response.data.forEach(ticker => {
+        const symbol = ticker.symbol.toUpperCase();
+        if (!symbol.includes('USDC') && !symbol.includes('_') && !symbol.includes('ETHBTC')) {
+          const price = parseFloat(ticker.lastPrice);
+          const volume = parseFloat(ticker.volume);
+          this.priceVolumeCache[symbol] = { price, volume };
+        }
+      });
+      logger.info('[Startup] Loaded price/volume snapshot for all futures tokens');
+    } catch (err) {
+      logger.error('Error fetching futures ticker snapshot:', err.message);
+    }
   }
 
   async fetchFundingRates() {
@@ -346,6 +344,7 @@ class BinanceWssRestApi extends EventEmitter {
       logger.info(`Connected to ${WSS_URL_STREAMS} Market Streams!`);
       clearTimeout(this.reconnectTimer);
       this.subscribeToFuturesPriceVolume();
+      this.subscribeToCVD();
       this.subscribeToLiquidations();
     });
     this.wsMarketStreams.on('message', (data) => {
@@ -355,6 +354,16 @@ class BinanceWssRestApi extends EventEmitter {
         // === Liquidations ===
         if (message.e === 'forceOrder' && !message.o.s.includes('USDC')) {
           this.events.emit('message:liquidation', message.o);
+        }
+
+        else if (message.e === 'aggTrade') {
+          const symbol = message.s.toUpperCase();
+          const volume = parseFloat(message.q);
+          const maker = message.m;
+
+          const delta = maker ? -volume : volume;
+          if (!this.cvdMinuteDelta[symbol]) this.cvdMinuteDelta[symbol] = 0;
+          this.cvdMinuteDelta[symbol] += delta;
         }
 
         // === Futures Ticker Updates ===
@@ -389,52 +398,6 @@ class BinanceWssRestApi extends EventEmitter {
       console.error(error);
       this.reconnect(WSS_URL_STREAMS);
     });
-
-    // WSS Market Streams SPOT
-
-    this.wsMarketStreamsSpot = new WebSocket(WSS_URL_STREAMS_SPOT);
-
-    this.wsMarketStreamsSpot.on('open', () => {
-      logger.info(`Connected to ${WSS_URL_STREAMS_SPOT} Market Streams Spot!`);
-      clearTimeout(this.reconnectTimer);
-      this.subscribeToSpotCVD();
-    });
-    this.wsMarketStreamsSpot.on('message', (data) => {
-      try {
-        const message = JSON.parse(data);
-
-        // === Spot CVD via AggTrade ===
-        if (message.e === 'aggTrade') {
-          const symbol = message.s.toUpperCase();
-          const volume = parseFloat(message.q);
-          const maker = message.m;
-
-          const delta = maker ? -volume : volume;
-          if (!this.cvdMinuteDelta[symbol]) this.cvdMinuteDelta[symbol] = 0;
-          this.cvdMinuteDelta[symbol] += delta;
-        }
-
-        // === Error Handler ===
-        else if (message.error) {
-          throw new Error(`ERROR: ${message.error}`);
-        }
-      } catch (error) {
-        logger.error('Error parsing Binance WebSocket SPOT message:');
-        console.error(error);
-      }
-    });
-    this.wsMarketStreamsSpot.on('close', () => {
-      logger.info(`Disconnected from ${WSS_URL_STREAMS_SPOT}!`);
-      if (!this.isForceDisconnectStreamsWs) {
-        this.reconnect(WSS_URL_STREAMS_SPOT);
-      }
-      this.isForceDisconnectStreamsWs = false;
-    });
-    this.wsMarketStreamsSpot.on('error', (error) => {
-      logger.error(`WebSocket error for ${WSS_URL_STREAMS_SPOT}:`);
-      console.error(error);
-      this.reconnect(WSS_URL_STREAMS_SPOT);
-    });
   }
 
   subscribeToLiquidations() {
@@ -457,10 +420,10 @@ class BinanceWssRestApi extends EventEmitter {
     );
   }
   
-  subscribeToSpotCVD() {
+  subscribeToCVD() {
     const streams = this.allTokensList.map(symbol => `${symbol.toLowerCase()}@aggTrade`);
   
-    this.wsMarketStreamsSpot.send(
+    this.wsMarketStreams.send(
       JSON.stringify({
         method: 'SUBSCRIBE',
         params: streams,
