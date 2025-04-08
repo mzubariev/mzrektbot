@@ -139,14 +139,10 @@ class BinanceWssRestApi extends EventEmitter {
   }
 
   async startIntervalsToCollectBinanceData() {
-    // ✅ Fetch all prices + volumes once at startup (REST snapshot)
     await this.fetchInitialFuturesPriceVolume();
-  
-    // ✅ Fetch funding and open interest once immediately
     await this.fetchOpenInterestLive();
     await this.fetchFundingRates();
   
-    // ✅ Emit one tick immediately for current data
     const timestamp = getCurrentTimestamp();
   
     for (const symbol of this.allTokensList) {
@@ -344,7 +340,6 @@ class BinanceWssRestApi extends EventEmitter {
       logger.info(`Connected to ${WSS_URL_STREAMS} Market Streams!`);
       clearTimeout(this.reconnectTimer);
       this.subscribeToFuturesPriceVolume();
-      // this.subscribeToCVD();
       this.subscribeToLiquidations();
     });
     this.wsMarketStreams.on('message', (data) => {

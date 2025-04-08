@@ -158,7 +158,6 @@ class TradingLogic {
     const last = (offset) => m30[m30.length - 1 - offset];
 
     const priceChange1m = m30.length >= 2 ? getPercentChange(last(1)?.price, current.price) : null;
-    // const cvdChange1m = m30.length >= 2 ? getPercentChange(last(1)?.cvd, current.cvd) : null;
     const oiChange1m = m30.length >= 2 ? getPercentChange(last(1)?.openInterest, current.openInterest) : null;
   
     const priceChange5m = m30.length >= 6 ? getPercentChange(last(5)?.price, current.price) : null;
@@ -169,13 +168,6 @@ class TradingLogic {
     const oiChange30m = m30.length >= 30 ? getPercentChange(last(29)?.openInterest, current.openInterest) : null;
   
     const funding = current.funding;
-
-    console.log(`CURRENT: ${JSON.stringify(current, null, 2)}\n`);
-    console.log(`1mago: ${JSON.stringify(last(1), null, 2)}\n`);
-    console.log(`5mago: ${JSON.stringify(last(5), null, 2)}\n`);
-    console.log(`12mago: ${JSON.stringify(last(12), null, 2)}\n`);
-    console.log(`15mago: ${JSON.stringify(last(15), null, 2)}\n`);
-    console.log(`20mago: ${JSON.stringify(last(20), null, 2)}\n\n`);
   
     // Open Interest Triggers
     if (oiChange1m <= -1 && priceChange1m < 0.1) {
