@@ -12,9 +12,9 @@ EventEmitter.defaultMaxListeners = 30;
 //process.setMaxListeners(100);
 
 const REST_API_URL = 'https://fapi.binance.com/fapi/v1';
-const WSS_URL_STREAMS_SPOT = 'wss://stream.binance.com:9443/ws';
-const WSS_URL_STREAMS = 'wss://fstream.binance.com/ws';
 const WSS_URL_API = 'wss://ws-fapi.binance.com/ws-fapi/v1';
+const WSS_URL_STREAMS = 'wss://fstream.binance.com/ws';
+const WSS_URL_STREAMS_SPOT = 'wss://stream.binance.com:9443/ws';
 
 class BinanceWssRestApi extends EventEmitter {
   constructor(apiKey, secretKeyRaw) {
@@ -140,20 +140,40 @@ class BinanceWssRestApi extends EventEmitter {
     }
   }
 
+  async fetchInitialFuturesPriceVolume() {
+    try {
+      const response = await axios.get(`${REST_API_URL}/ticker/24hr`);
+      response.data.forEach(ticker => {
+        const symbol = ticker.symbol.toUpperCase();
+        if (!symbol.includes('USDC') && !symbol.includes('_') && !symbol.includes('ETHBTC')) {
+          const price = parseFloat(ticker.lastPrice);
+          const volume = parseFloat(ticker.volume);
+          this.priceVolumeCache[symbol] = { price, volume };
+        }
+      });
+      logger.info('[Startup] Loaded price/volume snapshot for all futures tokens');
+    } catch (err) {
+      logger.error('Error fetching futures ticker snapshot:', err.message);
+    }
+  }
+
   async startIntervalsToCollectBinanceData() {
-    // ✅ Fetch all data immediately (pre-warm)
+    // ✅ Fetch all prices + volumes once at startup (REST snapshot)
+    await this.fetchInitialFuturesPriceVolume();
+  
+    // ✅ Fetch funding and open interest once immediately
     await this.fetchOpenInterestLive();
     await this.fetchFundingRates();
-
+  
     // ✅ Emit one tick immediately for current data
     const timestamp = getCurrentTimestamp();
-
+  
     for (const symbol of this.allTokensList) {
       const { price = null, volume = null } = this.priceVolumeCache[symbol] || {};
       const cvd = this.cvdMinuteDelta[symbol] || 0;
       const funding = this.latestFundingRates[symbol] ?? null;
       const openInterest = this.latestOpenInterest[symbol] ?? null;
-
+  
       this.events.emit('message:minuteTick', {
         symbol,
         timestamp,
@@ -163,25 +183,25 @@ class BinanceWssRestApi extends EventEmitter {
         funding,
         openInterest,
       });
-
+  
       this.cvdMinuteDelta[symbol] = 0;
     }
-
+  
     // Align to next full minute
     const now = Date.now();
     const msToNextMinute = 60000 - (now % 60000);
-
+  
     setTimeout(() => {
       // === Every 1 minute ===
       setInterval(() => {
         const timestamp = getCurrentTimestamp();
-
+  
         for (const symbol of this.allTokensList) {
-          const { price, volume } = this.priceVolumeCache[symbol] || {};
+          const { price = null, volume = null } = this.priceVolumeCache[symbol] || {};
           const cvd = this.cvdMinuteDelta[symbol] || 0;
           const funding = this.latestFundingRates[symbol] ?? null;
           const openInterest = this.latestOpenInterest[symbol] ?? null;
-
+  
           this.events.emit('message:minuteTick', {
             symbol,
             timestamp,
@@ -191,11 +211,12 @@ class BinanceWssRestApi extends EventEmitter {
             funding,
             openInterest,
           });
-
+  
           this.cvdMinuteDelta[symbol] = 0;
         }
       }, 60000);
-
+  
+      // Every 1m and 3m polling
       setInterval(() => this.fetchOpenInterestLive(), 60000);
       setInterval(() => this.fetchFundingRates(), 180000);
     }, msToNextMinute);
