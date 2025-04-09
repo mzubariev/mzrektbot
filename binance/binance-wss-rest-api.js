@@ -299,7 +299,6 @@ class BinanceWssRestApi extends EventEmitter {
         if (!this.cvdMinuteDelta[symbol]) this.cvdMinuteDelta[symbol] = 0;
       }
     });
-    logger.info('[Startup] WebSocket price/volume cache initialized');
   }
 
   async handleUserDataMessages(message) {    
