@@ -4,7 +4,7 @@ import logger from '../utils/logger.js';
 import fs from 'fs';
 import getBinanceExchangeInfo from '../utils/binance-exchange-info.js';
 import config from '../utils/configuration.js';
-import { calculateBidAmount, getOppositeTradeSide, translatePositionSide, getTokenTrend, getBotTradeSide, getPercentChange, getCurrentTimestamp } from '../utils/helpers.js';
+import { calculateBidAmount, getOppositeTradeSide, translatePositionSideToTradeSide, getTokenTrend, getBotTradeSide, getPercentChange, getCurrentTimestamp } from '../utils/helpers.js';
 import { enableIsolatedMarginForAll } from '../utils/setIsolatedMarginModeBinance.js';
 
 const STUCK_ORDER_STATUSES_TO_ALERT = ['NEW', 'PARTIALLY_FILLED', 'CANCELED', 'REJECTED'];
@@ -137,7 +137,7 @@ class TradingLogic {
         : priceChange < 0 && oiChange < 0;
   
       if (valid && this.filterLiquidationTrade(symbol, direction) && this.passesRsiFilter(symbol, direction)) {
-        this.logSignal(symbol, direction, `Liquidation of ${side}s + Price/OI ${side === 'LONG' ? 'rebound' : 'drop'} (post-30s)`);
+        this.processSignalAccordingToEnv(symbol, direction, `Liquidation of ${side}s + Price/OI ${side === 'LONG' ? 'rebound' : 'drop'} (post-30s)`);
       }
 
       this.liquidationTimers[symbol] = this.liquidationTimers[symbol].filter(t => t !== timer); // cleanup the executed timer
@@ -180,7 +180,7 @@ class TradingLogic {
   
     // Open Interest Triggers
     if (oiChange1m <= -1 && priceChange1m < 0.1) {
-      if (this.filterTrade(symbol, 'SHORT') && this.passesRsiFilter(symbol, 'SHORT', { rsiLow: 30 })) this.logSignal(symbol, 'SHORT', 'OI -1%+ down + Price down + CVD down (1m)');
+      if (this.filterTrade(symbol, 'SHORT') && this.passesRsiFilter(symbol, 'SHORT', { rsiLow: 30 })) this.processSignalAccordingToEnv(symbol, 'SHORT', 'OI -1%+ down + Price down + CVD down (1m)');
     }
 
     // Include Volume exploasion
@@ -192,32 +192,36 @@ class TradingLogic {
     
       if (oiChange12m >= 2 && priceChange1m > 0.1 && volumeExploded) {
         if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG', { rsiHigh: 70 })) {
-          this.logSignal(symbol, 'LONG', 'OI +2% (12m) + Price up + Volume spike');
+          this.processSignalAccordingToEnv(symbol, 'LONG', 'OI +2% (12m) + Price up + Volume spike');
         }
       }
     }
   
     if (oiChange30m >= 15 && priceChange1m < 0.1) {
-      if (this.filterTrade(symbol, 'SHORT') && this.passesRsiFilter(symbol, 'SHORT')) this.logSignal(symbol, 'SHORT', 'OI +15% (30m) + Price/CVD down (1m)');
+      if (this.filterTrade(symbol, 'SHORT') && this.passesRsiFilter(symbol, 'SHORT')) this.processSignalAccordingToEnv(symbol, 'SHORT', 'OI +15% (30m) + Price/CVD down (1m)');
     }
   
     // Price Triggers
     if (priceChange5m >= 3 && oiChange1m > 0.2) {
-      if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG')) this.logSignal(symbol, 'LONG', 'Price +3% (5m) + OI/CVD up (1m)');
+      if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG')) this.processSignalAccordingToEnv(symbol, 'LONG', 'Price +3% (5m) + OI/CVD up (1m)');
     }
   
     if (priceChange15m <= -10 && oiChange1m > 0.2) {
-      if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG')) this.logSignal(symbol, 'LONG', 'Price -10% (15m) + OI/CVD up (1m)');
+      if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG')) this.processSignalAccordingToEnv(symbol, 'LONG', 'Price -10% (15m) + OI/CVD up (1m)');
     }
   
     if (priceChange20m >= 10 && oiChange1m < 0.2) {
-      if (this.filterTrade(symbol, 'SHORT') && this.passesRsiFilter(symbol, 'SHORT')) this.logSignal(symbol, 'SHORT', 'Price +10% (20m) + OI/CVD down (1m)');
+      if (this.filterTrade(symbol, 'SHORT') && this.passesRsiFilter(symbol, 'SHORT')) this.processSignalAccordingToEnv(symbol, 'SHORT', 'Price +10% (20m) + OI/CVD down (1m)');
     }
   
     // Funding Trigger
     if (funding <= -0.1 && priceChange1m > 0.1 && oiChange1m > 0.2) {
-      if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG')) this.logSignal(symbol, 'LONG', 'Funding -0.1% or less + OI/Price up (1m)');
+      if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG')) this.processSignalAccordingToEnv(symbol, 'LONG', 'Funding -0.1% or less + OI/Price up (1m)');
     }
+  }
+
+  processSignalAccordingToEnv(symbol, direction, reason) {
+    this.config.current.env === 'test' ? this.logSignal(symbol, direction, reason) : this.executeTrade(symbol, direction);
   }
 
   logSignal(symbol, direction, reason) {
@@ -379,11 +383,11 @@ class TradingLogic {
 
   //
 
-  async executeTrade(symbol, tradeSide) {
+  async executeTrade(symbol, positionSide) {
     try {
       // Send Market order
       const amountForBid = calculateBidAmount(this.binanceWs);
-      const positionSide = translatePositionSide(tradeSide);
+      const tradeSide = translatePositionSideToTradeSide(positionSide);
 
       if (this.isOnlyLongsOrShortsAllowed(positionSide) || this.isAlreadyMaximumPositionsForToken(symbol, positionSide)) {
         return;

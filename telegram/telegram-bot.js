@@ -65,10 +65,11 @@ class TelegramBotWrapper {
   getSettingsKeyboard() {
     const settingsKeyboard = [
       [
-        { text: 'Deposit Size', callback_data: 'setting_depositSize' },
-        { text: 'Bid % for each trade', callback_data: 'setting_bidPercentage' }
+        { text: 'Environment (options: "test", "prod")', callback_data: 'setting_env' },
+        { text: 'Deposit Size', callback_data: 'setting_depositSize' }
       ],
       [
+        { text: 'Bid % for each trade', callback_data: 'setting_bidPercentage' },
         { text: 'Profit % for each trade (ex.: 0.2)', callback_data: 'setting_profitPercentage' },
         { text: 'Time to signal to TG for stuck limit orders (in minutes)', callback_data: 'setting_timeoutToSignalToTG' }
       ],
