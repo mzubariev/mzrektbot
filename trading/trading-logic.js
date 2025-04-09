@@ -89,7 +89,8 @@ class TradingLogic {
     for (let i = 0; i < minutes; i++) {
       const index = (buffer.index - 1 - i + WINDOW_SIZE) % WINDOW_SIZE;
       const data = buffer.data[index];
-      if (data) result.unshift(data);
+      if (!data || !data.price) break; // stop collecting if gap
+      result.unshift(data);
     }
     return result;
   }

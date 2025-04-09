@@ -213,22 +213,7 @@ class BinanceWssRestApi extends EventEmitter {
 
         // === Futures Ticker Updates ===
         else if (Array.isArray(message)) {
-          message.forEach((ticker) => {
-            if (ticker.e === '24hrTicker' && !ticker.s.includes('_') && !ticker.s.includes('USDC') && !ticker.s.includes('ETHBTC')) {
-              const symbol = ticker.s.toUpperCase();
-              const price = parseFloat(ticker.c);
-              const volume = parseFloat(ticker.v);
-
-              const existing = this.priceVolumeCache[symbol] || {};
-
-              this.priceVolumeCache[symbol] = {
-                price,
-                volume,
-                high: existing.high !== undefined ? Math.max(existing.high, price) : price,
-                low: existing.low !== undefined ? Math.min(existing.low, price) : price,
-              };
-            }
-          });
+          this.onPriceVolumeMessage(message);
         }
         // === Error Handler ===
         else if (message.error) {
@@ -283,6 +268,38 @@ class BinanceWssRestApi extends EventEmitter {
         id: this.generateRequestId(),
       })
     );
+  }
+
+  onPriceVolumeMessage(message) {
+    if (!Array.isArray(message)) return;
+    message.forEach((ticker) => {
+      if (
+        ticker.e === '24hrTicker' &&
+        !ticker.s.includes('_') &&
+        !ticker.s.includes('USDC') &&
+        !ticker.s.includes('ETHBTC')
+      ) {
+        const symbol = ticker.s.toUpperCase();
+        const price = parseFloat(ticker.c);
+        const volume = parseFloat(ticker.v);
+  
+        if (!this.priceVolumeCache[symbol]) {
+          this.priceVolumeCache[symbol] = { price, volume, high: price, low: price };
+        } else {
+          const current = this.priceVolumeCache[symbol];
+          this.priceVolumeCache[symbol] = {
+            price,
+            volume,
+            high: Math.max(current.high, price),
+            low: Math.min(current.low, price),
+          };
+        }
+  
+        // Pre-fill cvdMinuteDelta just to avoid undefined keys
+        if (!this.cvdMinuteDelta[symbol]) this.cvdMinuteDelta[symbol] = 0;
+      }
+    });
+    logger.info('[Startup] WebSocket price/volume cache initialized');
   }
 
   async handleUserDataMessages(message) {    
@@ -358,7 +375,6 @@ class BinanceWssRestApi extends EventEmitter {
   // REST API calls
 
   async startIntervalsToCollectBinanceData() {
-    await this.fetchInitialFuturesPriceVolume();
     await this.fetchOpenInterestLive();
     await this.fetchFundingRates();
   
