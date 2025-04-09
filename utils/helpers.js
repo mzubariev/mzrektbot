@@ -14,7 +14,7 @@ export function getOppositeTradeSide(tradeSide) {
   return tradeSide === 'BUY' ? 'SELL' : 'BUY';
 }
 
-export function translatePositionSide(positionSide) {
+export function translatePositionSideToTradeSide(positionSide) {
   return positionSide === 'LONG' ? 'BUY' : 'SELL';
 }
 
@@ -60,7 +60,7 @@ export default {
   roundDownToTwoDecimals,
   calculateBidAmount,
   getOppositeTradeSide,
-  translatePositionSide,
+  translatePositionSideToTradeSide,
   getTokenTrend,
   getBotTradeSide,
   getPercentChange,
