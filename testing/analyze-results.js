@@ -4,7 +4,7 @@ import fs from 'fs';
 
 function loadResults() {
   try {
-    const raw = fs.readFileSync('trade-results.json');
+    const raw = fs.readFileSync('./testing/trade-results.json');
     return JSON.parse(raw);
   } catch (err) {
     console.error('Failed to load trade results:', err.message);
