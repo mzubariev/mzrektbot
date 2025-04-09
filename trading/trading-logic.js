@@ -5,11 +5,8 @@ import fs from 'fs';
 import getBinanceExchangeInfo from '../utils/binance-exchange-info.js';
 import getMarketCapTokenData from '../utils/coinmarketcap-token-data.js';
 import config from '../utils/configuration.js';
-import { calculateBidAmount, getOppositeTradeSide, translatePositionSideToTradeSide, 
-  getTokenTrend, getBotTradeSide, getPercentChange, getCurrentTimestamp, sumLastMinutes } from '../utils/helpers.js';
-import { enableIsolatedMarginForAll } from '../utils/setIsolatedMarginModeBinance.js';
+import { calculateBidAmount, getOppositeTradeSide, translatePositionSideToTradeSide, getPercentChange, getCurrentTimestamp, sumLastMinutes } from '../utils/helpers.js';
 
-const STUCK_ORDER_STATUSES_TO_ALERT = ['NEW', 'PARTIALLY_FILLED', 'CANCELED', 'REJECTED'];
 const WINDOW_SIZE = 30; // 30 minutes (1-minute intervals)
 const SKIP_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'ETHBTC'];
 
