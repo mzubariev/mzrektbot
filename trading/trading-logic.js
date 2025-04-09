@@ -3,6 +3,7 @@ import BinanceWssRestApi from '../binance/binance-wss-rest-api.js';
 import logger from '../utils/logger.js';
 import fs from 'fs';
 import getBinanceExchangeInfo from '../utils/binance-exchange-info.js';
+import getMarketCapTokenData from '../utils/coinmarketcap-token-data.js';
 import config from '../utils/configuration.js';
 import { calculateBidAmount, getOppositeTradeSide, translatePositionSideToTradeSide, getTokenTrend, getBotTradeSide, getPercentChange, getCurrentTimestamp } from '../utils/helpers.js';
 import { enableIsolatedMarginForAll } from '../utils/setIsolatedMarginModeBinance.js';
@@ -16,12 +17,13 @@ class TradingLogic {
     this.telegramBot = null;
     this.binanceWs = new BinanceWssRestApi(binanceApiKey, binanceSecretKey);
     this.binanceExchangeInfo = null;
+    this.marketCapTokenData = null;
     this.allTokensList = null;
     this.buffers = {};
     this.pendingTrades = [];
     this.signalLog = [];
     this.tradeResults = [];
-    this.liquidationTimers = {};
+    this.liquidationVolumeBySymbol = {};
     this.isPaused = false;
     this.isStopped = false;
 
@@ -38,6 +40,7 @@ class TradingLogic {
 
   async initialize(telegramBot) {
     try {
+      await this.updateMarketCapTokenData(); 
       await this.updateBinanceExchangeInfo();
 
       this.allTokensList.forEach(symbol => {
@@ -106,44 +109,19 @@ class TradingLogic {
   }
 
   handleLiquidation(liquidation) {
-    const { s: symbol, S: side } = liquidation;
+    const { s: symbol, S: side, q: quantity, ap: price } = liquidation;
 
     if (this.shouldSkipSymbol(symbol)) {
       logger.warn(`Skipping unused tokens for now...`);
       return;
     }
 
-    if (!this.liquidationTimers[symbol]) this.liquidationTimers[symbol] = [];
-  
-    const timer = setTimeout(async () => {
-
-      await this.checkIfEnoughBalanceForBid(this.binanceWs);
-      if (this.isStopped || this.isPaused) {
-        logger.warn('Skip execution since the Bot is paused!');
-        return;
-      }
-      
-      const m1 = this.getDataWindow(symbol, 1);
-      if (!m1) return;
-      const latest = m1[m1.length - 1];
-      if (!latest) return;
-  
-      const priceChange = getPercentChange(m1[0]?.price, latest.price);
-      const oiChange = getPercentChange(m1[0]?.openInterest, latest.openInterest);
-  
-      const direction = side === 'LONG' ? 'LONG' : 'SHORT';
-      const valid = side === 'LONG'
-        ? priceChange > 0 && oiChange > 0
-        : priceChange < 0 && oiChange < 0;
-  
-      if (valid && this.filterLiquidationTrade(symbol, direction) && this.passesRsiFilter(symbol, direction)) {
-        this.processSignalAccordingToEnv(symbol, direction, `Liquidation of ${side}s + Price/OI ${side === 'LONG' ? 'rebound' : 'drop'} (post-30s)`);
-      }
-
-      this.liquidationTimers[symbol] = this.liquidationTimers[symbol].filter(t => t !== timer); // cleanup the executed timer
-    }, 10000);
-  
-    this.liquidationTimers[symbol].push(timer);
+    const liquidationAmount = parseFloat(quantity) * parseFloat(price);
+    // Track total liquidation amount per symbol per minute
+    if (!this.liquidationVolumeBySymbol[symbol]) {
+      this.liquidationVolumeBySymbol[symbol] = 0;
+    }
+    this.liquidationVolumeBySymbol[symbol] += liquidationAmount;
   }
 
   async strategyEngine(symbol) {
@@ -527,6 +505,28 @@ class TradingLogic {
     }
   }
 
+  getTokenRanking(symbol) {
+    const token = symbol.replace('USDT', '');
+    if (this.marketCapTokenData.top20.includes(token)) {
+      return 'top20';
+    } else if (this.marketCapTokenData.top50.includes(token)) {
+      return 'top50';
+    } else {
+      return 'small';
+    }
+  }
+
+  getLiquidationThreshold(tokenRanking) {
+    switch (tokenRanking) {
+      case 'top20':
+        return config.current.top20Liquidation;
+      case 'top50':
+        return config.current.top50Liquidation;
+      default:
+        return config.current.smallLiquidation;
+    }
+  }
+
   // Configurations routine
 
   handleStatusChange(status) {
@@ -562,6 +562,10 @@ class TradingLogic {
     this.binanceWs.updateAllTokensList(allTokensList);
   }
 
+  async updateMarketCapTokenData() {
+    this.marketCapTokenData = await getMarketCapTokenData();
+  }
+
   updateDepositSizeConfig() {
     logger.info('Updating Deposit Size config...');
     const walletBalance = this.binanceWs.accountInfo.walletBalance;
@@ -593,33 +597,36 @@ class TradingLogic {
   setAllIntervalTradeChecks() {
     const now = Date.now();
     const msToNextMinute = 60000 - (now % 60000);
+  
     setTimeout(() => {
+      // === Every Minute: Run strategy + track trades
       setInterval(() => {
         this.allTokensList.forEach(symbol => this.strategyEngine(symbol));
-      
+  
         this.pendingTrades.forEach(trade => {
           if (trade.closed) return;
-      
+  
           const current = this.getDataWindow(trade.symbol, 1)[0];
           if (!current) return;
-      
+  
           trade.history.push(current);
-      
+  
           const hit = trade.direction === 'LONG'
             ? current.high >= trade.takeProfit
             : current.low <= trade.takeProfit;
-      
+  
           if (hit || trade.history.length >= 30) {
             trade.closed = true;
+  
             const maxGain = trade.direction === 'LONG'
               ? Math.max(...trade.history.map(d => d.high ?? d.price))
               : Math.min(...trade.history.map(d => d.low ?? d.price));
-      
+  
             const maxGainPct = getPercentChange(trade.entryPrice, maxGain);
             const couldHit1pct = trade.direction === 'LONG'
               ? maxGainPct >= 1
               : maxGainPct <= -1;
-      
+  
             this.tradeResults.push({
               ...trade,
               TP_hit: hit,
@@ -633,8 +640,51 @@ class TradingLogic {
           }
         });
       }, 60000);
-    
-      // Export trade results and signal log every 5 minutes
+  
+      // === Every Minute: Check 1m liquidation clusters
+      setInterval(async () => {
+        for (const symbol of this.allTokensList) {
+          const totalLiquidation = this.liquidationVolumeBySymbol[symbol] || 0;
+          const tokenRanking = this.getTokenRanking(symbol);
+          const threshold = this.getLiquidationThreshold(tokenRanking);
+  
+          if (totalLiquidation >= threshold) {
+            await this.checkIfEnoughBalanceForBid(this.binanceWs);
+            
+            if (this.isStopped || this.isPaused) {
+              logger.warn('⏸ Bot paused, skipping liquidation signal check');
+            } else {
+              logger.info(`[${symbol}] 🔥 ${Math.round(totalLiquidation)} USDT in liquidations (1m)`);
+  
+              const m1 = this.getDataWindow(symbol, 1);
+              const latest = m1?.[m1.length - 1];
+              if (m1 && latest) {
+                const priceChange = getPercentChange(m1[0]?.price, latest.price);
+                const oiChange = getPercentChange(m1[0]?.openInterest, latest.openInterest);
+  
+                const direction = priceChange > 0 && oiChange > 0
+                  ? 'LONG'
+                  : priceChange < 0 && oiChange < 0
+                    ? 'SHORT'
+                    : null;
+  
+                if (direction && this.filterLiquidationTrade(symbol, direction) && this.passesRsiFilter(symbol, direction)) {
+                  this.processSignalAccordingToEnv(
+                    symbol,
+                    direction,
+                    `🔥 1m Liquidation Cluster (${Math.round(totalLiquidation)} USDT) + Price/OI bounce`
+                  );
+                }
+              }
+            }
+          }
+  
+          // Reset for next minute
+          this.liquidationVolumeBySymbol[symbol] = 0;
+        }
+      }, 60000);
+  
+      // === Every 5 Minutes: Export logs
       setInterval(() => {
         try {
           fs.writeFileSync('testing/signal-log.json', JSON.stringify(this.signalLog, null, 2));

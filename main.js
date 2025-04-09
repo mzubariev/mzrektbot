@@ -34,10 +34,12 @@ async function main() {
       }
     });
 
-    // Schedule Binance all tokens info updates - every day at 00:00
+    // Schedule CoinMarketCap and Binance all tokens info updates - every day at 00:00
     cron.schedule('0 0 * * *', async () => {
       try {
-        logger.info('CRON: Running Binance info updates!');
+        logger.info('CRON: Running Marketcap and Binance info updates!');
+        await tradingLogic.updateMarketCapTokenData();
+        logger.info('CoinMarketCap tokens ranks info updated successfully!');
 
         await tradingLogic.updateBinanceExchangeInfo();
         logger.info('Binance Exchnage info with all tokens details updated successfully!');
