@@ -103,86 +103,96 @@ class TradingLogic {
     setTimeout(() => {
       // === Every Minute: Run strategy + track trades
       setInterval(() => {
-        this.allTokensList.forEach(symbol => this.strategyEngine(symbol));
+        try {
+          this.allTokensList.forEach(symbol => this.strategyEngine(symbol));
   
-        this.pendingTrades.forEach(trade => {
-          if (trade.closed) return;
-  
-          const current = this.getDataWindow(trade.symbol, 1)[0];
-          if (!current) return;
-  
-          trade.history.push(current);
-  
-          const hit = trade.direction === 'LONG'
-            ? current.high >= trade.takeProfit
-            : current.low <= trade.takeProfit;
-  
-          if (hit || trade.history.length >= 30) {
-            trade.closed = true;
-  
-            const maxGain = trade.direction === 'LONG'
-              ? Math.max(...trade.history.map(d => d.high ?? d.price))
-              : Math.min(...trade.history.map(d => d.low ?? d.price));
-  
-            const maxGainPct = getPercentChange(trade.entryPrice, maxGain);
-            const couldHit1pct = trade.direction === 'LONG'
-              ? maxGainPct >= 1
-              : maxGainPct <= -1;
-  
-            this.tradeResults.push({
-              ...trade,
-              TP_hit: hit,
-              hitAtMinute: hit ? trade.history.length : null,
-              finalPrice: current.price,
-              percentChange: getPercentChange(trade.entryPrice, current.price).toFixed(2) + '%',
-              maxGain: maxGain.toFixed(2),
-              maxGainPct: maxGainPct.toFixed(2),
-              couldHit1pct
-            });
-          }
-        });
+          this.pendingTrades.forEach(trade => {
+            if (trade.closed) return;
+    
+            const current = this.getDataWindow(trade.symbol, 1)[0];
+            if (!current) return;
+    
+            trade.history.push(current);
+    
+            const hit = trade.direction === 'LONG'
+              ? current.high >= trade.takeProfit
+              : current.low <= trade.takeProfit;
+    
+            if (hit || trade.history.length >= 30) {
+              trade.closed = true;
+    
+              const maxGain = trade.direction === 'LONG'
+                ? Math.max(...trade.history.map(d => d.high ?? d.price))
+                : Math.min(...trade.history.map(d => d.low ?? d.price));
+    
+              const maxGainPct = getPercentChange(trade.entryPrice, maxGain);
+              const couldHit1pct = trade.direction === 'LONG'
+                ? maxGainPct >= 1
+                : maxGainPct <= -1;
+    
+              this.tradeResults.push({
+                ...trade,
+                TP_hit: hit,
+                hitAtMinute: hit ? trade.history.length : null,
+                finalPrice: current.price,
+                percentChange: getPercentChange(trade.entryPrice, current.price).toFixed(2) + '%',
+                maxGain: maxGain.toFixed(2),
+                maxGainPct: maxGainPct.toFixed(2),
+                couldHit1pct
+              });
+            }
+          });
+        } catch (err) {
+          logger.error(`[${symbol}] - Error in an Interval to run the Strategy: ${err.message}`);
+          console.error('Error in strategyEngine interval:', err.message);
+        }
       }, 60000);
   
       // === Every Minute: Check 1m liquidation clusters
       setInterval(async () => {
-        for (const symbol of this.allTokensList) {
-          const totalLiquidation = this.liquidationVolumeBySymbol[symbol] || 0;
-          const tokenRanking = this.getTokenRanking(symbol);
-          const threshold = this.getLiquidationThreshold(tokenRanking);
+        try {
+          for (const symbol of this.allTokensList) {
+            const totalLiquidation = this.liquidationVolumeBySymbol[symbol] || 0;
+            const tokenRanking = this.getTokenRanking(symbol);
+            const threshold = this.getLiquidationThreshold(tokenRanking);
+    
+            if (totalLiquidation >= threshold) {
+              await this.checkIfEnoughBalanceForBid(this.binanceWs);
   
-          if (totalLiquidation >= threshold) {
-            await this.checkIfEnoughBalanceForBid(this.binanceWs);
-
-            if (this.isStopped || this.isPaused) {
-              logger.warn('⏸ Bot paused, skipping liquidation signal check');
-            } else {
-              logger.info(`[${symbol}] 🔥 ${Math.round(totalLiquidation)} USDT in liquidations (1m)`);
-  
-              const m1 = this.getDataWindow(symbol, 1);
-              const latest = m1?.[m1.length - 1];
-              if (m1 && latest) {
-                const priceChange = getPercentChange(m1[0]?.price, latest.price);
-                const oiChange = getPercentChange(m1[0]?.openInterest, latest.openInterest);
-  
-                const direction = priceChange > 0 && oiChange > 0
-                  ? 'LONG'
-                  : priceChange < 0 && oiChange < 0
-                    ? 'SHORT'
-                    : null;
-  
-                if (direction && this.filterLiquidationTrade(symbol, direction) && this.passesRsiFilter(symbol, direction)) {
-                  this.processSignalAccordingToEnv(
-                    symbol,
-                    direction,
-                    `🔥 1m Liquidation Cluster (${Math.round(totalLiquidation)} USDT) + Price/OI bounce`
-                  );
+              if (this.isStopped || this.isPaused) {
+                logger.warn('⏸ Bot paused, skipping liquidation signal check');
+              } else {
+                logger.info(`[${symbol}] 🔥 ${Math.round(totalLiquidation)} USDT in liquidations (1m)`);
+    
+                const m1 = this.getDataWindow(symbol, 1);
+                const latest = m1?.[m1.length - 1];
+                if (m1 && latest) {
+                  const priceChange = getPercentChange(m1[0]?.price, latest.price);
+                  const oiChange = getPercentChange(m1[0]?.openInterest, latest.openInterest);
+    
+                  const direction = priceChange > 0 && oiChange > 0
+                    ? 'LONG'
+                    : priceChange < 0 && oiChange < 0
+                      ? 'SHORT'
+                      : null;
+    
+                  if (direction && this.filterLiquidationTrade(symbol, direction) && this.passesRsiFilter(symbol, direction)) {
+                    this.processSignalAccordingToEnv(
+                      symbol,
+                      direction,
+                      `🔥 1m Liquidation Cluster (${Math.round(totalLiquidation)} USDT) + Price/OI bounce`
+                    );
+                  }
                 }
               }
             }
+    
+            // Reset for next minute
+            this.liquidationVolumeBySymbol[symbol] = 0;
           }
-  
-          // Reset for next minute
-          this.liquidationVolumeBySymbol[symbol] = 0;
+        } catch (err) {
+          logger.error(`[${symbol}] - Error in an Interval to run the Liquidation check: ${err.message}`);
+          console.error('Error in Liquidation check interval:', err.message);
         }
       }, 60000);
   
@@ -218,76 +228,81 @@ class TradingLogic {
   }
 
   async strategyEngine(symbol) {
-    if (this.shouldSkipSymbol(symbol)) {
-      logger.warn(`Skipping unused tokens for now...`);
-      return;
-    }
-
-    await this.checkIfEnoughBalanceForBid(this.binanceWs);
-    if (this.isStopped || this.isPaused) {
-      logger.warn('Skip execution since the Bot is paused!');
-      return;
-    }
-
-    const m30 = this.getDataWindow(symbol, 30);
-    if (m30.length < 2) return; // not enough even for 1m trades
+    try {
+      if (this.shouldSkipSymbol(symbol)) {
+        logger.warn(`Skipping unused tokens for now...`);
+        return;
+      }
   
-    const current = m30[m30.length - 1];
-    if (!current) return;
+      await this.checkIfEnoughBalanceForBid(this.binanceWs);
+      if (this.isStopped || this.isPaused) {
+        logger.warn('Skip execution since the Bot is paused!');
+        return;
+      }
   
-    const last = (offset) => m30[m30.length - 1 - offset];
-
-    const priceChange1m = m30.length >= 2 ? getPercentChange(last(1)?.price, current.price) : null;
-    const oiChange1m = m30.length >= 2 ? getPercentChange(last(1)?.openInterest, current.openInterest) : null;
-  
-    const priceChange5m = m30.length >= 6 ? getPercentChange(last(5)?.price, current.price) : null;
-    const priceChange15m = m30.length >= 16 ? getPercentChange(last(15)?.price, current.price) : null;
-    const priceChange20m = m30.length >= 21 ? getPercentChange(last(20)?.price, current.price) : null;
-  
-    const oiChange12m = m30.length >= 13 ? getPercentChange(last(12)?.openInterest, current.openInterest) : null;
-    const oiChange30m = m30.length >= 30 ? getPercentChange(last(29)?.openInterest, current.openInterest) : null;
-  
-    const funding = current.funding;
-  
-    // Open Interest Triggers
-    if (oiChange1m <= -1 && priceChange1m < 0.1) {
-      if (this.filterTrade(symbol, 'SHORT') && this.passesRsiFilter(symbol, 'SHORT', { rsiLow: 30 })) this.processSignalAccordingToEnv(symbol, 'SHORT', 'OI -1%+ down + Price down + CVD down (1m)');
-    }
-
-    // Include Volume exploasion
-    if (m30.length >= 24) {
-      const recentVolume12 = sumLastMinutes(m30, 'volume', 12);
-      const previousVolume12 = sumLastMinutes(m30, 'volume', 12, 12);
+      const m30 = this.getDataWindow(symbol, 30);
+      if (m30.length < 2) return; // not enough even for 1m trades
     
-      const volumeExploded = recentVolume12 >= 2 * previousVolume12;
+      const current = m30[m30.length - 1];
+      if (!current) return;
     
-      if (oiChange12m >= 2 && priceChange1m > 0.1 && volumeExploded) {
-        if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG', { rsiHigh: 70 })) {
-          this.processSignalAccordingToEnv(symbol, 'LONG', 'OI +2% (12m) + Price up + Volume spike');
+      const last = (offset) => m30[m30.length - 1 - offset];
+  
+      const priceChange1m = m30.length >= 2 ? getPercentChange(last(1)?.price, current.price) : null;
+      const oiChange1m = m30.length >= 2 ? getPercentChange(last(1)?.openInterest, current.openInterest) : null;
+    
+      const priceChange5m = m30.length >= 6 ? getPercentChange(last(5)?.price, current.price) : null;
+      const priceChange15m = m30.length >= 16 ? getPercentChange(last(15)?.price, current.price) : null;
+      const priceChange20m = m30.length >= 21 ? getPercentChange(last(20)?.price, current.price) : null;
+    
+      const oiChange12m = m30.length >= 13 ? getPercentChange(last(12)?.openInterest, current.openInterest) : null;
+      const oiChange30m = m30.length >= 30 ? getPercentChange(last(29)?.openInterest, current.openInterest) : null;
+    
+      const funding = current.funding;
+    
+      // Open Interest Triggers
+      if (oiChange1m <= -1 && priceChange1m < 0.1) {
+        if (this.filterTrade(symbol, 'SHORT') && this.passesRsiFilter(symbol, 'SHORT', { rsiLow: 30 })) this.processSignalAccordingToEnv(symbol, 'SHORT', 'OI -1%+ down + Price down + CVD down (1m)');
+      }
+  
+      // Include Volume exploasion
+      if (m30.length >= 24) {
+        const recentVolume12 = sumLastMinutes(m30, 'volume', 12);
+        const previousVolume12 = sumLastMinutes(m30, 'volume', 12, 12);
+      
+        const volumeExploded = recentVolume12 >= 2 * previousVolume12;
+      
+        if (oiChange12m >= 2 && priceChange1m > 0.1 && volumeExploded) {
+          if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG', { rsiHigh: 70 })) {
+            this.processSignalAccordingToEnv(symbol, 'LONG', 'OI +2% (12m) + Price up + Volume spike');
+          }
         }
       }
-    }
-  
-    if (oiChange30m >= 15 && priceChange1m < 0.1) {
-      if (this.filterTrade(symbol, 'SHORT') && this.passesRsiFilter(symbol, 'SHORT')) this.processSignalAccordingToEnv(symbol, 'SHORT', 'OI +15% (30m) + Price/CVD down (1m)');
-    }
-  
-    // Price Triggers
-    if (priceChange5m >= 3 && oiChange1m > 0.2) {
-      if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG')) this.processSignalAccordingToEnv(symbol, 'LONG', 'Price +3% (5m) + OI/CVD up (1m)');
-    }
-  
-    if (priceChange15m <= -10 && oiChange1m > 0.2) {
-      if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG')) this.processSignalAccordingToEnv(symbol, 'LONG', 'Price -10% (15m) + OI/CVD up (1m)');
-    }
-  
-    if (priceChange20m >= 10 && oiChange1m < 0.2) {
-      if (this.filterTrade(symbol, 'SHORT') && this.passesRsiFilter(symbol, 'SHORT')) this.processSignalAccordingToEnv(symbol, 'SHORT', 'Price +10% (20m) + OI/CVD down (1m)');
-    }
-  
-    // Funding Trigger
-    if (funding <= -0.1 && priceChange1m > 0.1 && oiChange1m > 0.2) {
-      if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG')) this.processSignalAccordingToEnv(symbol, 'LONG', 'Funding -0.1% or less + OI/Price up (1m)');
+    
+      if (oiChange30m >= 15 && priceChange1m < 0.1) {
+        if (this.filterTrade(symbol, 'SHORT') && this.passesRsiFilter(symbol, 'SHORT')) this.processSignalAccordingToEnv(symbol, 'SHORT', 'OI +15% (30m) + Price/CVD down (1m)');
+      }
+    
+      // Price Triggers
+      if (priceChange5m >= 3 && oiChange1m > 0.2) {
+        if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG')) this.processSignalAccordingToEnv(symbol, 'LONG', 'Price +3% (5m) + OI/CVD up (1m)');
+      }
+    
+      if (priceChange15m <= -10 && oiChange1m > 0.2) {
+        if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG')) this.processSignalAccordingToEnv(symbol, 'LONG', 'Price -10% (15m) + OI/CVD up (1m)');
+      }
+    
+      if (priceChange20m >= 10 && oiChange1m < 0.2) {
+        if (this.filterTrade(symbol, 'SHORT') && this.passesRsiFilter(symbol, 'SHORT')) this.processSignalAccordingToEnv(symbol, 'SHORT', 'Price +10% (20m) + OI/CVD down (1m)');
+      }
+    
+      // Funding Trigger
+      if (funding <= -0.1 && priceChange1m > 0.1 && oiChange1m > 0.2) {
+        if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG')) this.processSignalAccordingToEnv(symbol, 'LONG', 'Funding -0.1% or less + OI/Price up (1m)');
+      }
+    } catch (err) {
+      logger.error(`[${symbol}] strategyEngine error: ${err.message}`);
+      console.error('Error in strategyEngine:', err.message);
     }
   }
 
@@ -412,7 +427,12 @@ class TradingLogic {
   // Log / Execute trades
 
   processSignalAccordingToEnv(symbol, direction, reason) {
-    this.config.current.env === 'test' ? this.logSignal(symbol, direction, reason) : this.executeTrade(symbol, direction, reason);
+    try {
+      this.config.current.env === 'test' ? this.logSignal(symbol, direction, reason) : this.executeTrade(symbol, direction, reason);
+    } catch (err) {
+      logger.error(`[${symbol}] - Error in an Interval to run the processSignalAccordingToEnv: ${err.message}`);
+      console.error('Error in processSignalAccordingToEnv:', err.message);
+    }
   }
 
   logSignal(symbol, direction, reason) {
