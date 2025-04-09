@@ -429,9 +429,9 @@ class TradingLogic {
 
   processSignalAccordingToEnv(symbol, direction, reason) {
     try {
-      this.config.current.env === 'test' ? this.logSignal(symbol, direction, reason) : this.executeTrade(symbol, direction, reason);
+      config.current.env === 'test' ? this.logSignal(symbol, direction, reason) : this.executeTrade(symbol, direction, reason);
     } catch (err) {
-      logger.error(`[${symbol}] - Error in an Interval to run the processSignalAccordingToEnv: ${err.message}`);
+      logger.error(`[${symbol}] - Error to run the processSignalAccordingToEnv: ${err.message}`);
       console.error('Error in processSignalAccordingToEnv:', err.message);
     }
   }
