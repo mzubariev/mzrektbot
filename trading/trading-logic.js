@@ -92,6 +92,19 @@ class TradingLogic {
     this.buffers[symbol].index = (this.buffers[symbol].index + 1) % WINDOW_SIZE;
   }
 
+  getTakeProfitMultiplier(reason) {
+    if (reason.includes('Liquidation')) return 0.0015;
+    if (reason.includes('Volume spike')) return 0.003;
+    return 0.002;
+  }
+
+  sumLastMinutes(m30, field, count, offset = 0) {
+    return Array.from({ length: count }, (_, i) => {
+      const dataPoint = m30[m30.length - 1 - offset - i];
+      return dataPoint?.[field] || 0;
+    }).reduce((acc, v) => acc + v, 0);
+  }
+
   handleLiquidation(liquidation) {
     const { s: symbol, S: side } = liquidation;
 
@@ -106,6 +119,7 @@ class TradingLogic {
 
       await this.checkIfEnoughBalanceForBid(this.binanceWs);
       if (this.isStopped || this.isPaused) {
+        logger.warn('Skip execution since the Bot is paused!');
         return;
       }
       
@@ -132,20 +146,18 @@ class TradingLogic {
     this.liquidationTimers[symbol].push(timer);
   }
 
-  getTakeProfitMultiplier(reason) {
-    if (reason.includes('Liquidation')) return 0.0015;
-    if (reason.includes('Volume spike')) return 0.003;
-    return 0.002;
-  }
+  async strategyEngine(symbol) {
+    if (this.shouldSkipSymbol(symbol)) {
+      logger.warn(`Skipping unused tokens for now...`);
+      return;
+    }
 
-  sumLastMinutes(m30, field, count, offset = 0) {
-    return Array.from({ length: count }, (_, i) => {
-      const dataPoint = m30[m30.length - 1 - offset - i];
-      return dataPoint?.[field] || 0;
-    }).reduce((acc, v) => acc + v, 0);
-  }
+    await this.checkIfEnoughBalanceForBid(this.binanceWs);
+    if (this.isStopped || this.isPaused) {
+      logger.warn('Skip execution since the Bot is paused!');
+      return;
+    }
 
-  strategyEngine(symbol) {
     const m30 = this.getDataWindow(symbol, 30);
     if (m30.length < 2) return; // not enough even for 1m trades
   
@@ -249,13 +261,21 @@ class TradingLogic {
 
   // FILTERS
 
+  shouldSkipSymbol(symbol) {
+    return (
+      symbol.includes('USDC') ||
+      symbol.includes('_') ||
+      SKIP_SYMBOLS.includes(symbol)
+    );
+  }
+
   async checkIfEnoughBalanceForBid() {
     const amountForBid = calculateBidAmount(this.binanceWs);
     const availableBalance = this.binanceWs.accountInfo.availableBalance;
 
     if (availableBalance < amountForBid && !this.isPaused) {
       this.pause();
-      logger.warn('Skip execution since the Bot is paused because there is not enough money for a bid!');
+      logger.warn('Pause the Bot because there is not enough money for a bid!');
     } else if (availableBalance >= amountForBid && this.isPaused) {
       this.resume();
     }
@@ -273,14 +293,6 @@ class TradingLogic {
       logger.warn(`Skipping the trade since there are already ${this.binanceWs.positionsInfo[symbol][positionSide].ordersAmount} orders opened for this token! Wait till they are closed...`);
       return;
     }
-  }
-
-  shouldSkipSymbol(symbol) {
-    return (
-      symbol.includes('USDC') ||
-      symbol.includes('_') ||
-      SKIP_SYMBOLS.includes(symbol)
-    );
   }
   
   calculateRSI(symbol, period = 14) {
