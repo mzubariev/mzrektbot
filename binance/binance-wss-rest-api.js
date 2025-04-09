@@ -146,7 +146,8 @@ class BinanceWssRestApi extends EventEmitter {
     const timestamp = getCurrentTimestamp();
   
     for (const symbol of this.allTokensList) {
-      const { price = null, volume = null } = this.priceVolumeCache[symbol] || {};
+      const { price = null, volume = null, high = null, low = null } = this.priceVolumeCache[symbol] || {};
+
       const cvd = this.cvdMinuteDelta[symbol] || 0;
       const funding = this.latestFundingRates[symbol] ?? null;
       const openInterest = this.latestOpenInterest[symbol] ?? null;
@@ -156,6 +157,8 @@ class BinanceWssRestApi extends EventEmitter {
         timestamp,
         price,
         volume,
+        high,
+        low,
         cvd,
         funding,
         openInterest,
@@ -174,7 +177,8 @@ class BinanceWssRestApi extends EventEmitter {
         const timestamp = getCurrentTimestamp();
   
         for (const symbol of this.allTokensList) {
-          const { price = null, volume = null } = this.priceVolumeCache[symbol] || {};
+          const { price = null, volume = null, high = null, low = null } = this.priceVolumeCache[symbol] || {};
+
           const cvd = this.cvdMinuteDelta[symbol] || 0;
           const funding = this.latestFundingRates[symbol] ?? null;
           const openInterest = this.latestOpenInterest[symbol] ?? null;
@@ -184,6 +188,8 @@ class BinanceWssRestApi extends EventEmitter {
             timestamp,
             price,
             volume,
+            high,
+            low,
             cvd,
             funding,
             openInterest,
@@ -207,7 +213,12 @@ class BinanceWssRestApi extends EventEmitter {
         if (!symbol.includes('USDC') && !symbol.includes('_') && !symbol.includes('ETHBTC')) {
           const price = parseFloat(ticker.lastPrice);
           const volume = parseFloat(ticker.volume);
-          this.priceVolumeCache[symbol] = { price, volume };
+          this.priceVolumeCache[symbol] = {
+            price,
+            volume,
+            high: price,
+            low: price,
+          };
         }
       });
       logger.info('[Startup] Loaded price/volume snapshot for all futures tokens');
@@ -368,7 +379,15 @@ class BinanceWssRestApi extends EventEmitter {
               const symbol = ticker.s.toUpperCase();
               const price = parseFloat(ticker.c);
               const volume = parseFloat(ticker.v);
-              this.priceVolumeCache[symbol] = { price, volume };
+
+              const existing = this.priceVolumeCache[symbol] || {};
+
+              this.priceVolumeCache[symbol] = {
+                price,
+                volume,
+                high: existing.high !== undefined ? Math.max(existing.high, price) : price,
+                low: existing.low !== undefined ? Math.min(existing.low, price) : price,
+              };
             }
           });
         }

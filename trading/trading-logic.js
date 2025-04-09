@@ -38,8 +38,6 @@ class TradingLogic {
 
   async initialize(telegramBot) {
     try {
-      // await enableIsolatedMarginForAll();
-
       await this.updateBinanceExchangeInfo();
 
       this.allTokensList.forEach(symbol => {
@@ -66,6 +64,18 @@ class TradingLogic {
 
   /* Trading */
 
+  startMinuteTickListener() {
+    this.binanceWs.events.on('message:minuteTick', (data) => {
+      this.updateBuffer(data.symbol, data);
+    });
+  }
+  
+  startLiquidationsListener() {
+    this.binanceWs.events.on('message:liquidation', async (liquidation) => {
+      this.handleLiquidation(liquidation);
+    });
+  }
+
   getDataWindow(symbol, minutes) {
     const buffer = this.buffers[symbol];
     const result = [];
@@ -77,22 +87,9 @@ class TradingLogic {
     return result;
   }
 
-  updateBuffer(symbol, newData) {
-    const buffer = this.buffers[symbol];
-    buffer.data[buffer.index] = newData;
-    buffer.index = (buffer.index + 1) % WINDOW_SIZE;
-  }
-
-  startMinuteTickListener() {
-    this.binanceWs.events.on('message:minuteTick', (data) => {
-      this.updateBuffer(data.symbol, data);
-    });
-  }
-  
-  startLiquidationsListener() {
-    this.binanceWs.events.on('message:liquidation', async (liquidation) => {
-      this.handleLiquidation(liquidation);
-    });
+  updateBuffer(symbol, data) {
+    this.buffers[symbol].data[this.buffers[symbol].index] = data;
+    this.buffers[symbol].index = (this.buffers[symbol].index + 1) % WINDOW_SIZE;
   }
 
   handleLiquidation(liquidation) {
@@ -125,7 +122,7 @@ class TradingLogic {
         ? priceChange > 0 && oiChange > 0
         : priceChange < 0 && oiChange < 0;
   
-      if (valid && this.filterLiquidationTrade(symbol, direction) && this.passesMomentumFilter(symbol, direction)) {
+      if (valid && this.filterLiquidationTrade(symbol, direction) && this.passesRsiFilter(symbol, direction)) {
         this.logSignal(symbol, direction, `Liquidation of ${side}s + Price/OI ${side === 'LONG' ? 'rebound' : 'drop'} (post-30s)`);
       }
 
@@ -171,7 +168,7 @@ class TradingLogic {
   
     // Open Interest Triggers
     if (oiChange1m <= -1 && priceChange1m < 0.1) {
-      if (this.filterTrade(symbol, 'SHORT') && this.passesMomentumFilter(symbol, 'SHORT', { rsiLow: 30 })) this.logSignal(symbol, 'SHORT', 'OI -1%+ down + Price down + CVD down (1m)');
+      if (this.filterTrade(symbol, 'SHORT') && this.passesRsiFilter(symbol, 'SHORT', { rsiLow: 30 })) this.logSignal(symbol, 'SHORT', 'OI -1%+ down + Price down + CVD down (1m)');
     }
 
     // Include Volume exploasion
@@ -182,32 +179,32 @@ class TradingLogic {
       const volumeExploded = recentVolume12 >= 2 * previousVolume12;
     
       if (oiChange12m >= 2 && priceChange1m > 0.1 && volumeExploded) {
-        if (this.filterTrade(symbol, 'LONG') && this.passesMomentumFilter(symbol, 'LONG', { rsiHigh: 70 })) {
+        if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG', { rsiHigh: 70 })) {
           this.logSignal(symbol, 'LONG', 'OI +2% (12m) + Price up + Volume spike');
         }
       }
     }
   
     if (oiChange30m >= 15 && priceChange1m < 0.1) {
-      if (this.filterTrade(symbol, 'SHORT') && this.passesMomentumFilter(symbol, 'SHORT')) this.logSignal(symbol, 'SHORT', 'OI +15% (30m) + Price/CVD down (1m)');
+      if (this.filterTrade(symbol, 'SHORT') && this.passesRsiFilter(symbol, 'SHORT')) this.logSignal(symbol, 'SHORT', 'OI +15% (30m) + Price/CVD down (1m)');
     }
   
     // Price Triggers
     if (priceChange5m >= 3 && oiChange1m > 0.2) {
-      if (this.filterTrade(symbol, 'LONG') && this.passesMomentumFilter(symbol, 'LONG')) this.logSignal(symbol, 'LONG', 'Price +3% (5m) + OI/CVD up (1m)');
+      if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG')) this.logSignal(symbol, 'LONG', 'Price +3% (5m) + OI/CVD up (1m)');
     }
   
     if (priceChange15m <= -10 && oiChange1m > 0.2) {
-      if (this.filterTrade(symbol, 'LONG') && this.passesMomentumFilter(symbol, 'LONG')) this.logSignal(symbol, 'LONG', 'Price -10% (15m) + OI/CVD up (1m)');
+      if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG')) this.logSignal(symbol, 'LONG', 'Price -10% (15m) + OI/CVD up (1m)');
     }
   
     if (priceChange20m >= 10 && oiChange1m < 0.2) {
-      if (this.filterTrade(symbol, 'SHORT') && this.passesMomentumFilter(symbol, 'SHORT')) this.logSignal(symbol, 'SHORT', 'Price +10% (20m) + OI/CVD down (1m)');
+      if (this.filterTrade(symbol, 'SHORT') && this.passesRsiFilter(symbol, 'SHORT')) this.logSignal(symbol, 'SHORT', 'Price +10% (20m) + OI/CVD down (1m)');
     }
   
     // Funding Trigger
     if (funding <= -0.1 && priceChange1m > 0.1 && oiChange1m > 0.2) {
-      if (this.filterTrade(symbol, 'LONG') && this.passesMomentumFilter(symbol, 'LONG')) this.logSignal(symbol, 'LONG', 'Funding -0.1% or less + OI/Price up (1m)');
+      if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG')) this.logSignal(symbol, 'LONG', 'Funding -0.1% or less + OI/Price up (1m)');
     }
   }
 
@@ -302,7 +299,7 @@ class TradingLogic {
     return 100 - (100 / (1 + rs));
   }
   
-  passesMomentumFilter(symbol, direction, options = {}) {
+  passesRsiFilter(symbol, direction, options = {}) {
     const rsi14 = this.calculateRSI(symbol, 14);
     const rsi7 = this.calculateRSI(symbol, 7);
     if (rsi14 === null || rsi7 === null) return true;
@@ -590,17 +587,17 @@ class TradingLogic {
           const current = this.getDataWindow(trade.symbol, 1)[0];
           if (!current) return;
       
-          trade.history.push(current.price);
+          trade.history.push(current);
       
           const hit = trade.direction === 'LONG'
-            ? current.price >= trade.takeProfit
-            : current.price <= trade.takeProfit;
+            ? current.high >= trade.takeProfit
+            : current.low <= trade.takeProfit;
       
           if (hit || trade.history.length >= 30) {
             trade.closed = true;
             const maxGain = trade.direction === 'LONG'
-              ? Math.max(...trade.history)
-              : Math.min(...trade.history);
+              ? Math.max(...trade.history.map(d => d.high ?? d.price))
+              : Math.min(...trade.history.map(d => d.low ?? d.price));
       
             const maxGainPct = getPercentChange(trade.entryPrice, maxGain);
             const couldHit1pct = trade.direction === 'LONG'
