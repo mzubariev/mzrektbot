@@ -40,7 +40,6 @@ async function main() {
         logger.info('CRON: Running Marketcap and Binance info updates!');
         await tradingLogic.updateMarketCapTokenData();
         logger.info('CoinMarketCap tokens ranks info updated successfully!');
-
         await tradingLogic.updateBinanceExchangeInfo();
         logger.info('Binance Exchnage info with all tokens details updated successfully!');
       } catch (error) {
@@ -53,9 +52,7 @@ async function main() {
     cron.schedule('0 * * * *', () => {
       try {
         logger.info('CRON: Running Deposit Size update!');
-
         tradingLogic.updateDepositSizeConfig();
-        
         logger.info('Deposit Size config updated successfully!');
       } catch (error) {
         logger.error(`Error updating deposit size config via cron task:`);

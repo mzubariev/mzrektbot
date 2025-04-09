@@ -81,8 +81,6 @@ class BinanceWssRestApi extends EventEmitter {
     return base64.fromByteArray(signature);
   }
 
-  // REST API calls
-
   async getListenKey() {
     try {
       const response = await axios.post(`${REST_API_URL}/listenKey`, null, {
@@ -108,165 +106,6 @@ class BinanceWssRestApi extends EventEmitter {
         console.error(error);
       }
     }, 30 * 60 * 1000); // Every 30 minutes
-  }
-
-  async getTokenCandleTrend(symbol, klineInterval) {
-    try {
-      const response = await axios.get(`${REST_API_URL}/klines`, {
-        params: {
-          symbol: symbol.toUpperCase(),
-          interval: klineInterval,
-          limit: 1, // Fetch only the latest interval candle
-        },
-      });
-  
-      if (response.data.length === 0) {
-        logger.error(`No data available for ${symbol}`);
-        return;
-      }
-  
-      const [openTime, open, high, low, close, volume, closeTime] = response.data[0];
-  
-      const trend = parseFloat(close) > parseFloat(open) ? 'BUY' : 'SELL';
-      const candleCurrentLifeTime = this.getCandleDuration(openTime);
-
-      logger.info(`${symbol} | ${klineInterval} Candle Trend: ${trend} | Candle current Lifetime: ${candleCurrentLifeTime} | Volume: ${volume}`);
-
-      return { trend, openTime, closeTime, volume };
-    } catch (error) {
-      logger.error(`Error fetching ${klineInterval} Kline for ${symbol}: %j`, error.response?.data || error.message);
-    }
-  }
-
-  async startIntervalsToCollectBinanceData() {
-    await this.fetchInitialFuturesPriceVolume();
-    await this.fetchOpenInterestLive();
-    await this.fetchFundingRates();
-  
-    const timestamp = getCurrentTimestamp();
-  
-    for (const symbol of this.allTokensList) {
-      const { price = null, volume = null, high = null, low = null } = this.priceVolumeCache[symbol] || {};
-
-      const cvd = this.cvdMinuteDelta[symbol] || 0;
-      const funding = this.latestFundingRates[symbol] ?? null;
-      const openInterest = this.latestOpenInterest[symbol] ?? null;
-  
-      this.events.emit('message:minuteTick', {
-        symbol,
-        timestamp,
-        price,
-        volume,
-        high,
-        low,
-        cvd,
-        funding,
-        openInterest,
-      });
-  
-      this.cvdMinuteDelta[symbol] = 0;
-    }
-  
-    // Align to next full minute
-    const now = Date.now();
-    const msToNextMinute = 60000 - (now % 60000);
-  
-    setTimeout(() => {
-      // === Every 1 minute ===
-      setInterval(() => {
-        const timestamp = getCurrentTimestamp();
-  
-        for (const symbol of this.allTokensList) {
-          const { price = null, volume = null, high = null, low = null } = this.priceVolumeCache[symbol] || {};
-
-          const cvd = this.cvdMinuteDelta[symbol] || 0;
-          const funding = this.latestFundingRates[symbol] ?? null;
-          const openInterest = this.latestOpenInterest[symbol] ?? null;
-  
-          this.events.emit('message:minuteTick', {
-            symbol,
-            timestamp,
-            price,
-            volume,
-            high,
-            low,
-            cvd,
-            funding,
-            openInterest,
-          });
-  
-          this.cvdMinuteDelta[symbol] = 0;
-        }
-      }, 60000);
-  
-      // Every 1m and 3m polling
-      setInterval(() => this.fetchOpenInterestLive(), 60000);
-      setInterval(() => this.fetchFundingRates(), 180000);
-    }, msToNextMinute);
-  }
-
-  async fetchInitialFuturesPriceVolume() {
-    try {
-      const response = await axios.get(`${REST_API_URL}/ticker/24hr`);
-      response.data.forEach(ticker => {
-        const symbol = ticker.symbol.toUpperCase();
-        if (!symbol.includes('USDC') && !symbol.includes('_') && !symbol.includes('ETHBTC')) {
-          const price = parseFloat(ticker.lastPrice);
-          const volume = parseFloat(ticker.volume);
-          this.priceVolumeCache[symbol] = {
-            price,
-            volume,
-            high: price,
-            low: price,
-          };
-        }
-      });
-      logger.info('[Startup] Loaded price/volume snapshot for all futures tokens');
-    } catch (err) {
-      logger.error('Error fetching futures ticker snapshot:', err.message);
-    }
-  }
-
-  async fetchFundingRates() {
-    try {
-      const response = await axios.get(`${REST_API_URL}/fundingRate`, { 
-        params: { 
-          limit: this.allTokensList.length + 10 
-        }
-      });
-
-      response.data.forEach((item) => {
-        const symbol = item.symbol.toUpperCase();
-        this.latestFundingRates[symbol] = parseFloat(item.fundingRate) * 100;
-      });
-
-    } catch (err) {
-      logger.error(`Funding fetch error: %j`, err.response?.data || err.message);
-    }
-  }
-
-  async fetchOpenInterestLive() {
-    for (const symbol of this.allTokensList) {
-      const oi = await this.fetchOpenInterestSingle(symbol);
-      if (oi !== null) {
-        this.latestOpenInterest[symbol] = oi;
-      }
-  
-      // Delay between requests to avoid burst
-      await new Promise(res => setTimeout(res, 100)); // 10 requests/sec
-    }
-  }
-
-  async fetchOpenInterestSingle(symbol) {
-    try {
-      const res = await axios.get(`${REST_API_URL}/openInterest`, {
-        params: { symbol }
-      });
-      return parseFloat(res.data.openInterest);
-    } catch (err) {
-      logger.error(`[OI] Error for ${symbol}: ${err.message}`);
-      return null;
-    }
   }
 
   // Listeners and subscriptions to WSS Streams
@@ -514,6 +353,167 @@ class BinanceWssRestApi extends EventEmitter {
     const { walletBalance, availableBalance } = await this.getAccountBalance();
     this.accountInfo.walletBalance = roundDownToTwoDecimals(walletBalance);
     this.accountInfo.availableBalance = roundDownToTwoDecimals(availableBalance);
+  }
+
+  // REST API calls
+
+  async startIntervalsToCollectBinanceData() {
+    await this.fetchInitialFuturesPriceVolume();
+    await this.fetchOpenInterestLive();
+    await this.fetchFundingRates();
+  
+    const timestamp = getCurrentTimestamp();
+  
+    for (const symbol of this.allTokensList) {
+      const { price = null, volume = null, high = null, low = null } = this.priceVolumeCache[symbol] || {};
+
+      const cvd = this.cvdMinuteDelta[symbol] || 0;
+      const funding = this.latestFundingRates[symbol] ?? null;
+      const openInterest = this.latestOpenInterest[symbol] ?? null;
+  
+      this.events.emit('message:minuteTick', {
+        symbol,
+        timestamp,
+        price,
+        volume,
+        high,
+        low,
+        cvd,
+        funding,
+        openInterest,
+      });
+  
+      this.cvdMinuteDelta[symbol] = 0;
+    }
+  
+    // Align to next full minute
+    const now = Date.now();
+    const msToNextMinute = 60000 - (now % 60000);
+  
+    setTimeout(() => {
+      // === Every 1 minute ===
+      setInterval(() => {
+        const timestamp = getCurrentTimestamp();
+  
+        for (const symbol of this.allTokensList) {
+          const { price = null, volume = null, high = null, low = null } = this.priceVolumeCache[symbol] || {};
+
+          const cvd = this.cvdMinuteDelta[symbol] || 0;
+          const funding = this.latestFundingRates[symbol] ?? null;
+          const openInterest = this.latestOpenInterest[symbol] ?? null;
+  
+          this.events.emit('message:minuteTick', {
+            symbol,
+            timestamp,
+            price,
+            volume,
+            high,
+            low,
+            cvd,
+            funding,
+            openInterest,
+          });
+  
+          this.cvdMinuteDelta[symbol] = 0;
+        }
+      }, 60000);
+  
+      // Every 1m and 3m polling
+      setInterval(() => this.fetchOpenInterestLive(), 60000);
+      setInterval(() => this.fetchFundingRates(), 180000);
+    }, msToNextMinute);
+  }
+
+  async fetchInitialFuturesPriceVolume() {
+    try {
+      const response = await axios.get(`${REST_API_URL}/ticker/24hr`);
+      response.data.forEach(ticker => {
+        const symbol = ticker.symbol.toUpperCase();
+        if (!symbol.includes('USDC') && !symbol.includes('_') && !symbol.includes('ETHBTC')) {
+          const price = parseFloat(ticker.lastPrice);
+          const volume = parseFloat(ticker.volume);
+          this.priceVolumeCache[symbol] = {
+            price,
+            volume,
+            high: price,
+            low: price,
+          };
+        }
+      });
+      logger.info('[Startup] Loaded price/volume snapshot for all futures tokens');
+    } catch (err) {
+      logger.error('Error fetching futures ticker snapshot:', err.message);
+    }
+  }
+
+  async fetchFundingRates() {
+    try {
+      const response = await axios.get(`${REST_API_URL}/fundingRate`, { 
+        params: { 
+          limit: this.allTokensList.length + 10 
+        }
+      });
+
+      response.data.forEach((item) => {
+        const symbol = item.symbol.toUpperCase();
+        this.latestFundingRates[symbol] = parseFloat(item.fundingRate) * 100;
+      });
+
+    } catch (err) {
+      logger.error(`Funding fetch error: %j`, err.response?.data || err.message);
+    }
+  }
+
+  async fetchOpenInterestLive() {
+    for (const symbol of this.allTokensList) {
+      const oi = await this.fetchOpenInterestSingle(symbol);
+      if (oi !== null) {
+        this.latestOpenInterest[symbol] = oi;
+      }
+  
+      // Delay between requests to avoid burst
+      await new Promise(res => setTimeout(res, 100)); // 10 requests/sec
+    }
+  }
+
+  async fetchOpenInterestSingle(symbol) {
+    try {
+      const res = await axios.get(`${REST_API_URL}/openInterest`, {
+        params: { symbol }
+      });
+      return parseFloat(res.data.openInterest);
+    } catch (err) {
+      logger.error(`[OI] Error for ${symbol}: ${err.message}`);
+      return null;
+    }
+  }
+
+  async getTokenCandleTrend(symbol, klineInterval) {
+    try {
+      const response = await axios.get(`${REST_API_URL}/klines`, {
+        params: {
+          symbol: symbol.toUpperCase(),
+          interval: klineInterval,
+          limit: 1, // Fetch only the latest interval candle
+        },
+      });
+  
+      if (response.data.length === 0) {
+        logger.error(`No data available for ${symbol}`);
+        return;
+      }
+  
+      const [openTime, open, high, low, close, volume, closeTime] = response.data[0];
+  
+      const trend = parseFloat(close) > parseFloat(open) ? 'BUY' : 'SELL';
+      const candleCurrentLifeTime = this.getCandleDuration(openTime);
+
+      logger.info(`${symbol} | ${klineInterval} Candle Trend: ${trend} | Candle current Lifetime: ${candleCurrentLifeTime} | Volume: ${volume}`);
+
+      return { trend, openTime, closeTime, volume };
+    } catch (error) {
+      logger.error(`Error fetching ${klineInterval} Kline for ${symbol}: %j`, error.response?.data || error.message);
+    }
   }
 
   // Communication via WSS API

@@ -1,7 +1,7 @@
 {
   "env": "test",
-  "depositSize": 388.54,
-  "bidPercentage": 5.12,
+  "depositSize": 300,
+  "bidPercentage": 5,
   "profitPercentage": 0.2,
   "tradeDirection": "trend",
   "longsOrShortsOrBoth": "both",

@@ -14,7 +14,7 @@ export function getOppositeTradeSide(tradeSide) {
   return tradeSide === 'BUY' ? 'SELL' : 'BUY';
 }
 
-export function translatePositionSideToTradeSide(positionSide) {
+export function translatePositionSide(positionSide) {
   return positionSide === 'LONG' ? 'BUY' : 'SELL';
 }
 
@@ -35,6 +35,13 @@ export function getPercentChange(start, end) {
   return ((end - start) / start) * 100;
 }
 
+export function sumLastMinutes(m30, field, count, offset = 0) {
+  return Array.from({ length: count }, (_, i) => {
+    const dataPoint = m30[m30.length - 1 - offset - i];
+    return dataPoint?.[field] || 0;
+  }).reduce((acc, v) => acc + v, 0);
+}
+
 export function getCurrentTimestamp() {
   const now = new Date();
   return now.toLocaleString('en-GB', {
@@ -53,9 +60,10 @@ export default {
   roundDownToTwoDecimals,
   calculateBidAmount,
   getOppositeTradeSide,
-  translatePositionSideToTradeSide,
+  translatePositionSide,
   getTokenTrend,
   getBotTradeSide,
   getPercentChange,
-  getCurrentTimestamp
+  getCurrentTimestamp,
+  sumLastMinutes
 };
