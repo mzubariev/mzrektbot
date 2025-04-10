@@ -437,6 +437,14 @@ class TradingLogic {
   }
 
   logSignal(symbol, direction, reason) {
+    const sameSymbolOpenTrades = this.pendingTrades.filter(
+      t => t.symbol === symbol && !t.closed
+    );
+    if (sameSymbolOpenTrades.length >= config.current.sameSymbolOrdersLimit) {
+      logger.warn(`The same symbol ${symbol} and the same ${direction} direction trades are going to be more than limit ${config.current.sameSymbolOrdersLimit}. Skipping the trade...`);
+      return;
+    }
+
     const url = `https://www.coinglass.com/tv/Binance_${symbol.toUpperCase()}`;
     const timestamp = getCurrentTimestamp();
     const latest = this.getDataWindow(symbol, 1)[0];
