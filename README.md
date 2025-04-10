@@ -28,3 +28,8 @@ Example: when the market goes UP then SELL (SHORT) liquidations get trigerred an
 # Testing
 * To analyze test results:
     * node testing/analyze-results.js
+
+# Run/stop with logs to file
+* nohup npm start &> output10Apr2025__00-58.log &
+* ps -ef | grep node
+* kill ${id}
