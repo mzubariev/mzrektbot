@@ -6,7 +6,7 @@
   "tradeDirection": "trend",
   "longsOrShortsOrBoth": "both",
   "sameSymbolOrdersLimit": 2,
-  "smallLiquidation": 100000,
-  "top50Liquidation": 300000,
-  "top20Liquidation": 1000000
+  "smallLiquidation": 50000,
+  "top50Liquidation": 150000,
+  "top20Liquidation": 500000
 }
