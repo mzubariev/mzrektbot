@@ -267,18 +267,18 @@ class TradingLogic {
       }
   
       // Include Volume exploasion
-      if (m30.length >= 24) {
-        const recentVolume12 = sumLastMinutes(m30, 'volume', 12);
-        const previousVolume12 = sumLastMinutes(m30, 'volume', 12, 12);
+      // if (m30.length >= 24) {
+        // const recentVolume12 = sumLastMinutes(m30, 'volume', 12);
+        // const previousVolume12 = sumLastMinutes(m30, 'volume', 12, 12);
       
-        const volumeExploded = recentVolume12 >= 2 * previousVolume12;
+        // const volumeExploded = recentVolume12 >= 1.5 * previousVolume12;
       
-        if (oiChange12m >= 2 && priceChange1m > 0.1 && volumeExploded) {
+        if (oiChange12m >= 2 && priceChange1m > 0.1/* && volumeExploded*/) {
           if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG', { rsiHigh: 70 })) {
             this.processSignalAccordingToEnv(symbol, 'LONG', 'OI +2% (12m) + Price up + Volume spike');
           }
         }
-      }
+      // }
     
       if (oiChange30m >= 15 && priceChange1m < 0.1) {
         if (this.filterTrade(symbol, 'SHORT') && this.passesRsiFilter(symbol, 'SHORT')) this.processSignalAccordingToEnv(symbol, 'SHORT', 'OI +15% (30m) + Price/CVD down (1m)');
