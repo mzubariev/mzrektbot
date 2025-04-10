@@ -116,8 +116,8 @@ class TradingLogic {
             trade.history.push(current);
     
             const hit = trade.direction === 'LONG'
-              ? current.high >= trade.takeProfit
-              : current.low <= trade.takeProfit;
+              ? current.high >= trade.takeProfit * 1.0002
+              : current.low <= trade.takeProfit * 0.9998;
     
             if (hit || trade.history.length >= 30) {
               trade.closed = true;
@@ -449,14 +449,20 @@ class TradingLogic {
     const timestamp = getCurrentTimestamp();
     const latest = this.getDataWindow(symbol, 1)[0];
     const entryPrice = latest?.price;
-    const takeProfit = this.calculateTakeProfit(symbol, direction, entryPrice, reason);
+
+    const slippagePct = 0.05 / 100;
+    const entryPriceWithSlippage = direction === 'LONG'
+      ? entryPrice * (1 + slippagePct)
+      : entryPrice * (1 - slippagePct);
+
+    const takeProfit = this.calculateTakeProfit(symbol, direction, entryPriceWithSlippage, reason);
   
     const trade = {
       timestamp,
       symbol,
       direction,
       reason,
-      entryPrice,
+      entryPrice: entryPriceWithSlippage,
       takeProfit,
       history: [],
       closed: false
@@ -564,6 +570,9 @@ class TradingLogic {
     if (reason?.includes('Liquidation')) percentage = 0.0015;
     else if (reason?.includes('Volume spike')) percentage = 0.003;
     else percentage = config.current.profitPercentage / 100;
+
+    // To imitate the execution realism in testing
+    if (config.current.env === 'test') percentage = config.current.profitPercentage / 100 + 0.0002;
   
     // Raw TP calculation
     let rawTP = direction === 'LONG'
