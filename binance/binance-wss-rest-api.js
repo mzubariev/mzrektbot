@@ -853,7 +853,7 @@ class BinanceWssRestApi extends EventEmitter {
     }
     logger.info(`Disconnecting WebSocket for User Data Streams ${WSS_URL_STREAMS}/listenKey:`);
     if (this.wsUserDataStreams) {
-      this.this.isForceDisconnectUserDataStreamsWs = true;
+      this.isForceDisconnectUserDataStreamsWs = true;
       this.wsUserDataStreams.close();
     }
   }
