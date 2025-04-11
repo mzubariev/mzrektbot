@@ -187,7 +187,7 @@ class TradingLogic {
                       ? 'SHORT'
                       : null;
     
-                  if (direction && this.filterLiquidationTrade(symbol, direction) && this.passesRsiFilter(symbol, direction)) {
+                  if (direction && this.filterLiquidationTrade(symbol, direction)/* && this.passesRsiFilter(symbol, direction)*/) {
                     this.processSignalAccordingToEnv(
                       symbol,
                       direction,
