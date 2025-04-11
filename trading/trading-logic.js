@@ -494,7 +494,7 @@ class TradingLogic {
   }
 
   dynamicSlippagePcnt(symbol, entryPrice) {
-    const dynamicSlippagePct = DEFAULT_SLIPPAGE_FOR_TESTING;
+    let dynamicSlippagePct = DEFAULT_SLIPPAGE_FOR_TESTING;
     const recentWindow = this.getDataWindow(symbol, 5);
 
     if (recentWindow.length === 5) {
