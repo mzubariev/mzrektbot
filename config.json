@@ -1,5 +1,6 @@
 {
   "env": "test",
+  "withDetailedLog": 1,
   "depositSize": 188.67,
   "bidPercentage": 5,
   "profitPercentage": 0.2,

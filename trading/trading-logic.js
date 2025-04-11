@@ -106,7 +106,7 @@ class TradingLogic {
         try {
           this.allTokensList.forEach(symbol => this.strategyEngine(symbol));
   
-          if (config.current.env === 'test') {
+          if (config.current.withDetailedLog) {
             this.pendingTrades.forEach(trade => {
               if (trade.closed) return;
       
@@ -199,16 +199,18 @@ class TradingLogic {
         }
       }, 60000);
   
-      // === Every 5 Minutes: Export logs
-      setInterval(() => {
-        try {
-          fs.writeFileSync('testing/signal-log.json', JSON.stringify(this.signalLog, null, 2));
-          fs.writeFileSync('testing/trade-results.json', JSON.stringify(this.tradeResults, null, 2));
-          console.log('💾 Exported signal log and trade results');
-        } catch (err) {
-          console.error('Error exporting data:', err.message);
-        }
-      }, 5 * 60 * 1000);
+      if (config.current.withDetailedLog) {
+        // === Every 5 Minutes: Export logs
+        setInterval(() => {
+          try {
+            fs.writeFileSync('testing/signal-log.json', JSON.stringify(this.signalLog, null, 2));
+            fs.writeFileSync('testing/trade-results.json', JSON.stringify(this.tradeResults, null, 2));
+            console.log('💾 Exported signal log and trade results');
+          } catch (err) {
+            console.error('Error exporting data:', err.message);
+          }
+        }, 5 * 60 * 1000);
+      }
     }, msToNextMinute);
   }
 
@@ -421,7 +423,8 @@ class TradingLogic {
 
   processSignalAccordingToEnv(symbol, direction, reason) {
     try {
-      config.current.env === 'test' ? this.logSignal(symbol, direction, reason) : this.executeTrade(symbol, direction, reason);
+      if (config.current.env === 'prod') this.executeTrade(symbol, direction, reason);
+      if (config.current.withDetailedLog) this.logSignal(symbol, direction, reason);
     } catch (err) {
       logger.error(`[${symbol}] - Error to run the processSignalAccordingToEnv: ${err.message}`);
       console.error('Error in processSignalAccordingToEnv:', err.message);
