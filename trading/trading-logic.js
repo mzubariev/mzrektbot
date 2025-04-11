@@ -191,7 +191,7 @@ class TradingLogic {
                     this.processSignalAccordingToEnv(
                       symbol,
                       direction,
-                      `🔥 1m Liquidation Cluster (${Math.round(totalLiquidation)} USDT) + Price/OI bounce`
+                      `🔥 (1m) Liquidation Cluster (${Math.round(totalLiquidation)} USDT) + Price/OI up (1m)`
                     );
                   }
                 }
@@ -261,6 +261,7 @@ class TradingLogic {
   
       const priceChange1m = m30.length >= 2 ? getPercentChange(last(1)?.price, current.price) : null;
       const oiChange1m = m30.length >= 2 ? getPercentChange(last(1)?.openInterest, current.openInterest) : null;
+      const volumeChange1m = m30.length >= 2 ? getPercentChange(last(1)?.volume, current.volume) : null;
     
       const priceChange5m = m30.length >= 6 ? getPercentChange(last(5)?.price, current.price) : null;
       const priceChange15m = m30.length >= 16 ? getPercentChange(last(15)?.price, current.price) : null;
@@ -273,22 +274,21 @@ class TradingLogic {
     
       // Open Interest Triggers
       if (oiChange1m <= -1 && priceChange1m < 0.1) {
-        if (this.filterTrade(symbol, 'SHORT') && this.passesRsiFilter(symbol, 'SHORT', { rsiLow: 30 })) this.processSignalAccordingToEnv(symbol, 'SHORT', 'OI -1%+ down + Price down + CVD down (1m)');
+        if (this.filterTrade(symbol, 'SHORT') && this.passesRsiFilter(symbol, 'SHORT', { rsiLow: 30 })) this.processSignalAccordingToEnv(symbol, 'SHORT', 'OI -1% (1m) + Price/CVD down (1m)');
       }
   
       // Include Volume exploasion
-      // if (m30.length >= 24) {
-        // const recentVolume12 = sumLastMinutes(m30, 'volume', 12);
-        // const previousVolume12 = sumLastMinutes(m30, 'volume', 12, 12);
-      
-        // const volumeExploded = recentVolume12 >= 1.5 * previousVolume12;
-      
-        if (oiChange12m >= 2 && priceChange1m > 0.1/* && volumeExploded*/) {
+      if (oiChange12m >= 2 && priceChange1m > 0.1) {
+        if (volumeChange1m >= 50) {
           if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG', { rsiHigh: 70 })) {
-            this.processSignalAccordingToEnv(symbol, 'LONG', 'OI +2% (12m) + Price up + Volume spike');
+            this.processSignalAccordingToEnv(symbol, 'LONG', 'OI +2% (12m) + Price up + Volume spike (1m)');
+          }
+        } else {
+          if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG', { rsiHigh: 70 })) {
+            this.processSignalAccordingToEnv(symbol, 'LONG', 'OI +2% (12m) + Price up (1m)');
           }
         }
-      // }
+      }
     
       if (oiChange30m >= 15 && priceChange1m < 0.1) {
         if (this.filterTrade(symbol, 'SHORT') && this.passesRsiFilter(symbol, 'SHORT')) this.processSignalAccordingToEnv(symbol, 'SHORT', 'OI +15% (30m) + Price/CVD down (1m)');
