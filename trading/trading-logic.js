@@ -8,6 +8,8 @@ import config from '../utils/configuration.js';
 import { calculateBidAmount, getOppositeTradeSide, translatePositionSideToTradeSide, getPercentChange, getCurrentTimestamp, sumLastMinutes, shouldSkipSymbol } from '../utils/helpers.js';
 
 const WINDOW_SIZE = 30; // 30 minutes (1-minute intervals)
+const DEFAULT_SLIPPAGE_FOR_TESTING = 0.0012;
+const APPROX_SPREAD_FOR_TESTING = 0.0006;
 
 class TradingLogic {
   constructor({ binanceApiKey, binanceSecretKey }) {
@@ -454,7 +456,7 @@ class TradingLogic {
     const entryPrice = latest?.price;
 
     // To imitate the execution realism in testing: paying spread + slippage because of the market order
-    const slippagePct = 0.12 / 100;
+    const slippagePct = this.dynamicSlippagePcnt(symbol, entryPrice);
     const entryPriceWithSlippage = direction === 'LONG'
       ? entryPrice * (1 + slippagePct)
       : entryPrice * (1 - slippagePct);
@@ -467,6 +469,7 @@ class TradingLogic {
       direction,
       reason,
       entryPrice: entryPriceWithSlippage,
+      dynamicSlippagePcnt: slippagePct,
       takeProfit,
       history: [],
       closed: false
@@ -477,6 +480,21 @@ class TradingLogic {
   
     console.log(`[${symbol}] ${direction} – ${reason}`);
     console.log(`🔗 ${url}\n`);
+  }
+
+  dynamicSlippagePcnt(symbol, entryPrice) {
+    const dynamicSlippagePct = DEFAULT_SLIPPAGE_FOR_TESTING;
+    const recentWindow = this.getDataWindow(symbol, 5);
+
+    if (recentWindow.length === 5) {
+      const ranges = recentWindow.map(c => c.high - c.low);
+      const avgRange = ranges.reduce((a, b) => a + b, 0) / ranges.length;
+
+      const volatility = avgRange / entryPrice;
+      dynamicSlippagePct = Math.max(0.0005, volatility * 0.3) + APPROX_SPREAD_FOR_TESTING; // e.g. 0.05% min, 30% of range + spread
+    }
+
+    return dynamicSlippagePct;
   }
 
   async executeTrade(symbol, positionSide, reason) {
