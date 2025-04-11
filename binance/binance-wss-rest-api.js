@@ -6,7 +6,7 @@ import nacl from 'tweetnacl';
 import base64 from 'base64-js';
 import axios from 'axios';
 import config from '../utils/configuration.js';
-import { roundDownToTwoDecimals, getCurrentTimestamp } from '../utils/helpers.js';
+import { roundDownToTwoDecimals, getCurrentTimestamp, shouldSkipSymbol } from '../utils/helpers.js';
 
 EventEmitter.defaultMaxListeners = 30;
 //process.setMaxListeners(100);
@@ -197,7 +197,7 @@ class BinanceWssRestApi extends EventEmitter {
         const message = JSON.parse(data);
 
         // === Liquidations ===
-        if (message.e === 'forceOrder' && !message.o.s.includes('USDC')) {
+        if (message.e === 'forceOrder' && !shouldSkipSymbol(message.o.s)) {
           this.events.emit('message:liquidation', message.o);
         }
 
@@ -274,11 +274,7 @@ class BinanceWssRestApi extends EventEmitter {
     if (!Array.isArray(message)) return;
     message.forEach((ticker) => {
       if (
-        ticker.e === '24hrTicker' &&
-        !ticker.s.includes('_') &&
-        !ticker.s.includes('USDC') &&
-        !ticker.s.includes('ETHBTC')
-      ) {
+        ticker.e === '24hrTicker' && !shouldSkipSymbol(ticker.s)) {
         const symbol = ticker.s.toUpperCase();
         const price = parseFloat(ticker.c);
         const volume = parseFloat(ticker.v);
@@ -444,7 +440,7 @@ class BinanceWssRestApi extends EventEmitter {
       const response = await axios.get(`${REST_API_URL}/ticker/24hr`);
       response.data.forEach(ticker => {
         const symbol = ticker.symbol.toUpperCase();
-        if (!symbol.includes('USDC') && !symbol.includes('_') && !symbol.includes('ETHBTC')) {
+        if (!shouldSkipSymbol(symbol)) {
           const price = parseFloat(ticker.lastPrice);
           const volume = parseFloat(ticker.volume);
           this.priceVolumeCache[symbol] = {

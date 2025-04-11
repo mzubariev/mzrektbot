@@ -1,6 +1,8 @@
 // helpers.js
 import config from '../utils/configuration.js';
 
+const SKIP_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'ETHBTC'];
+
 export function roundDownToTwoDecimals(number) {
   return Math.floor(number * 100) / 100;
 }
@@ -56,6 +58,14 @@ export function getCurrentTimestamp() {
   }).replace(',', '');
 }
 
+export function shouldSkipSymbol(symbol) {
+  return (
+    symbol.includes('USDC') ||
+    symbol.includes('_') ||
+    SKIP_SYMBOLS.includes(symbol)
+  );
+}
+
 export default {
   roundDownToTwoDecimals,
   calculateBidAmount,
@@ -65,5 +75,6 @@ export default {
   getBotTradeSide,
   getPercentChange,
   getCurrentTimestamp,
-  sumLastMinutes
+  sumLastMinutes,
+  shouldSkipSymbol
 };

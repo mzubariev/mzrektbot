@@ -5,10 +5,9 @@ import fs from 'fs';
 import getBinanceExchangeInfo from '../utils/binance-exchange-info.js';
 import getMarketCapTokenData from '../utils/coinmarketcap-token-data.js';
 import config from '../utils/configuration.js';
-import { calculateBidAmount, getOppositeTradeSide, translatePositionSideToTradeSide, getPercentChange, getCurrentTimestamp, sumLastMinutes } from '../utils/helpers.js';
+import { calculateBidAmount, getOppositeTradeSide, translatePositionSideToTradeSide, getPercentChange, getCurrentTimestamp, sumLastMinutes, shouldSkipSymbol } from '../utils/helpers.js';
 
 const WINDOW_SIZE = 30; // 30 minutes (1-minute intervals)
-const SKIP_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'ETHBTC'];
 
 class TradingLogic {
   constructor({ binanceApiKey, binanceSecretKey }) {
@@ -217,7 +216,7 @@ class TradingLogic {
   handleLiquidation(liquidation) {
     const { s: symbol, S: side, q: quantity, ap: price } = liquidation;
 
-    if (this.shouldSkipSymbol(symbol)) {
+    if (shouldSkipSymbol(symbol)) {
       return;
     }
 
@@ -231,7 +230,7 @@ class TradingLogic {
 
   async strategyEngine(symbol) {
     try {
-      if (this.shouldSkipSymbol(symbol)) {
+      if (shouldSkipSymbol(symbol)) {
         return;
       }
   
@@ -308,14 +307,6 @@ class TradingLogic {
   }
 
   // FILTERS
-
-  shouldSkipSymbol(symbol) {
-    return (
-      symbol.includes('USDC') ||
-      symbol.includes('_') ||
-      SKIP_SYMBOLS.includes(symbol)
-    );
-  }
 
   async checkIfEnoughBalanceForBid() {
     const amountForBid = calculateBidAmount(this.binanceWs);
