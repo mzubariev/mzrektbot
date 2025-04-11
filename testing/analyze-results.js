@@ -26,16 +26,27 @@ function summarizeResults(results) {
     const key = `${r.reason} (${r.direction})`;
 
     if (!reasons[key]) {
-      reasons[key] = { count: 0, wins: 0, onePercent: 0, onePointFive: 0 };
+      reasons[key] = {
+        count: 0,
+        wins: 0,
+        onePercent: 0,
+        onePointFive: 0,
+        stuck: 0,
+        durations: []
+      };
     }
 
     reasons[key].count++;
+
     if (r.TP_hit) {
       wins++;
-      hitTimes.push(r.hitAtMinute);
       reasons[key].wins++;
+      hitTimes.push(r.hitAtMinute);
+      reasons[key].durations.push(r.hitAtMinute || 1); // fallback just in case
     } else {
       losses++;
+      reasons[key].stuck++;
+      reasons[key].durations.push(30); // trade lasted full 30m but never hit TP
     }
 
     if (r.couldHit1pct) {
@@ -77,8 +88,7 @@ function summarizeResults(results) {
     const onePct = list.filter(r => r.couldHit1pct).length;
     const oneFive = list.filter(r => parseFloat(r.maxGainPct) >= 1.5).length;
     const avgTime = list
-      .filter(r => r.hitAtMinute !== undefined)
-      .map(r => r.hitAtMinute)
+      .map(r => r.TP_hit ? r.hitAtMinute || 1 : 30)
       .reduce((a, b) => a + b, 0) / list.length;
 
     const winRate = (wins / list.length * 100).toFixed(2);
@@ -86,20 +96,22 @@ function summarizeResults(results) {
     const oneFiveRate = (oneFive / list.length * 100).toFixed(2);
     const avgHit = isNaN(avgTime) ? 'N/A' : avgTime.toFixed(1);
 
-    console.log(`• ${dir} | ${list.length} trades | ${winRate}% win | ${onePctRate}% ≥1% | ${oneFiveRate}% ≥1.5% | Avg TP: ${avgHit} min`);
+    console.log(`• ${dir} | ${list.length} trades | ${winRate}% win | ${onePctRate}% ≥1% | ${oneFiveRate}% ≥1.5% | Avg Lifecycle: ${avgHit} min`);
   });
 
   console.log('\nTop Strategies (by direction):');
   Object.entries(reasons)
     .sort(([, a], [, b]) => b.count - a.count)
     .forEach(([reason, data]) => {
-      const { count, wins, onePercent, onePointFive } = data;
+      const { count, wins, onePercent, onePointFive, stuck, durations } = data;
       const winRate = ((wins / count) * 100).toFixed(1);
       const onePct = ((onePercent / count) * 100).toFixed(1);
       const oneFive = ((onePointFive / count) * 100).toFixed(1);
+      const avgLife = (durations.reduce((a, b) => a + b, 0) / durations.length).toFixed(1);
       const highlight = onePct >= 50 ? '\x1b[32m' : '';
       const reset = highlight ? '\x1b[0m' : '';
-      console.log(`${highlight}• ${reason} | ${count} trades | ${winRate}% win | ${onePct}% ≥1% | ${oneFive}% ≥1.5%${reset}`);
+      const failNote = stuck > 0 ? ` ❌ ${stuck} stuck` : '';
+      console.log(`${highlight}• ${reason} | ${count} trades | ${winRate}% win | ${onePct}% ≥1% | ${oneFive}% ≥1.5% | Avg Lifecycle: ${avgLife} min${failNote}${reset}`);
     });
 }
 
