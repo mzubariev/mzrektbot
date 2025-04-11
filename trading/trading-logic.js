@@ -22,6 +22,7 @@ class TradingLogic {
     this.pendingTrades = [];
     this.signalLog = [];
     this.tradeResults = [];
+    this.executionDiagnostics = [];
     this.liquidationVolumeBySymbol = {};
     this.isPaused = false;
     this.isStopped = false;
@@ -442,33 +443,17 @@ class TradingLogic {
   }
 
   logSignal(symbol, direction, reason) {
-    const sameSymbolOpenTrades = this.pendingTrades.filter(
-      t => t.symbol === symbol && !t.closed
-    );
-    if (sameSymbolOpenTrades.length >= config.current.sameSymbolOrdersLimit) {
-      logger.warn(`The same symbol ${symbol} and the same ${direction} direction trades are going to be more than limit ${config.current.sameSymbolOrdersLimit}. Skipping the trade...`);
-      return;
-    }
-
+    const simTradeData = this.generateSimulatedTradeData(symbol, direction, reason);
+    const { simEntryPrice, takeProfit, slippagePct, timestamp } = simTradeData;
+  
     const url = `https://www.coinglass.com/tv/Binance_${symbol.toUpperCase()}`;
-    const timestamp = getCurrentTimestamp();
-    const latest = this.getDataWindow(symbol, 1)[0];
-    const entryPrice = latest?.price;
-
-    // To imitate the execution realism in testing: paying spread + slippage because of the market order
-    const slippagePct = this.dynamicSlippagePcnt(symbol, entryPrice);
-    const entryPriceWithSlippage = direction === 'LONG'
-      ? entryPrice * (1 + slippagePct)
-      : entryPrice * (1 - slippagePct);
-
-    const takeProfit = this.calculateTakeProfit(symbol, direction, entryPriceWithSlippage, reason);
   
     const trade = {
       timestamp,
       symbol,
       direction,
       reason,
-      entryPrice: entryPriceWithSlippage,
+      entryPrice: simEntryPrice,
       dynamicSlippagePcnt: slippagePct,
       takeProfit,
       history: [],
@@ -478,8 +463,34 @@ class TradingLogic {
     this.signalLog.push({ ...trade, coinglass: url });
     this.pendingTrades.push(trade);
   
+    // Add to diagnostics with null real entry
+    this.executionDiagnostics.push({ ...simTradeData, realEntryPrice: null, diffAbs: null, diffPct: null });
+  
     console.log(`[${symbol}] ${direction} – ${reason}`);
     console.log(`🔗 ${url}\n`);
+  }
+
+  generateSimulatedTradeData(symbol, direction, reason) {
+    const timestamp = getCurrentTimestamp();
+    const latest = this.getDataWindow(symbol, 1)[0];
+    const entryPrice = latest?.price;
+  
+    const slippagePct = this.dynamicSlippagePcnt(symbol, entryPrice);
+    const simEntryPrice = direction === 'LONG'
+      ? entryPrice * (1 + slippagePct)
+      : entryPrice * (1 - slippagePct);
+  
+    const takeProfit = this.calculateTakeProfit(symbol, direction, simEntryPrice, reason);
+  
+    return {
+      timestamp,
+      symbol,
+      direction,
+      reason,
+      simEntryPrice,
+      slippagePct,
+      takeProfit
+    };
   }
 
   dynamicSlippagePcnt(symbol, entryPrice) {
@@ -516,6 +527,16 @@ class TradingLogic {
       const avgEnterPrice = parseFloat(marketOrderResult.avgPrice);
       const executedQuantity = parseFloat(marketOrderResult.executedQty);
       await this.sendLimitOrderToClosePosition(symbol, tradeSide, positionSide, executedQuantity, avgEnterPrice, reason);
+
+      if (config.current.env === 'test' || config.current.withDetailedLog) {
+        const simTradeData = this.generateSimulatedTradeData(symbol, positionSide, reason);
+        this.executionDiagnostics.push({
+          ...simTradeData,
+          realEntryPrice: avgEnterPrice,
+          diffAbs: Math.abs(avgEnterPrice - simTradeData.simEntryPrice),
+          diffPct: getPercentChange(simTradeData.simEntryPrice, avgEnterPrice)
+        });
+      }
 
     } catch (error) {
       throw new Error(`Trade execution failed for ${symbol}: ${error.message}`);
