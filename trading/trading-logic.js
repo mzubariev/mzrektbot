@@ -106,7 +106,7 @@ class TradingLogic {
         try {
           this.allTokensList.forEach(symbol => this.strategyEngine(symbol));
   
-          if (config.current.withDetailedLog) {
+          if (config.current.env === 'test' || config.current.withDetailedLog) {
             this.pendingTrades.forEach(trade => {
               if (trade.closed) return;
       
@@ -199,7 +199,7 @@ class TradingLogic {
         }
       }, 60000);
   
-      if (config.current.withDetailedLog) {
+      if (config.current.env === 'test' || config.current.withDetailedLog) {
         // === Every 5 Minutes: Export logs
         setInterval(() => {
           try {
