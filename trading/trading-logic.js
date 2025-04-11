@@ -109,33 +109,41 @@ class TradingLogic {
           if (config.current.env === 'test' || config.current.withDetailedLog) {
             this.pendingTrades.forEach(trade => {
               if (trade.closed) return;
-      
+            
               const current = this.getDataWindow(trade.symbol, 1)[0];
               if (!current) return;
-      
+            
               trade.history.push(current);
-      
-              // To imitate volume filling
+            
+              // Simulate TP hit (but don't close yet)
               const hit = trade.direction === 'LONG'
                 ? current.high >= trade.takeProfit * 1.0002
                 : current.low <= trade.takeProfit * 0.9998;
-      
-              if (hit || trade.history.length >= 30) {
+            
+              // Store TP hit moment once
+              if (hit && trade.hitAtMinute == null) {
+                trade.hitAtMinute = trade.history.length;
+                trade.TP_hit = true;
+              }
+            
+              // After 30 minutes of data → finalize
+              if (trade.history.length >= 30) {
                 trade.closed = true;
-      
+            
                 const maxGain = trade.direction === 'LONG'
                   ? Math.max(...trade.history.map(d => d.high ?? d.price))
                   : Math.min(...trade.history.map(d => d.low ?? d.price));
-      
+            
                 const maxGainPct = getPercentChange(trade.entryPrice, maxGain);
+            
                 const couldHit1pct = trade.direction === 'LONG'
                   ? maxGainPct >= 1
                   : maxGainPct <= -1;
-      
+            
                 this.tradeResults.push({
                   ...trade,
-                  TP_hit: hit,
-                  hitAtMinute: hit ? trade.history.length : null,
+                  TP_hit: trade.TP_hit || false,
+                  hitAtMinute: trade.hitAtMinute || null,
                   finalPrice: current.price,
                   percentChange: getPercentChange(trade.entryPrice, current.price).toFixed(2) + '%',
                   maxGain: maxGain.toFixed(2),

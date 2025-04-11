@@ -1,5 +1,3 @@
-// analyze-results.js
-
 import fs from 'fs';
 
 function loadResults() {
@@ -18,14 +16,17 @@ function summarizeResults(results) {
   let wins = 0;
   let losses = 0;
   const hitTimes = [];
-  const reasons = {}; // reason + direction
+  const reasons = {};
   const directionStats = { LONG: [], SHORT: [] };
+
+  let onePctTotal = 0;
+  let oneFivePctTotal = 0;
 
   results.forEach(r => {
     const key = `${r.reason} (${r.direction})`;
 
     if (!reasons[key]) {
-      reasons[key] = { count: 0, wins: 0, onePercent: 0 };
+      reasons[key] = { count: 0, wins: 0, onePercent: 0, onePointFive: 0 };
     }
 
     reasons[key].count++;
@@ -39,6 +40,12 @@ function summarizeResults(results) {
 
     if (r.couldHit1pct) {
       reasons[key].onePercent++;
+      onePctTotal++;
+    }
+
+    if (r.maxGainPct && Math.abs(parseFloat(r.maxGainPct)) >= 1.5) {
+      reasons[key].onePointFive++;
+      oneFivePctTotal++;
     }
 
     directionStats[r.direction]?.push(r);
@@ -49,25 +56,26 @@ function summarizeResults(results) {
     ? (hitTimes.reduce((a, b) => a + b) / hitTimes.length).toFixed(1)
     : 'N/A';
 
-  const onePercentHits = results.filter(r => r.couldHit1pct).length;
-  const onePercentRate = ((onePercentHits / results.length) * 100).toFixed(2);
+  const onePercentRate = ((onePctTotal / results.length) * 100).toFixed(2);
+  const oneFivePercentRate = ((oneFivePctTotal / results.length) * 100).toFixed(2);
 
   console.log('📊 Trade Result Summary');
   console.log('------------------------');
-  console.log(`Total Trades       : ${results.length}`);
-  console.log(`✅ Wins            : ${wins}`);
-  console.log(`❌ Stuck           : ${losses}`);
-  console.log(`🎯 Win Rate        : ${winRate}%`);
-  console.log(`⏱️ Avg TP Time     : ${avgHitTime} min`);
-  console.log(`🚀 1% TP Potential : ${onePercentHits} trades (${onePercentRate}%)`);
+  console.log(`Total Trades         : ${results.length}`);
+  console.log(`✅ Wins              : ${wins}`);
+  console.log(`❌ Stuck             : ${losses}`);
+  console.log(`🎯 Win Rate          : ${winRate}%`);
+  console.log(`⏱️ Avg TP Time       : ${avgHitTime} min`);
+  console.log(`🚀 1% TP Potential   : ${onePctTotal} trades (${onePercentRate}%)`);
+  console.log(`🚀 1.5% TP Potential : ${oneFivePctTotal} trades (${oneFivePercentRate}%)`);
 
-  // Directional summary
   console.log('\n📈 Directional Breakdown:');
   ['LONG', 'SHORT'].forEach(dir => {
     const list = directionStats[dir];
     if (!list?.length) return;
     const wins = list.filter(r => r.TP_hit).length;
     const onePct = list.filter(r => r.couldHit1pct).length;
+    const oneFive = list.filter(r => parseFloat(r.maxGainPct) >= 1.5).length;
     const avgTime = list
       .filter(r => r.hitAtMinute !== undefined)
       .map(r => r.hitAtMinute)
@@ -75,22 +83,23 @@ function summarizeResults(results) {
 
     const winRate = (wins / list.length * 100).toFixed(2);
     const onePctRate = (onePct / list.length * 100).toFixed(2);
+    const oneFiveRate = (oneFive / list.length * 100).toFixed(2);
     const avgHit = isNaN(avgTime) ? 'N/A' : avgTime.toFixed(1);
 
-    console.log(`• ${dir} | ${list.length} trades | ${winRate}% win rate | ${onePctRate}% hit 1% | Avg TP: ${avgHit} min`);
+    console.log(`• ${dir} | ${list.length} trades | ${winRate}% win | ${onePctRate}% ≥1% | ${oneFiveRate}% ≥1.5% | Avg TP: ${avgHit} min`);
   });
 
-  // Strategy-level detail
   console.log('\nTop Strategies (by direction):');
   Object.entries(reasons)
     .sort(([, a], [, b]) => b.count - a.count)
     .forEach(([reason, data]) => {
-      const { count, wins, onePercent } = data;
-      const rate = ((wins / count) * 100).toFixed(1);
+      const { count, wins, onePercent, onePointFive } = data;
+      const winRate = ((wins / count) * 100).toFixed(1);
       const onePct = ((onePercent / count) * 100).toFixed(1);
-      const highlight = onePct >= 50 ? '\x1b[32m' : ''; // green if 50% or more
+      const oneFive = ((onePointFive / count) * 100).toFixed(1);
+      const highlight = onePct >= 50 ? '\x1b[32m' : '';
       const reset = highlight ? '\x1b[0m' : '';
-      console.log(`${highlight}• ${reason} | ${count} signals | ${rate}% win rate | ${onePct}% hit 1% TP${reset}`);
+      console.log(`${highlight}• ${reason} | ${count} trades | ${winRate}% win | ${onePct}% ≥1% | ${oneFive}% ≥1.5%${reset}`);
     });
 }
 
