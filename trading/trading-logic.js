@@ -432,7 +432,7 @@ class TradingLogic {
   processSignalAccordingToEnv(symbol, direction, reason) {
     try {
       if (config.current.env === 'prod') this.executeTrade(symbol, direction, reason);
-      if (config.current.withDetailedLog) this.logSignal(symbol, direction, reason);
+      if (config.current.env === 'test' || config.current.withDetailedLog) this.logSignal(symbol, direction, reason);
     } catch (err) {
       logger.error(`[${symbol}] - Error to run the processSignalAccordingToEnv: ${err.message}`);
       console.error('Error in processSignalAccordingToEnv:', err.message);
