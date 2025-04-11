@@ -218,7 +218,6 @@ class TradingLogic {
     const { s: symbol, S: side, q: quantity, ap: price } = liquidation;
 
     if (this.shouldSkipSymbol(symbol)) {
-      logger.warn(`Skipping unused tokens for now...`);
       return;
     }
 
@@ -233,7 +232,6 @@ class TradingLogic {
   async strategyEngine(symbol) {
     try {
       if (this.shouldSkipSymbol(symbol)) {
-        logger.warn(`Skipping unused tokens for now...`);
         return;
       }
   
