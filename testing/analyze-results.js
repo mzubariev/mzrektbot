@@ -84,34 +84,54 @@ function summarizeResults(results) {
   ['LONG', 'SHORT'].forEach(dir => {
     const list = directionStats[dir];
     if (!list?.length) return;
+  
     const wins = list.filter(r => r.TP_hit).length;
+    const stuck = list.length - wins;
+    const stuckRate = (stuck / list.length) * 100;
+  
     const onePct = list.filter(r => r.couldHit1pct).length;
     const oneFive = list.filter(r => parseFloat(r.maxGainPct) >= 1.5).length;
+  
     const avgTime = list
       .map(r => r.TP_hit ? r.hitAtMinute || 1 : 30)
       .reduce((a, b) => a + b, 0) / list.length;
-
+  
     const winRate = (wins / list.length * 100).toFixed(2);
     const onePctRate = (onePct / list.length * 100).toFixed(2);
     const oneFiveRate = (oneFive / list.length * 100).toFixed(2);
     const avgHit = isNaN(avgTime) ? 'N/A' : avgTime.toFixed(1);
-
-    console.log(`• ${dir} | ${list.length} trades | ${winRate}% win | ${onePctRate}% ≥1% | ${oneFiveRate}% ≥1.5% | Avg Lifecycle: ${avgHit} min`);
-  });
+  
+    // Color stuck rate
+    let color = '';
+    if (stuckRate >= 25) color = '\x1b[31m';     // Red
+    else if (stuckRate >= 10) color = '\x1b[33m'; // Yellow
+    const reset = color ? '\x1b[0m' : '';
+  
+    console.log(`${color}• ${dir} | ${list.length} trades | ${winRate}% win | ❌ ${stuck} stuck | ${onePctRate}% ≥1% | ${oneFiveRate}% ≥1.5% | Avg Lifecycle: ${avgHit} min${reset}`);
+  });  
 
   console.log('\nTop Strategies (by direction):');
   Object.entries(reasons)
     .sort(([, a], [, b]) => b.count - a.count)
     .forEach(([reason, data]) => {
       const { count, wins, onePercent, onePointFive, stuck, durations } = data;
+  
       const winRate = ((wins / count) * 100).toFixed(1);
       const onePct = ((onePercent / count) * 100).toFixed(1);
       const oneFive = ((onePointFive / count) * 100).toFixed(1);
       const avgLife = (durations.reduce((a, b) => a + b, 0) / durations.length).toFixed(1);
-      const highlight = onePct >= 50 ? '\x1b[32m' : '';
-      const reset = highlight ? '\x1b[0m' : '';
+  
+      const stuckRate = (stuck / count) * 100;
+  
+      // Color rules
+      let color = '';
+      if (stuckRate >= 25) color = '\x1b[31m';     // Red
+      else if (stuckRate >= 10) color = '\x1b[33m'; // Yellow
+  
+      const reset = color ? '\x1b[0m' : '';
       const failNote = stuck > 0 ? ` ❌ ${stuck} stuck` : '';
-      console.log(`${highlight}• ${reason} | ${count} trades | ${winRate}% win | ${onePct}% ≥1% | ${oneFive}% ≥1.5% | Avg Lifecycle: ${avgLife} min${failNote}${reset}`);
+  
+      console.log(`${color}• ${reason} | ${count} trades | ${winRate}% win | ${onePct}% ≥1% | ${oneFive}% ≥1.5% | Avg Lifecycle: ${avgLife} min${failNote}${reset}`);
     });
 }
 
