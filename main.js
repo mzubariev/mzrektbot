@@ -59,6 +59,18 @@ async function main() {
         console.error(error);
       }
     });
+
+    process.on('SIGINT', () => {
+      console.log('\nGracefully shutting down...');
+      tradingLogic.saveResultsToFiles(withTradeHistory = true);
+      process.exit();
+    });
+    
+    process.on('SIGTERM', () => {
+      console.log('\nReceived termination signal.');
+      tradingLogic.saveResultsToFiles(withTradeHistory = true);
+      process.exit();
+    });
   } catch (error) {
     logger.error(`Bot initialization error:`);
     console.error(error);

@@ -23,6 +23,7 @@ class TradingLogic {
     this.signalLog = [];
     this.tradeResults = [];
     this.executionDiagnostics = [];
+    this.tradeHistory = [];
     this.liquidationVolumeBySymbol = {};
     this.isPaused = false;
     this.isStopped = false;
@@ -143,15 +144,29 @@ class TradingLogic {
                   ? maxGainPct >= 1
                   : maxGainPct <= -1;
             
-                this.tradeResults.push({
-                  ...trade,
+                const { history, ...tradeWithoutHistory } = trade;
+
+                const finalizedTrade = {
+                  ...tradeWithoutHistory,
                   TP_hit: trade.TP_hit || false,
                   hitAtMinute: trade.hitAtMinute || null,
                   finalPrice: current.price,
                   percentChange: getPercentChange(trade.entryPrice, current.price).toFixed(2) + '%',
                   maxGain: maxGain.toFixed(2),
                   maxGainPct: maxGainPct.toFixed(2),
-                  couldHit1pct
+                  couldHit1pct,
+                  closed: true
+                };
+                
+                this.tradeResults.push(finalizedTrade);
+
+                // Save history separately
+                this.tradeHistory.push({
+                  timestamp: trade.timestamp,
+                  symbol: trade.symbol,
+                  direction: trade.direction,
+                  reason: trade.reason,
+                  history
                 });
               }
             });
@@ -212,15 +227,7 @@ class TradingLogic {
   
       if (config.current.env === 'test' || config.current.withDetailedLog) {
         // === Every 5 Minutes: Export logs
-        setInterval(() => {
-          try {
-            fs.writeFileSync('testing/signal-log.json', JSON.stringify(this.signalLog, null, 2));
-            fs.writeFileSync('testing/trade-results.json', JSON.stringify(this.tradeResults, null, 2));
-            console.log('💾 Exported signal log and trade results');
-          } catch (err) {
-            console.error('Error exporting data:', err.message);
-          }
-        }, 5 * 60 * 1000);
+        setInterval(this.saveResultsToFiles(), 5 * 60 * 1000);
       }
     }, msToNextMinute);
   }
@@ -759,6 +766,18 @@ class TradingLogic {
     logger.info('Updating Deposit Size config...');
     const walletBalance = this.binanceWs.accountInfo.walletBalance;
     config.setConfig({ "depositSize": walletBalance });
+  }
+
+  saveResultsToFiles(withTradeHistory = false) {
+    try {
+      fs.writeFileSync('testing/signal-log.json', JSON.stringify(this.signalLog, null, 2));
+      fs.writeFileSync('testing/trade-results.json', JSON.stringify(this.tradeResults, null, 2));
+      fs.writeFileSync('testing/execution-diagnostics.json', JSON.stringify(this.executionDiagnostics, null, 2));
+      if (withTradeHistory) fs.writeFileSync('testing/trade-history.json', JSON.stringify(this.tradeHistory, null, 2));
+      console.log('💾 Exported signal log and trade results');
+    } catch (err) {
+      console.error('Error exporting data:', err.message);
+    }
   }
 
   pause() {
