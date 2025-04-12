@@ -8,8 +8,8 @@ import config from '../utils/configuration.js';
 import { calculateBidAmount, getOppositeTradeSide, translatePositionSideToTradeSide, getPercentChange, getCurrentTimestamp, sumLastMinutes, shouldSkipSymbol } from '../utils/helpers.js';
 
 const WINDOW_SIZE = 30; // 30 minutes (1-minute intervals)
-const DEFAULT_SLIPPAGE_FOR_TESTING = 0.0012;
-const DEFAULT_SPREAD_FOR_TESTING = 0.0006;
+const DEFAULT_SLIPPAGE_FOR_TESTING = 0.12 / 100;
+const DEFAULT_SPREAD_FOR_TESTING = 0.06 / 100;
 
 class TradingLogic {
   constructor({ binanceApiKey, binanceSecretKey }) {
@@ -132,7 +132,7 @@ class TradingLogic {
               }
             
               // After 30 minutes of data → finalize
-              if (trade.history.length >= 30) {
+              if (trade.history.length >= WINDOW_SIZE) {
                 trade.closed = true;
             
                 const maxGain = trade.direction === 'LONG'
@@ -193,32 +193,26 @@ class TradingLogic {
             const threshold = this.getLiquidationThreshold(tokenRanking);
     
             if (totalLiquidation >= threshold) {
-              await this.checkIfEnoughBalanceForBid(this.binanceWs);
+              logger.info(`[${symbol}] 🔥 ${Math.round(totalLiquidation)} USDT in liquidations (1m)`);
   
-              if (this.isStopped || this.isPaused) {
-                logger.warn('⏸ Bot paused, skipping liquidation signal check');
-              } else {
-                logger.info(`[${symbol}] 🔥 ${Math.round(totalLiquidation)} USDT in liquidations (1m)`);
-    
-                const m1 = this.getDataWindow(symbol, 1);
-                const latest = m1?.[m1.length - 1];
-                if (m1 && latest) {
-                  const priceChange = getPercentChange(m1[0]?.price, latest.price);
-                  const oiChange = getPercentChange(m1[0]?.openInterest, latest.openInterest);
-    
-                  const direction = priceChange > 0 && oiChange > 0
-                    ? 'LONG'
-                    : priceChange < 0 && oiChange < 0
-                      ? 'SHORT'
-                      : null;
-    
-                  if (direction && this.filterLiquidationTrade(symbol, direction)/* && this.passesRsiFilter(symbol, direction)*/) {
-                    this.processSignalAccordingToEnv(
-                      symbol,
-                      direction,
-                      `🔥 (1m) Liquidation Cluster (${Math.round(totalLiquidation)} USDT) + Price/OI up (1m)`
-                    );
-                  }
+              const m1 = this.getDataWindow(symbol, 1);
+              const latest = m1?.[m1.length - 1];
+              if (m1 && latest) {
+                const priceChange = getPercentChange(m1[0]?.price, latest.price);
+                const oiChange = getPercentChange(m1[0]?.openInterest, latest.openInterest);
+  
+                const direction = priceChange > 0 && oiChange > 0
+                  ? 'LONG'
+                  : priceChange < 0 && oiChange < 0
+                    ? 'SHORT'
+                    : null;
+  
+                if (direction && this.filterLiquidationTrade(symbol, direction)/* && this.passesRsiFilter(symbol, direction)*/) {
+                  this.processSignalAccordingToEnv(
+                    symbol,
+                    direction,
+                    `🔥 (1m) Liquidation Cluster (${Math.round(totalLiquidation)} USDT) + Price/OI up (1m)`
+                  );
                 }
               }
             }
@@ -243,32 +237,28 @@ class TradingLogic {
   /* Process signals */
 
   handleLiquidation(liquidation) {
-    const { s: symbol, S: side, q: quantity, ap: price } = liquidation;
+    try {
+      const { s: symbol, S: side, q: quantity, ap: price } = liquidation;
 
-    if (shouldSkipSymbol(symbol)) {
-      return;
+      if (shouldSkipSymbol(symbol)) return;
+  
+      const liquidationAmount = parseFloat(quantity) * parseFloat(price);
+      // Track total liquidation amount per symbol per minute
+      if (!this.liquidationVolumeBySymbol[symbol]) {
+        this.liquidationVolumeBySymbol[symbol] = 0;
+      }
+      this.liquidationVolumeBySymbol[symbol] += liquidationAmount;
+    } catch(error) {
+      logger.error(`[${symbol}] - Error inside handleLiquidation!`);
+      console.error(error.message);
+      console.error(error.stack);
     }
-
-    const liquidationAmount = parseFloat(quantity) * parseFloat(price);
-    // Track total liquidation amount per symbol per minute
-    if (!this.liquidationVolumeBySymbol[symbol]) {
-      this.liquidationVolumeBySymbol[symbol] = 0;
-    }
-    this.liquidationVolumeBySymbol[symbol] += liquidationAmount;
   }
 
   async strategyEngine(symbol) {
     try {
-      if (shouldSkipSymbol(symbol)) {
-        return;
-      }
-  
-      await this.checkIfEnoughBalanceForBid(this.binanceWs);
-      if (this.isStopped || this.isPaused) {
-        logger.warn('Skip execution since the Bot is paused!');
-        return;
-      }
-  
+      if (shouldSkipSymbol(symbol)) return;
+    
       const m30 = this.getDataWindow(symbol, 30);
       if (m30.length < 2) return; // not enough even for 1m trades
     
@@ -330,7 +320,7 @@ class TradingLogic {
         if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG')) this.processSignalAccordingToEnv(symbol, 'LONG', 'Funding -0.1% or less + OI/Price up (1m)');
       }
     } catch (err) {
-      logger.error(`[${symbol}] - Error Inside strategyEngine!`);
+      logger.error(`[${symbol}] - Error inside strategyEngine!`);
       console.error(err.message);
       console.error(err.stack);
     }
@@ -395,7 +385,7 @@ class TradingLogic {
     return true;
   }
 
-  buildVolumeProfile(symbol, windowSize = 30) {
+  buildVolumeProfile(symbol, windowSize = WINDOW_SIZE) {
     const m = this.getDataWindow(symbol, windowSize);
     const volumeBins = {};
     const current = m[m.length - 1];
@@ -424,8 +414,8 @@ class TradingLogic {
   
     for (const { level } of profile) {
       const distance = Math.abs((level - price) / price) * 100;
-      if (direction === 'LONG' && level > price && distance <= 0.2) return false;
-      if (direction === 'SHORT' && level < price && distance <= 0.2) return false;
+      if (direction === 'LONG' && level > price && distance <= config.current.profitPercentage) return false;
+      if (direction === 'SHORT' && level < price && distance <= config.current.profitPercentage) return false;
     }
   
     return true;
@@ -439,8 +429,8 @@ class TradingLogic {
   
     for (const { level } of profile) {
       const distance = Math.abs((level - price) / price) * 100;
-      if (direction === 'LONG' && level < price && distance <= 0.2) return true;
-      if (direction === 'SHORT' && level > price && distance <= 0.2) return true;
+      if (direction === 'LONG' && level < price && distance <= config.current.profitPercentage) return true;
+      if (direction === 'SHORT' && level > price && distance <= config.current.profitPercentage) return true;
     }
   
     return false;
@@ -448,10 +438,27 @@ class TradingLogic {
 
   // Log / Execute trades
 
-  processSignalAccordingToEnv(symbol, direction, reason) {
+  async processSignalAccordingToEnv(symbol, direction, reason) {
     try {
+
+      await this.checkIfEnoughBalanceForBid(this.binanceWs);
+      if (this.isStopped || this.isPaused) return;
+      if (this.isOnlyLongsOrShortsAllowed(direction) || this.isAlreadyMaximumPositionsForToken(symbol, direction)) return;
+
       if (config.current.env === 'prod') this.executeTrade(symbol, direction, reason);
-      if (config.current.env === 'test' || config.current.withDetailedLog) this.logSignal(symbol, direction, reason);
+      
+      if (config.current.env === 'test' || config.current.withDetailedLog) {
+        const sameSymbolOpenTrades = this.pendingTrades.filter(
+          t => t.symbol === symbol && !t.closed
+        );
+
+        if (sameSymbolOpenTrades.length >= config.current.sameSymbolOrdersLimit) {
+          logger.warn(`The same symbol ${symbol} and the same ${direction} direction trades are going to be more than limit ${config.current.sameSymbolOrdersLimit}. Skipping the trade...`);
+          return;
+        }
+
+        this.logSignal(symbol, direction, reason);
+      }
     } catch (err) {
       logger.error(`[${symbol}] - Error to run the processSignalAccordingToEnv!`);
       console.error(err.message);
@@ -460,14 +467,6 @@ class TradingLogic {
   }
 
   logSignal(symbol, direction, reason) {
-    const sameSymbolOpenTrades = this.pendingTrades.filter(
-      t => t.symbol === symbol && !t.closed
-    );
-    if (sameSymbolOpenTrades.length >= config.current.sameSymbolOrdersLimit) {
-      logger.warn(`The same symbol ${symbol} and the same ${direction} direction trades are going to be more than limit ${config.current.sameSymbolOrdersLimit}. Skipping the trade...`);
-      return;
-    }
-
     const simTradeData = this.generateSimulatedTradeData(symbol, direction, reason);
     const { simEntryPrice, takeProfit, slippagePct, timestamp } = simTradeData;
   
@@ -551,15 +550,8 @@ class TradingLogic {
       // Send Market order
       const amountForBid = calculateBidAmount(this.binanceWs);
       const tradeSide = translatePositionSideToTradeSide(positionSide);
-
-      if (this.isOnlyLongsOrShortsAllowed(positionSide) || this.isAlreadyMaximumPositionsForToken(symbol, positionSide)) {
-        return;
-      }
-
       const marketOrderResult = await this.executeMarketOrder(symbol, tradeSide, positionSide, amountForBid);
-      if (!marketOrderResult) {
-        return; 
-      }
+      if (!marketOrderResult) return;
 
       // Send Limit order to close the Position with 0,2% profit 
       const avgEnterPrice = parseFloat(marketOrderResult.avgPrice);
@@ -577,6 +569,9 @@ class TradingLogic {
       }
 
     } catch (error) {
+      logger.error(`Error inside executeTrade!`);
+      console.error(error.message);
+      console.error(error.stack);
       throw new Error(`Trade execution failed for ${symbol}: ${error.message}`);
     }
   }
@@ -649,10 +644,9 @@ class TradingLogic {
     const precision = tickSize.toFixed(10).replace(/0+$/, "").split(".")[1]?.length || 0;
   
     // Decide percentage based on reason or config
-    let percentage;
-    if (reason?.includes('Liquidation')) percentage = 0.0015;
-    else if (reason?.includes('Volume spike')) percentage = 0.003;
-    else percentage = config.current.profitPercentage / 100;
+    let percentage = config.current.profitPercentage / 100;
+    if (reason?.includes('Liquidation')) percentage = percentage * 0.75;
+    else if (reason?.includes('Volume') || reason?.includes('Funding')) percentage = percentage * 2;
   
     // Raw TP calculation
     let rawTP = direction === 'LONG'
@@ -709,7 +703,6 @@ class TradingLogic {
       logger.error(`Error executing LIMIT ORDER:`);
       console.error(error.message);
       console.error(error.stack);
-
       throw error;
     }
   }
@@ -761,7 +754,7 @@ class TradingLogic {
 
   handleGetStatisticsInfo() {
     logger.info('=== INTERMEDIATE STATISTICS for BTC ===');
-    console.log(`buffers:\n${JSON.stringify(this.buffers["BTCUSDT"], null, 2)}`);
+    console.log(`Buffer example for THEUSDT token:\n${JSON.stringify(this.buffers["THEUSDT"], null, 2)}`);
   }
 
   async updateBinanceExchangeInfo() {
