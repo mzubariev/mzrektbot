@@ -227,7 +227,7 @@ class TradingLogic {
   
       if (config.current.env === 'test' || config.current.withDetailedLog) {
         // === Every 5 Minutes: Export logs
-        setInterval(this.saveResultsToFiles(), 5 * 60 * 1000);
+        setInterval(() => this.saveResultsToFiles(), 5 * 60 * 1000);
       }
     }, msToNextMinute);
   }
@@ -772,7 +772,7 @@ class TradingLogic {
     try {
       fs.writeFileSync('testing/signal-log.json', JSON.stringify(this.signalLog, null, 2));
       fs.writeFileSync('testing/trade-results.json', JSON.stringify(this.tradeResults, null, 2));
-      fs.writeFileSync('testing/execution-diagnostics.json', JSON.stringify(this.executionDiagnostics, null, 2));
+      if (config.current.env === 'prod' && config.current.withDetailedLog) fs.writeFileSync('testing/execution-diagnostics.json', JSON.stringify(this.executionDiagnostics, null, 2));
       if (withTradeHistory) fs.writeFileSync('testing/trade-history.json', JSON.stringify(this.tradeHistory, null, 2));
       console.log('💾 Exported signal log and trade results');
     } catch (err) {
