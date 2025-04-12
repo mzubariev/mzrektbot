@@ -207,7 +207,11 @@ class TradingLogic {
                     ? 'SHORT'
                     : null;
   
-                if (direction && this.filterLiquidationTrade(symbol, direction)/* && this.passesRsiFilter(symbol, direction)*/) {
+                console.log('REKT in threshold log:');
+                console.log(`direction: ${direction}`);
+                console.log(`Pass horizontal volumes Filter?: ${this.filterLiquidationTrade(symbol, direction)}`);
+                console.log(`Pass RSI filters?: ${this.passesRsiFilter(symbol, direction)}`);
+                if (direction && this.filterLiquidationTrade(symbol, direction) && this.passesRsiFilter(symbol, direction)) {
                   this.processSignalAccordingToEnv(
                     symbol,
                     direction,
@@ -432,8 +436,9 @@ class TradingLogic {
   
     for (const { level } of profile) {
       const distance = Math.abs((level - price) / price) * 100;
-      if (direction === 'LONG' && level < price && distance <= config.current.profitPercentage) return true;
-      if (direction === 'SHORT' && level > price && distance <= config.current.profitPercentage) return true;
+      // x2 to respect a spread and a slippage
+      if (direction === 'LONG' && level < price && distance <= config.current.profitPercentage * 2) return true;
+      if (direction === 'SHORT' && level > price && distance <= config.current.profitPercentage * 2) return true;
     }
   
     return false;
