@@ -6,6 +6,7 @@ function loadResults() {
     return JSON.parse(raw);
   } catch (err) {
     console.error('Failed to load trade results:', err.message);
+    console.error(`Error Stack:\n${err.stack}`);
     return [];
   }
 }

@@ -62,7 +62,8 @@ class TradingLogic {
 
     } catch (error) {
       logger.error(`Error initializing Trading Logic:`);
-      console.error(error);
+      console.error(error.message);
+      console.error(error.stack);
       throw error;
     }
   }
@@ -177,8 +178,9 @@ class TradingLogic {
             });
           }
         } catch (err) {
-          logger.error(`[${symbol}] - Error in an Interval to run the Strategy: ${err.message}`);
-          console.error('Error in strategyEngine interval:', err.message);
+          logger.error(`[${symbol}] - Error in an Interval to run the Strategy Engine!`);
+          console.error(err.message);
+          console.error(err.stack);
         }
       }, 60000);
   
@@ -225,8 +227,9 @@ class TradingLogic {
             this.liquidationVolumeBySymbol[symbol] = 0;
           }
         } catch (err) {
-          logger.error(`[${symbol}] - Error in an Interval to run the Liquidation check: ${err.message}`);
-          console.error('Error in Liquidation check interval:', err.message);
+          logger.error(`[${symbol}] - Error in an Interval to run the Liquidation check!`);
+          console.error(err.message);
+          console.error(err.stack);
         }
       }, 60000);
   
@@ -327,8 +330,9 @@ class TradingLogic {
         if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG')) this.processSignalAccordingToEnv(symbol, 'LONG', 'Funding -0.1% or less + OI/Price up (1m)');
       }
     } catch (err) {
-      logger.error(`[${symbol}] strategyEngine error: ${err.message}`);
-      console.error('Error in strategyEngine:', err.message);
+      logger.error(`[${symbol}] - Error Inside strategyEngine!`);
+      console.error(err.message);
+      console.error(err.stack);
     }
   }
 
@@ -449,8 +453,9 @@ class TradingLogic {
       if (config.current.env === 'prod') this.executeTrade(symbol, direction, reason);
       if (config.current.env === 'test' || config.current.withDetailedLog) this.logSignal(symbol, direction, reason);
     } catch (err) {
-      logger.error(`[${symbol}] - Error to run the processSignalAccordingToEnv: ${err.message}`);
-      console.error('Error in processSignalAccordingToEnv:', err.message);
+      logger.error(`[${symbol}] - Error to run the processSignalAccordingToEnv!`);
+      console.error(err.message);
+      console.error(err.stack);
     }
   }
 
@@ -586,7 +591,8 @@ class TradingLogic {
       return result;
     } catch (error) {
       logger.error(`Error executing market order.`);
-      console.error(error);
+      console.error(error.message);
+      console.error(error.stack);
       throw error;
     }
   }
@@ -623,7 +629,8 @@ class TradingLogic {
       return await this.binanceWs.sendOrder(order);
     } catch (error) {
       logger.error(`Error executing MARKET ORDER.`);
-      console.error(error);
+      console.error(error.message);
+      console.error(error.stack);
 
       this.pause();
 
@@ -700,7 +707,8 @@ class TradingLogic {
       return limitOrderResult;
     } catch (error) {
       logger.error(`Error executing LIMIT ORDER:`);
-      console.error(error);
+      console.error(error.message);
+      console.error(error.stack);
 
       throw error;
     }
@@ -781,7 +789,9 @@ class TradingLogic {
       if (withTradeHistory) fs.writeFileSync('testing/trade-history.json', JSON.stringify(this.tradeHistory, null, 2));
       console.log('💾 Exported signal log and trade results');
     } catch (err) {
-      console.error('Error exporting data:', err.message);
+      logger.error('Error exporting data:');
+      console.error(err.message);
+      console.error(err.stack);
     }
   }
 

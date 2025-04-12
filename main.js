@@ -30,7 +30,8 @@ async function main() {
         logger.info('The Isolated margin mode has been set for all USDT pairs on Binance!');
       } catch (error) {
         logger.error(`Error setting Isolated margin mode to all USDT pairs on Binance.`);
-        console.error(error);
+        console.error(error.message);
+        console.error(error.stack);
       }
     });
 
@@ -44,7 +45,8 @@ async function main() {
         logger.info('Binance Exchnage info with all tokens details updated successfully!');
       } catch (error) {
         logger.error(`Error updating data via cron task:`);
-        console.error(error);
+        console.error(error.message);
+        console.error(error.stack);
       }
     });
 
@@ -56,7 +58,8 @@ async function main() {
         logger.info('Deposit Size config updated successfully!');
       } catch (error) {
         logger.error(`Error updating deposit size config via cron task:`);
-        console.error(error);
+        console.error(error.message);
+        console.error(error.stack);
       }
     });
 
@@ -73,7 +76,8 @@ async function main() {
     });
   } catch (error) {
     logger.error(`Bot initialization error:`);
-    console.error(error);
+    console.error(error.message);
+    console.error(error.stack);
     process.exit(1);
   }
 }

@@ -67,7 +67,8 @@ class BinanceWssRestApi extends EventEmitter {
       logger.info(`Authenticated to WSS API!`);
     } catch (error) {
       logger.error(`Error on WSS API authentication!`);
-      console.error(error);
+      console.error(error.message);
+      console.error(error.stack);
       throw error;
     }
   }
@@ -89,7 +90,8 @@ class BinanceWssRestApi extends EventEmitter {
       return response.data.listenKey;
     } catch (error) {
       logger.error(`Error fetching listenKey:`);
-      console.error(error);
+      console.error(error.message);
+      console.error(error.stack);
       throw error;
     }
   }
@@ -103,7 +105,8 @@ class BinanceWssRestApi extends EventEmitter {
         logger.info('ListenKey kept alive.');
       } catch (error) {
         logger.error(`Error keeping listenKey alive:`);
-        console.error(error);
+        console.error(error.message);
+        console.error(error.stack);
       }
     }, 30 * 60 * 1000); // Every 30 minutes
   }
@@ -153,7 +156,8 @@ class BinanceWssRestApi extends EventEmitter {
     });
     this.wsApi.on('error', (error) => {
       logger.error(`WebSocket error for ${WSS_URL_API}:`);
-      console.error(error);
+      console.error(error.message);
+      console.error(error.stack);
       this.reconnect(WSS_URL_API);
     });
 
@@ -178,7 +182,8 @@ class BinanceWssRestApi extends EventEmitter {
     });
     this.wsUserDataStreams.on('error', (error) => {
       logger.error(`WebSocket error:`);
-      console.error(error);
+      console.error(error.message);
+      console.error(error.stack);
       this.reconnect(`${WSS_URL_STREAMS}/${listenKey}`);
     });  
     
@@ -221,7 +226,8 @@ class BinanceWssRestApi extends EventEmitter {
         }
       } catch (error) {
         logger.error('Error parsing Binance WebSocket message:');
-        console.error(error);
+        console.error(error.message);
+        console.error(error.stack);
       }
     });
     this.wsMarketStreams.on('close', () => {
@@ -233,7 +239,8 @@ class BinanceWssRestApi extends EventEmitter {
     });
     this.wsMarketStreams.on('error', (error) => {
       logger.error(`WebSocket error for ${WSS_URL_STREAMS}:`);
-      console.error(error);
+      console.error(error.message);
+      console.error(error.stack);
       this.reconnect(WSS_URL_STREAMS);
     });
   }
@@ -356,7 +363,8 @@ class BinanceWssRestApi extends EventEmitter {
       }
     } catch (error) {
       logger.error(`Error parsing User Data Stream message:`);
-      console.error(error);
+      console.error(error.message);
+      console.error(error.stack);
     }
   }
 
@@ -554,7 +562,8 @@ class BinanceWssRestApi extends EventEmitter {
           }
         } catch (error) {
           logger.error(`Error parsing Binance getOrder response:`);
-          console.error(error);
+          console.error(error.message);
+          console.error(error.stack);
           reject(error);
         }
       };
@@ -584,7 +593,8 @@ class BinanceWssRestApi extends EventEmitter {
           }
         } catch (error) {
           logger.error(`Error parsing Binance getOrder response:`);
-          console.error(error);
+          console.error(error.message);
+          console.error(error.stack);
           reject(error);
         }
       };
@@ -614,7 +624,8 @@ class BinanceWssRestApi extends EventEmitter {
           }
         } catch (error) {
           logger.error(`Error parsing Binance getOrder response:`);
-          console.error(error);
+          console.error(error.message);
+          console.error(error.stack);
           reject(error);
         }
       };
@@ -648,7 +659,8 @@ class BinanceWssRestApi extends EventEmitter {
           }
         } catch (error) {
           logger.error(`Error parsing Binance getOrder response:`);
-          console.error(error);
+          console.error(error.message);
+          console.error(error.stack);
           reject(error);
         }
       };
@@ -695,7 +707,8 @@ class BinanceWssRestApi extends EventEmitter {
           }
         } catch (error) {
           logger.error(`Error parsing Binance getHangingPositionsOnBotStart response:`);
-          console.error(error);
+          console.error(error.message);
+          console.error(error.stack);
           reject(error);
         }
       };
@@ -730,7 +743,8 @@ class BinanceWssRestApi extends EventEmitter {
           }
         } catch (error) {
           logger.error(`Error parsing Binance ticker price response:`);
-          console.error(error);
+          console.error(error.message);
+          console.error(error.stack);
           reject(error);
         }
       };
@@ -778,7 +792,8 @@ class BinanceWssRestApi extends EventEmitter {
           }
         } catch (error) {
           logger.error(`Error parsing Binance order book response:`);
-          console.error(error);
+          console.error(error.message);
+          console.error(error.stack);
           reject(error);
         }
       };
