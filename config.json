@@ -1,12 +1,12 @@
 {
   "env": "test",
   "withDetailedLog": 1,
-  "depositSize": 188.64,
+  "depositSize": 188.63,
   "bidPercentage": 5,
   "profitPercentage": 0.2,
   "tradeDirection": "trend",
   "longsOrShortsOrBoth": "both",
-  "sameSymbolOrdersLimit": 2,
+  "sameSymbolOrdersLimit": 4,
   "smallLiquidation": 50000,
   "top50Liquidation": 150000,
   "top20Liquidation": 500000

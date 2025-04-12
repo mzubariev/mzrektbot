@@ -62,13 +62,13 @@ async function main() {
 
     process.on('SIGINT', () => {
       console.log('\nGracefully shutting down...');
-      tradingLogic.saveResultsToFiles(withTradeHistory = true);
+      tradingLogic.saveResultsToFiles(true);
       process.exit();
     });
     
     process.on('SIGTERM', () => {
       console.log('\nReceived termination signal.');
-      tradingLogic.saveResultsToFiles(withTradeHistory = true);
+      tradingLogic.saveResultsToFiles(true);
       process.exit();
     });
   } catch (error) {

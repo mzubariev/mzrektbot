@@ -10,8 +10,31 @@ function loadResults() {
   }
 }
 
+const parseTime = (ts) => {
+  const [datePart, timePart] = ts.split(' ');
+  const [day, month, year] = datePart.split('/');
+  return new Date(`${year}-${month}-${day}T${timePart}`);
+};
+
 function summarizeResults(results) {
   if (!results.length) return console.log('No results found.');
+
+  const timestamps = results.map(r => parseTime(r.timestamp)).sort((a, b) => a - b);
+  const minTime = timestamps[0];
+  const maxTime = timestamps[timestamps.length - 1];
+  const durationMs = maxTime - minTime;
+  
+  const hours = Math.floor(durationMs / (1000 * 60 * 60));
+  const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((durationMs % (1000 * 60)) / 1000);
+  const tradesPerHour = (results.length / (durationMs / (1000 * 60 * 60))).toFixed(1);
+  
+  // --- Detect suspicious gaps (> 60min between trades) ---
+  let suspiciousGaps = 0;
+  for (let i = 1; i < timestamps.length; i++) {
+    const gapMs = timestamps[i] - timestamps[i - 1];
+    if (gapMs > 60 * 60 * 1000) suspiciousGaps++;
+  }
 
   let wins = 0;
   let losses = 0;
@@ -54,7 +77,7 @@ function summarizeResults(results) {
       onePctTotal++;
     }
 
-    if (r.maxGainPct && Math.abs(parseFloat(r.maxGainPct)) >= 1.5) {
+    if (r.couldHit15pct) {
       reasons[key].onePointFive++;
       oneFivePctTotal++;
     }
@@ -70,6 +93,12 @@ function summarizeResults(results) {
   const onePercentRate = ((onePctTotal / results.length) * 100).toFixed(2);
   const oneFivePercentRate = ((oneFivePctTotal / results.length) * 100).toFixed(2);
 
+  console.log(`⏳ Run Duration: ${hours}h ${minutes}m ${seconds}s`);
+  console.log(`📈 Trades per Hour: ${tradesPerHour}`);
+  if (suspiciousGaps > 0) {
+    console.log(`⚠️  ${suspiciousGaps} suspicious gap${suspiciousGaps > 1 ? 's' : ''} > 60 min`);
+  }
+  console.log('------------------------');
   console.log('📊 Trade Result Summary');
   console.log('------------------------');
   console.log(`Total Trades         : ${results.length}`);
@@ -127,6 +156,8 @@ function summarizeResults(results) {
       let color = '';
       if (stuckRate >= 25) color = '\x1b[31m';     // Red
       else if (stuckRate >= 10) color = '\x1b[33m'; // Yellow
+      else if (stuckRate === 0) color = '\x1b[32m' // Green
+      else if (stuckRate < 10) color = '\x1b[34m' // Blue
   
       const reset = color ? '\x1b[0m' : '';
       const failNote = stuck > 0 ? ` ❌ ${stuck} stuck` : '';

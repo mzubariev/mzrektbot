@@ -143,6 +143,10 @@ class TradingLogic {
                 const couldHit1pct = trade.direction === 'LONG'
                   ? maxGainPct >= 1
                   : maxGainPct <= -1;
+
+                const couldHit15pct = trade.direction === 'LONG'
+                  ? maxGainPct >= 1.5
+                  : maxGainPct <= -1.5;
             
                 const { history, ...tradeWithoutHistory } = trade;
 
@@ -155,6 +159,7 @@ class TradingLogic {
                   maxGain: maxGain.toFixed(2),
                   maxGainPct: maxGainPct.toFixed(2),
                   couldHit1pct,
+                  couldHit15pct,
                   closed: true
                 };
                 
