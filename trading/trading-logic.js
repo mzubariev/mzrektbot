@@ -157,8 +157,8 @@ class TradingLogic {
                   hitAtMinute: trade.hitAtMinute || null,
                   finalPrice: current.price,
                   percentChange: getPercentChange(trade.entryPrice, current.price).toFixed(2) + '%',
-                  maxGain: maxGain.toFixed(2),
-                  maxGainPct: maxGainPct.toFixed(2),
+                  maxGain: maxGain,
+                  maxGainPct: maxGainPct.toFixed(2) + '%',
                   couldHit1pct,
                   couldHit15pct,
                   closed: true
@@ -208,6 +208,8 @@ class TradingLogic {
                     : null;
   
                 console.log('REKT in threshold log:');
+                console.log(`priceChange: ${priceChange}`);
+                console.log(`oiChange: ${oiChange}`);
                 console.log(`direction: ${direction}`);
                 console.log(`Pass horizontal volumes Filter?: ${this.filterLiquidationTrade(symbol, direction)}`);
                 console.log(`Pass RSI filters?: ${this.passesRsiFilter(symbol, direction)}`);
@@ -292,7 +294,7 @@ class TradingLogic {
       const funding = current.funding;
     
       // Open Interest Triggers
-      if (oiChange3m <= -1 && priceChange1m < 0.1) {
+      if (oiChange3m <= -1 && priceChange1m < -0.1) {
         if (this.filterTrade(symbol, 'SHORT') && this.passesRsiFilter(symbol, 'SHORT', { rsiLow: 30 })) this.processSignalAccordingToEnv(symbol, 'SHORT', 'OI -1% (3m) + Price/CVD down (1m)');
       }
 
@@ -305,7 +307,7 @@ class TradingLogic {
         if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG', { rsiHigh: 70 })) this.processSignalAccordingToEnv(symbol, 'LONG', 'OI +2% (10m) + Price up (1m)');
       }
     
-      if (oiChange30m >= 15 && priceChange1m < 0.1) {
+      if (oiChange30m >= 15 && priceChange1m < -0.1) {
         if (this.filterTrade(symbol, 'SHORT') && this.passesRsiFilter(symbol, 'SHORT')) this.processSignalAccordingToEnv(symbol, 'SHORT', 'OI +15% (30m) + Price/CVD down (1m)');
       }
     
@@ -318,7 +320,7 @@ class TradingLogic {
         if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG')) this.processSignalAccordingToEnv(symbol, 'LONG', 'Price -10% (15m) + OI/CVD up (1m)');
       }
     
-      if (priceChange20m >= 10 && oiChange1m < 0.2) {
+      if (priceChange20m >= 10 && oiChange1m < -0.2) {
         if (this.filterTrade(symbol, 'SHORT') && this.passesRsiFilter(symbol, 'SHORT')) this.processSignalAccordingToEnv(symbol, 'SHORT', 'Price +10% (20m) + OI/CVD down (1m)');
       }
     
