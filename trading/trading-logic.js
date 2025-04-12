@@ -9,7 +9,7 @@ import { calculateBidAmount, getOppositeTradeSide, translatePositionSideToTradeS
 
 const WINDOW_SIZE = 30; // 30 minutes (1-minute intervals)
 const DEFAULT_SLIPPAGE_FOR_TESTING = 0.0012;
-const APPROX_SPREAD_FOR_TESTING = 0.0006;
+const DEFAULT_SPREAD_FOR_TESTING = 0.0006;
 
 class TradingLogic {
   constructor({ binanceApiKey, binanceSecretKey }) {
@@ -450,7 +450,7 @@ class TradingLogic {
       logger.warn(`The same symbol ${symbol} and the same ${direction} direction trades are going to be more than limit ${config.current.sameSymbolOrdersLimit}. Skipping the trade...`);
       return;
     }
-    
+
     const simTradeData = this.generateSimulatedTradeData(symbol, direction, reason);
     const { simEntryPrice, takeProfit, slippagePct, timestamp } = simTradeData;
   
@@ -502,18 +502,31 @@ class TradingLogic {
   }
 
   dynamicSlippagePcnt(symbol, entryPrice) {
-    let dynamicSlippagePct = DEFAULT_SLIPPAGE_FOR_TESTING;
     const recentWindow = this.getDataWindow(symbol, 5);
+    if (recentWindow.length !== 5 || !entryPrice) return DEFAULT_SLIPPAGE_FOR_TESTING;
 
-    if (recentWindow.length === 5) {
-      const ranges = recentWindow.map(c => c.high - c.low);
-      const avgRange = ranges.reduce((a, b) => a + b, 0) / ranges.length;
+    const tickSize = this.binanceExchangeInfo[symbol].tickSize || 0.0001; // fallback
+    const minSlippageTicks = tickSize * 3;
+    const tickBasedSlippage = minSlippageTicks / entryPrice;
 
-      const volatility = avgRange / entryPrice;
-      dynamicSlippagePct = Math.max(0.0005, volatility * 0.3) + APPROX_SPREAD_FOR_TESTING; // e.g. 0.05% min, 30% of range + spread
+    // ATR-style average range (not %)
+    const ranges = recentWindow.map(c => c.high - c.low);
+    const avgRange = ranges.reduce((a, b) => a + b, 0) / ranges.length;
+    const atrBasedSlippage = avgRange * 0.3;
+
+    // Use the larger of volatility or tick-based slip
+    let slippage = Math.max(tickBasedSlippage, atrBasedSlippage);
+    slippage += DEFAULT_SPREAD_FOR_TESTING;
+
+    // Cap by price level to avoid wild behavior
+    const maxSlippage = entryPrice < 0.01 ? 0.0015 : 0.0025;
+    const finalSlippage = Math.min(slippage, maxSlippage);
+
+    if (finalSlippage > 0.005) {
+      logger.warn(`[${symbol}] ⚠️ Simulated slippage too high: ${(finalSlippage * 100).toFixed(2)}%`);
     }
 
-    return dynamicSlippagePct;
+    return finalSlippage;
   }
 
   async executeTrade(symbol, positionSide, reason) {
