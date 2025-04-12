@@ -269,33 +269,36 @@ class TradingLogic {
   
       const priceChange1m = m30.length >= 2 ? getPercentChange(last(1)?.price, current.price) : null;
       const oiChange1m = m30.length >= 2 ? getPercentChange(last(1)?.openInterest, current.openInterest) : null;
-      const volumeChange1m = m30.length >= 2 ? getPercentChange(last(1)?.volume, current.volume) : null;
+
+      let volumeExploded3m = null;
+      if (m30.length >= 6) {
+        const recentVolume3 = sumLastMinutes(m30, 'volume', 3);
+        const previousVolume3 = sumLastMinutes(m30, 'volume', 3, 3);
+        volumeExploded3m = recentVolume3 >= 1.8 * previousVolume3;
+      }
     
       const priceChange5m = m30.length >= 6 ? getPercentChange(last(5)?.price, current.price) : null;
       const priceChange15m = m30.length >= 16 ? getPercentChange(last(15)?.price, current.price) : null;
       const priceChange20m = m30.length >= 21 ? getPercentChange(last(20)?.price, current.price) : null;
     
-      const oiChange12m = m30.length >= 13 ? getPercentChange(last(12)?.openInterest, current.openInterest) : null;
+      const oiChange3m = m30.length >= 4 ? getPercentChange(last(3)?.openInterest, current.openInterest) : null;
+      const oiChange10m = m30.length >= 11 ? getPercentChange(last(10)?.openInterest, current.openInterest) : null;
       const oiChange30m = m30.length >= 30 ? getPercentChange(last(29)?.openInterest, current.openInterest) : null;
     
       const funding = current.funding;
     
       // Open Interest Triggers
-      if (oiChange1m <= -1 && priceChange1m < 0.1) {
-        if (this.filterTrade(symbol, 'SHORT') && this.passesRsiFilter(symbol, 'SHORT', { rsiLow: 30 })) this.processSignalAccordingToEnv(symbol, 'SHORT', 'OI -1% (1m) + Price/CVD down (1m)');
+      if (oiChange3m <= -1 && priceChange1m < 0.1) {
+        if (this.filterTrade(symbol, 'SHORT') && this.passesRsiFilter(symbol, 'SHORT', { rsiLow: 30 })) this.processSignalAccordingToEnv(symbol, 'SHORT', 'OI -1% (3m) + Price/CVD down (1m)');
+      }
+
+      // Include Volume exploasion
+      if (volumeExploded3m && oiChange3m >= 3 && priceChange1m > 0.1) {
+        if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG', { rsiHigh: 70 })) this.processSignalAccordingToEnv(symbol, 'LONG', 'OI +3% (3m) + Price up + Volume spike (6m => from prev 3m till last 3m)');
       }
   
-      // Include Volume exploasion
-      if (oiChange12m >= 2 && priceChange1m > 0.1) {
-        if (volumeChange1m >= 50) {
-          if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG', { rsiHigh: 70 })) {
-            this.processSignalAccordingToEnv(symbol, 'LONG', 'OI +2% (12m) + Price up + Volume spike (1m)');
-          }
-        } else {
-          if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG', { rsiHigh: 70 })) {
-            this.processSignalAccordingToEnv(symbol, 'LONG', 'OI +2% (12m) + Price up (1m)');
-          }
-        }
+      if (oiChange10m >= 2 && priceChange1m > 0.1) {
+        if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG', { rsiHigh: 70 })) this.processSignalAccordingToEnv(symbol, 'LONG', 'OI +2% (10m) + Price up (1m)');
       }
     
       if (oiChange30m >= 15 && priceChange1m < 0.1) {
