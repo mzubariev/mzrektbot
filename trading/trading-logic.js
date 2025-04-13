@@ -423,8 +423,8 @@ class TradingLogic {
   
     for (const { level } of profile) {
       const distance = Math.abs((level - price) / price) * 100;
-      if (direction === 'LONG' && level > price && distance <= config.current.profitPercentage) return false;
-      if (direction === 'SHORT' && level < price && distance <= config.current.profitPercentage) return false;
+      if (direction === 'LONG' && level > price && distance <= config.current.profitPercentage * 2) return false;
+      if (direction === 'SHORT' && level < price && distance <= config.current.profitPercentage * 2) return false;
     }
   
     return true;

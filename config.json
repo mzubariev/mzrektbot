@@ -1,7 +1,7 @@
 {
   "env": "test",
   "withDetailedLog": 1,
-  "depositSize": 188.62,
+  "depositSize": 188.6,
   "bidPercentage": 5,
   "profitPercentage": 0.2,
   "tradeDirection": "trend",

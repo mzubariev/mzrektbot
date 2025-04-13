@@ -10,6 +10,8 @@ dotenv.config();
 
 async function main() {
   try {
+    // enableIsolatedMarginForAll();
+    
     // Start Telegram Bot
     const telegramBot = new TelegramBotWrapper(process.env.TELEGRAM_BOT_TOKEN, process.env.TELEGRAM_CHAT_ID);
     telegramBot.start();
