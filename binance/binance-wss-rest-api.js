@@ -439,7 +439,7 @@ class BinanceWssRestApi extends EventEmitter {
   
       // Every 1m and 3m polling
       setInterval(() => this.fetchOpenInterestLive(), 60000);
-      setInterval(() => this.fetchFundingRates(), 180000);
+      setInterval(() => this.fetchFundingRates(), 60000);
     }, msToNextMinute);
   }
 

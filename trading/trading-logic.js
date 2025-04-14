@@ -196,30 +196,32 @@ class TradingLogic {
               logger.info(`[${symbol}] 🔥 ${Math.round(totalLiquidation)} USDT in liquidations (1m)`);
   
               const m1 = this.getDataWindow(symbol, 1);
-              const latest = m1?.[m1.length - 1];
-              if (m1 && latest) {
-                const priceChange = getPercentChange(m1[0]?.price, latest.price);
-                const oiChange = getPercentChange(m1[0]?.openInterest, latest.openInterest);
+              if (!m1 || m1.length < 2) return;
+
+              const current = m1[m1.length - 1];
+              const last = m1[m1.length - 2];
+
+              const priceChange = getPercentChange(last.price, current.price);
+              const oiChange = getPercentChange(last.openInterest, current.openInterest);
+
+              const direction = priceChange > 0 && oiChange > 0
+                ? 'LONG'
+                : priceChange < 0 && oiChange < 0
+                  ? 'SHORT'
+                  : null;
   
-                const direction = priceChange > 0 && oiChange > 0
-                  ? 'LONG'
-                  : priceChange < 0 && oiChange < 0
-                    ? 'SHORT'
-                    : null;
-  
-                console.log('REKT in threshold log:');
-                console.log(`priceChange: ${priceChange}`);
-                console.log(`oiChange: ${oiChange}`);
-                console.log(`direction: ${direction}`);
-                console.log(`Pass horizontal volumes Filter?: ${this.filterLiquidationTrade(symbol, direction)}`);
-                console.log(`Pass RSI filters?: ${this.passesRsiFilter(symbol, direction)}`);
-                if (direction && this.filterLiquidationTrade(symbol, direction) && this.passesRsiFilter(symbol, direction)) {
-                  this.processSignalAccordingToEnv(
-                    symbol,
-                    direction,
-                    `🔥 (1m) Liquidation Cluster (${Math.round(totalLiquidation)} USDT) + Price/OI up (1m)`
-                  );
-                }
+              console.log(`[${symbol}] Liquidation Trigger Check:`);
+              console.log(`→ priceChange: ${priceChange.toFixed(2)}%`);
+              console.log(`→ oiChange: ${oiChange.toFixed(2)}%`);
+              console.log(`→ direction: ${direction}`);
+              console.log(`Pass horizontal volumes Filter?: ${this.filterLiquidationTrade(symbol, direction)}`);
+              console.log(`Pass RSI filters?: ${this.passesRsiFilter(symbol, direction)}`);
+              if (direction && this.filterLiquidationTrade(symbol, direction) && this.passesRsiFilter(symbol, direction)) {
+                this.processSignalAccordingToEnv(
+                  symbol,
+                  direction,
+                  `🔥 (1m) Liquidation Cluster (${Math.round(totalLiquidation)} USDT) + Price/OI up (1m)`
+                );
               }
             }
     
@@ -280,7 +282,7 @@ class TradingLogic {
       if (m30.length >= 6) {
         const recentVolume3 = sumLastMinutes(m30, 'volume', 3);
         const previousVolume3 = sumLastMinutes(m30, 'volume', 3, 3);
-        volumeExploded3m = recentVolume3 >= 1.8 * previousVolume3;
+        volumeExploded3m = recentVolume3 >= 1.4 * previousVolume3;
       }
     
       const priceChange5m = m30.length >= 6 ? getPercentChange(last(5)?.price, current.price) : null;
@@ -326,7 +328,7 @@ class TradingLogic {
     
       // Funding Trigger
       if (funding <= -0.1 && priceChange1m > 0.1 && oiChange1m > 0.2) {
-        if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG')) this.processSignalAccordingToEnv(symbol, 'LONG', 'Funding -0.1% or less + OI/Price up (1m)');
+        if (this.filterTrade(symbol, 'LONG') && this.passesRsiFilter(symbol, 'LONG')) this.processSignalAccordingToEnv(symbol, 'LONG', 'Funding -0.1% (1m) + OI/Price up (1m)');
       }
     } catch (err) {
       logger.error(`[${symbol}] - Error inside strategyEngine!`);
@@ -656,7 +658,7 @@ class TradingLogic {
     // Decide percentage based on reason or config
     let percentage = config.current.profitPercentage / 100;
     if (reason?.includes('Liquidation')) percentage = percentage * 0.75;
-    else if (reason?.includes('Volume') || reason?.includes('Funding')) percentage = percentage * 2;
+    // else if (reason?.includes('Volume') || reason?.includes('Funding')) percentage = percentage * 2;
   
     // Raw TP calculation
     let rawTP = direction === 'LONG'

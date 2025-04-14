@@ -1,8 +1,8 @@
 {
-  "env": "test",
+  "env": "prod",
   "withDetailedLog": 1,
-  "depositSize": 188.6,
-  "bidPercentage": 5,
+  "depositSize": 213,
+  "bidPercentage": 4.7,
   "profitPercentage": 0.2,
   "tradeDirection": "trend",
   "longsOrShortsOrBoth": "both",
