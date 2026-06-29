@@ -1,9 +1,27 @@
-# Установка и запуск
-(у меня Node.js v20.10.0)
+**Experimental Automated Trading Platform (Personal Sandbox / Learning Project)**
+
+This is a personal experimental MVP created for deep hands-on learning of real-time trading systems.
+
+The main goal was to gain practical experience with:
+- Exchange API integrations
+- WebSocket market data feeds
+- Event-driven architectures and asynchronous workflows
+- Order execution pipelines and state synchronization
+- Automation of manual trading strategies
+
+**Note:** This is not production-grade code. It was built as a sandbox for personal experimentation and skill development rather than a clean, maintainable production system.
+
+---
+
+# Installation and run
+(worked stably with Node.js v20.10.0)
+* update config.json and env variables
 * npm install
 * npm start
 
-# URLs
+---
+
+## URLs
 * Binance
     * Streams:
         * Testnet: 'wss://stream.binancefuture.com/ws' OR 'wss://stream.binancefuture.com/stream?streams=!forceOrder@arr/!ticker@arr'
@@ -12,12 +30,7 @@
         * Testnet 'wss://testnet.binancefuture.com/ws-fapi/v1'
         * Main: 'wss://ws-fapi.binance.com/ws-fapi/v1'
 
-# How it works
-Going by a market trend means the opposite direction from a liquidations.
-Example: when the market goes UP then SELL (SHORT) liquidations get trigerred and we need to BUY.
-По тренду (trend) ИЛИ в отскок (rebound).
-
-# HEDGE MODE
+## HEDGE MODE
 * Open position:
     * Long : positionSide=LONG, side=BUY
     * Short: positionSide=SHORT, side=SELL
@@ -25,11 +38,6 @@ Example: when the market goes UP then SELL (SHORT) liquidations get trigerred an
     * Close long position: positionSide=LONG, side=SELL
     * Close short position: positionSide=SHORT, side=BUY
 
-# Testing
+## Testing
 * To analyze test results:
     * node testing/analyze-results.js
-
-# Run/stop with logs to file
-* nohup npm start &> output10Apr2025__00-58.log &
-* ps -ef | grep node
-* kill ${id}
