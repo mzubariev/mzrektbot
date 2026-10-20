@@ -40,3 +40,4 @@ To run the results analysis script, execute:
 ```bash
 node testing/analyze-results.js
 ```
+![Results](trading-bot-report.png)
